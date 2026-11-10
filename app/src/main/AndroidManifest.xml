@@ -40,6 +40,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- לחיצה ארוכה על האייקון: "פתיחת קיצורים" (גם כשהאייקון פותח ישר את הפקודה הקולית) -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <activity
@@ -47,27 +51,21 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- פקודה קולית: שקופה, רק פותחת את חלון הדיבור ומבצעת -->
+        <!-- "קיצורים קולי": אייקון שני שפותח ישר את הפקודה הקולית. אותו בוחרים בלחיצה הכפולה של הלחצן הצדדי -->
         <activity
             android:name=".VoiceActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:theme="@style/Theme.Kitzurim.Translucent" />
-
-        <!-- אייקון שני, "קיצורים קולי": פותח ישר את הפקודה הקולית. אותו בוחרים בלחיצה הכפולה של הלחצן הצדדי -->
-        <activity-alias
-            android:name=".VoiceLauncher"
-            android:targetActivity=".VoiceActivity"
             android:exported="true"
             android:label="@string/voice_name"
             android:icon="@mipmap/ic_voice"
-            android:roundIcon="@mipmap/ic_voice">
+            android:roundIcon="@mipmap/ic_voice"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Kitzurim.Translucent">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity-alias>
+        </activity>
 
         <activity
             android:name=".PermissionsActivity"

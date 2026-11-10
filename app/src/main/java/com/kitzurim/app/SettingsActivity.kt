@@ -28,6 +28,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Switch
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -125,6 +128,23 @@ fun SettingsScreen(
                         } catch (_: Exception) {
                         }
                     }) { Text("לפתוח את הגדרות הטלפון") }
+                    HorizontalDivider()
+                    Text("אם \"קיצורים קולי\" לא מופיע ברשימה:", fontWeight = FontWeight.Medium)
+                    var voiceFirst by remember { mutableStateOf(Prefs.voiceFirst(ctx)) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("פתיחה ישר לפקודה קולית")
+                            Text(
+                                "אז בוחרים בלחצן הצדדי את \"קיצורים\" הרגיל. לאפליקציה עצמה: לחיצה ארוכה על האייקון ← \"פתיחת קיצורים\"",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = voiceFirst, onCheckedChange = {
+                            voiceFirst = it
+                            Prefs.setVoiceFirst(ctx, it)
+                        })
+                    }
                 }
             }
 

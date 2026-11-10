@@ -62,6 +62,16 @@ class HomeActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // "פתיחה ישר לפקודה קולית": האייקון (והלחצן הצדדי) פותחים את הדיבור.
+        // לאפליקציה עצמה מגיעים מלחיצה ארוכה ← "פתיחת קיצורים"
+        val fromShortcut = intent?.getStringExtra("open_home") == "true" ||
+            intent?.getBooleanExtra("open_home", false) == true
+        val fromLauncher = intent?.action == Intent.ACTION_MAIN
+        if (savedInstanceState == null && fromLauncher && !fromShortcut && Prefs.voiceFirst(this)) {
+            startActivity(Intent(this, VoiceActivity::class.java))
+            finish()
+            return
+        }
         setContent { KitzurimTheme { HomeScreen(resumes.intValue) } }
     }
 }

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- לחיצה ארוכה על אייקון קיצורים -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="open_app"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_open"
+        android:shortcutLongLabel="@string/shortcut_open">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.kitzurim.app"
+            android:targetClass="com.kitzurim.app.HomeActivity">
+            <extra android:name="open_home" android:value="true" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="voice"
+        android:enabled="true"
+        android:icon="@mipmap/ic_voice"
+        android:shortcutShortLabel="@string/voice_name"
+        android:shortcutLongLabel="@string/voice_name">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.kitzurim.app"
+            android:targetClass="com.kitzurim.app.VoiceActivity" />
+    </shortcut>
+</shortcuts>

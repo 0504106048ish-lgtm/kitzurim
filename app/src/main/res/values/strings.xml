@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">קיצורים</string>
     <string name="voice_name">קיצורים קולי</string>
+    <string name="shortcut_open">פתיחת קיצורים</string>
     <string name="auto_send_desc">קיצורים לוחצת בשבילך על \"שלח\" בוואטסאפ, רק אחרי שביקשת לשלוח הודעה (למשל בפקודה קולית). היא לא קוראת ולא שומרת שום דבר.</string>
     <string name="auto_send_label">קיצורים: שליחה אוטומטית</string>
 </resources>
