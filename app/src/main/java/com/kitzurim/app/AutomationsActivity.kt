@@ -1,0 +1,346 @@
+package com.kitzurim.app
+
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+
+/** מסך האוטומציות: מצב נהיגה, שיחות לא מוכרות בלילה, שקט לפי מקום */
+class AutomationsActivity : ComponentActivity() {
+    // כשחוזרים מההגדרות של הטלפון (אחרי אישור הרשאה), המסך מתעדכן
+    private val resumes = mutableIntStateOf(0)
+
+    override fun onResume() {
+        super.onResume()
+        resumes.intValue++
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { KitzurimTheme { AutomationsScreen(resumes.intValue) } }
+    }
+}
+
+private fun granted(ctx: Context, perm: String) =
+    ContextCompat.checkSelfPermission(ctx, perm) == PackageManager.PERMISSION_GRANTED
+
+private fun open(ctx: Context, intent: Intent) {
+    try {
+        ctx.startActivity(intent)
+    } catch (_: Exception) {
+        Actions.toast(ctx, "לא הצלחתי לפתוח את ההגדרות")
+    }
+}
+
+@Composable
+fun AutomationsScreen(resumes: Int) {
+    val ctx = LocalContext.current
+    var refresh by remember { mutableIntStateOf(0) }
+
+    var showCars by remember { mutableStateOf(false) }
+    var reply by remember { mutableStateOf(AutoPrefs.replyText(ctx)) }
+    var placeName by remember { mutableStateOf("") }
+    var placeError by remember { mutableStateOf<String?>(null) }
+    var adding by remember { mutableStateOf(false) }
+
+    val btLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (it) showCars = true
+        refresh++
+    }
+    val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
+    val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (NightCalls.roleHeld(ctx)) AutoPrefs.setNightCallsEnabled(ctx, true)
+        refresh++
+    }
+
+    // ההגדרות וההרשאות נקראות מחדש אחרי כל שינוי, ואחרי חזרה מההגדרות של הטלפון
+    key(resumes, refresh) {
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text("אוטומציות", style = MaterialTheme.typography.headlineMedium)
+            Text("דברים שקורים לבד, בלי ללחוץ על כלום", color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            // ---------- ריצה ברקע ----------
+            val pm = ctx.getSystemService(PowerManager::class.java)
+            val bgOk = pm?.isIgnoringBatteryOptimizations(ctx.packageName) == true
+            Section("ריצה ברקע") {
+                Text(
+                    "סמסונג עוצרת אפליקציות שרצות ברקע. כדי שהאוטומציות יעבדו, צריך לאשר לקיצורים לרוץ בלי הגבלה.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Status(bgOk, "מאושר", "לא מאושר") {
+                    open(
+                        ctx,
+                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + ctx.packageName)),
+                    )
+                }
+            }
+
+            // ---------- מצב נהיגה ----------
+            Section(
+                "🚗 מענה אוטומטי בנהיגה",
+                checked = AutoPrefs.drivingEnabled(ctx),
+                onCheck = { AutoPrefs.setDrivingEnabled(ctx, it); refresh++ },
+            ) {
+                Text(
+                    "כשהטלפון מתחבר לבלוטות' של הרכב, מי שכותב לך בוואטסאפ מקבל תשובה אחת. בקבוצות לא עונים.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Status(Driving.listenerAllowed(ctx), "גישה להתראות: מאושר", "גישה להתראות: לא מאושר") {
+                    open(ctx, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                }
+                if (!Driving.listenerAllowed(ctx)) {
+                    Text(
+                        "אם האפשרות אפורה: הגדרות ← אפליקציות ← קיצורים ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\", ואז שוב כאן.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = {
+                        open(ctx, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + ctx.packageName)))
+                    }) { Text("לפתוח את פרטי האפליקציה") }
+                }
+
+                val car = AutoPrefs.carName(ctx)
+                Text(if (car.isBlank()) "הרכב: עוד לא נבחר" else "הרכב: $car", fontWeight = FontWeight.Medium)
+                OutlinedButton(onClick = {
+                    if (Build.VERSION.SDK_INT >= 31 && !granted(ctx, Manifest.permission.BLUETOOTH_CONNECT)) {
+                        btLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                    } else {
+                        showCars = !showCars
+                    }
+                }) { Text(if (car.isBlank()) "בחירת הרכב" else "החלפת הרכב") }
+                if (showCars) {
+                    val devices = Driving.pairedDevices(ctx)
+                    if (devices.isEmpty()) Text("לא נמצאו מכשירי בלוטות' מחוברים")
+                    devices.forEach { (name, address) ->
+                        Text(
+                            name,
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    AutoPrefs.setCar(ctx, name, address)
+                                    showCars = false
+                                    refresh++
+                                }
+                                .padding(vertical = 10.dp),
+                        )
+                        HorizontalDivider()
+                    }
+                }
+
+                OutlinedTextField(
+                    value = reply,
+                    onValueChange = { reply = it; AutoPrefs.setReplyText(ctx, it) },
+                    label = { Text("התשובה האוטומטית") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SwitchRow("אני נוהג עכשיו (הפעלה ידנית)", AutoPrefs.drivingActive(ctx)) {
+                    AutoPrefs.setDrivingActive(ctx, it)
+                    refresh++
+                }
+            }
+
+            // ---------- שיחות לא מוכרות בלילה ----------
+            Section(
+                "📵 מספרים לא מוכרים בלילה",
+                checked = AutoPrefs.nightCallsEnabled(ctx) && NightCalls.roleHeld(ctx),
+                onCheck = { on ->
+                    if (on && !NightCalls.roleHeld(ctx)) {
+                        if (Build.VERSION.SDK_INT >= 29) {
+                            val rm = ctx.getSystemService(android.app.role.RoleManager::class.java)
+                            rm?.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING)
+                                ?.let { roleLauncher.launch(it) }
+                        } else {
+                            Actions.toast(ctx, "הטלפון הזה ישן מדי בשביל זה")
+                        }
+                    } else {
+                        AutoPrefs.setNightCallsEnabled(ctx, on)
+                        refresh++
+                    }
+                },
+            ) {
+                Text(
+                    "בין 23:00 ל־07:00, שיחה ממספר שלא שמור אצלך נדחית בשקט ונרשמת כאן. אנשי קשר מצלצלים כרגיל.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val rejected = AutoPrefs.rejectedCalls(ctx)
+                if (rejected.isNotEmpty()) {
+                    Text("שיחות שנדחו", fontWeight = FontWeight.Medium)
+                    rejected.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    TextButton(onClick = { AutoPrefs.clearRejected(ctx); refresh++ }) { Text("ניקוי הרשימה") }
+                }
+            }
+
+            // ---------- שקט לפי מקום ----------
+            Section(
+                "🤫 שקט לפי מקום",
+                checked = AutoPrefs.quietEnabled(ctx),
+                onCheck = {
+                    AutoPrefs.setQuietEnabled(ctx, it)
+                    QuietPlaces.register(ctx)
+                    refresh++
+                },
+            ) {
+                Text(
+                    "כשאתה מגיע למקום ששמרת, הטלפון עובר לשקט. כשאתה יוצא, הצלצול חוזר למה שהיה.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val fine = granted(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
+                Status(fine, "מיקום: מאושר", "מיקום: לא מאושר") {
+                    locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+                if (Build.VERSION.SDK_INT >= 29) {
+                    val bg = granted(ctx, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                    Status(bg, "מיקום ברקע: מאושר", "מיקום ברקע: צריך לבחור \"לאפשר כל הזמן\"") {
+                        if (!fine) {
+                            Actions.toast(ctx, "קודם לאשר מיקום")
+                        } else {
+                            locLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        }
+                    }
+                }
+                Status(QuietPlaces.dndAllowed(ctx), "שקט מלא: מאושר", "שקט מלא: לא מאושר (בינתיים רק רטט)") {
+                    open(ctx, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                }
+
+                AutoPrefs.places(ctx).forEach { p ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("📍 " + p.name, Modifier.weight(1f))
+                        IconButton(onClick = {
+                            AutoPrefs.removePlace(ctx, p.id)
+                            QuietPlaces.register(ctx)
+                            refresh++
+                        }) { Icon(Icons.Filled.Delete, contentDescription = "מחיקה") }
+                    }
+                }
+                OutlinedTextField(
+                    value = placeName,
+                    onValueChange = { placeName = it; placeError = null },
+                    label = { Text("שם המקום") },
+                    placeholder = { Text("בית כנסת") },
+                    singleLine = true,
+                    isError = placeError != null,
+                    supportingText = { Text(placeError ?: "צריך להיות במקום עצמו כשמוסיפים אותו") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedButton(onClick = {
+                    when {
+                        placeName.isBlank() -> placeError = "צריך לתת שם למקום"
+                        !fine -> placeError = "קודם לאשר מיקום"
+                        adding -> {}
+                        else -> {
+                            adding = true
+                            QuietPlaces.addCurrentPlace(ctx, placeName.trim()) { ok ->
+                                adding = false
+                                if (ok) {
+                                    Actions.toast(ctx, "המקום נשמר")
+                                    placeName = ""
+                                } else {
+                                    placeError = "לא הצלחתי למצוא את המיקום. לבדוק שהמיקום בטלפון דולק"
+                                }
+                                refresh++
+                            }
+                        }
+                    }
+                }) { Text(if (adding) "מחפש מיקום..." else "הוספת המקום שבו אני נמצא עכשיו") }
+            }
+        }
+    }
+    }
+}
+
+@Composable
+private fun Section(
+    title: String,
+    checked: Boolean? = null,
+    onCheck: (Boolean) -> Unit = {},
+    content: @Composable () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                if (checked != null) Switch(checked = checked, onCheckedChange = onCheck)
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SwitchRow(text: String, checked: Boolean, onCheck: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text, Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheck)
+    }
+}
+
+/** שורת הרשאה: ✓ כשהיא מאושרת, או כפתור "לאשר" כשלא */
+@Composable
+private fun Status(ok: Boolean, okText: String, needText: String, fix: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            if (ok) Icons.Filled.CheckCircle else Icons.Filled.ErrorOutline,
+            contentDescription = null,
+            tint = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+        )
+        Text(if (ok) okText else needText, Modifier.weight(1f).padding(horizontal = 8.dp))
+        if (!ok) TextButton(onClick = fix) { Text("לאשר") }
+    }
+}

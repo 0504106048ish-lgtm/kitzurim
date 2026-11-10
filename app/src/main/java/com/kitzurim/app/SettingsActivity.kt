@@ -1,5 +1,6 @@
 package com.kitzurim.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -115,6 +117,12 @@ fun SettingsScreen(
                 Button(onClick = { if (phoneOk()) onSave(phone, message, home) }) { Text("שמירה") }
                 OutlinedButton(onClick = { if (phoneOk()) onTest(phone, message) }) { Text("בדיקה בוואטסאפ") }
             }
+
+            val ctx = LocalContext.current
+            OutlinedButton(
+                onClick = { ctx.startActivity(Intent(ctx, AutomationsActivity::class.java)) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("⚙️ אוטומציות: נהיגה, לילה, שקט לפי מקום") }
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

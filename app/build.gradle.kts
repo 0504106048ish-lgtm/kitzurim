@@ -58,4 +58,6 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    // שקט לפי מקום: שירות המיקום של הטלפון יודע מתי נכנסת למקום ויצאת ממנו
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
