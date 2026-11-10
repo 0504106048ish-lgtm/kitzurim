@@ -40,14 +40,12 @@ class SettingsActivity : ComponentActivity() {
             KitzurimTheme {
                 SettingsScreen(
                     initialPhone = Prefs.phone(this),
-                    initialMessage = Prefs.message(this),
                     initialHome = Prefs.home(this),
-                    onSave = { phone, message, home ->
-                        Prefs.save(this, phone, message, home)
+                    onSave = { phone, home ->
+                        Prefs.save(this, phone, home)
                         Actions.toast(this, "נשמר")
                         finish()
                     },
-                    onTest = { phone, message -> Actions.openWhatsApp(this, phone, message) },
                 )
             }
         }
@@ -57,18 +55,16 @@ class SettingsActivity : ComponentActivity() {
 @Composable
 fun SettingsScreen(
     initialPhone: String,
-    initialMessage: String,
     initialHome: String,
-    onSave: (String, String, String) -> Unit,
-    onTest: (String, String) -> Unit,
+    onSave: (String, String) -> Unit,
 ) {
     var phone by remember { mutableStateOf(initialPhone) }
-    var message by remember { mutableStateOf(initialMessage) }
     var home by remember { mutableStateOf(initialHome) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    // המספר לא חובה. אם הקלדת, הוא צריך להיות מלא
     fun phoneOk(): Boolean {
-        val ok = Actions.normalizePhone(phone).length >= 11
+        val ok = phone.isBlank() || Actions.normalizePhone(phone).length >= 11
         if (!ok) error = "צריך מספר טלפון מלא, למשל 050-1234567"
         return ok
     }
@@ -93,14 +89,8 @@ fun SettingsScreen(
                 placeholder = { Text("050-1234567") },
                 singleLine = true,
                 isError = error != null,
-                supportingText = { Text(error ?: "הצ'אט הקבוע ייפתח עם המספר הזה") },
+                supportingText = { Text(error ?: "לא חובה. בשביל הפקודה הקולית \"שלח לעצמי...\"") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = message,
-                onValueChange = { message = it },
-                label = { Text("ההודעה המוכנה") },
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
@@ -113,10 +103,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { if (phoneOk()) onSave(phone, message, home) }) { Text("שמירה") }
-                OutlinedButton(onClick = { if (phoneOk()) onTest(phone, message) }) { Text("בדיקה בוואטסאפ") }
-            }
+            Button(onClick = { if (phoneOk()) onSave(phone, home) }) { Text("שמירה") }
 
             val ctx = LocalContext.current
             OutlinedButton(

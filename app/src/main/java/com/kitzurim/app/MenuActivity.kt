@@ -20,13 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.FlashlightOn
-import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -50,11 +45,6 @@ import kotlin.math.sin
 
 /** הכפתורים שבעיגול, לפי הסדר (מלמעלה, עם כיוון השעון) */
 enum class QuickAction(val label: String, val icon: ImageVector) {
-    CHAT("צ'אט", Icons.Filled.Forum),
-    MESSAGE("הודעה מוכנה", Icons.AutoMirrored.Filled.Send),
-    FLASH("פנס", Icons.Filled.FlashlightOn),
-    NOTE("פתק", Icons.Filled.EditNote),
-    CAMERA("מצלמה", Icons.Filled.PhotoCamera),
     HOME("הביתה", Icons.Filled.Home),
     VOICE("פקודה קולית", Icons.Filled.Mic),
 }
@@ -63,11 +53,6 @@ enum class QuickAction(val label: String, val icon: ImageVector) {
 class MenuActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // פעם ראשונה: עוד אין מספר טלפון, אז פותחים קודם את ההגדרות
-        if (Prefs.phone(this).isBlank()) {
-            openSettings()
-            return
-        }
         setContent {
             KitzurimTheme {
                 RadialMenu(

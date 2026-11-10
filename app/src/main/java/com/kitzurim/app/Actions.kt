@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.MediaStore
 import android.widget.Toast
 
 /** מה שכל כפתור בעיגול עושה בפועל */
@@ -15,19 +14,6 @@ object Actions {
      */
     fun run(ctx: Context, action: QuickAction): Boolean {
         when (action) {
-            QuickAction.CHAT, QuickAction.MESSAGE -> {
-                if (Prefs.phone(ctx).isBlank()) {
-                    toast(ctx, "צריך להקליד מספר וואטסאפ בהגדרות")
-                    return false
-                }
-                val text = if (action == QuickAction.MESSAGE) Prefs.message(ctx) else null
-                openWhatsApp(ctx, Prefs.phone(ctx), text)
-            }
-            QuickAction.FLASH -> toggleTorch(ctx)
-            QuickAction.NOTE -> ctx.startActivity(
-                Intent(ctx, NoteActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-            QuickAction.CAMERA -> openCamera(ctx)
             QuickAction.VOICE -> ctx.startActivity(
                 Intent(ctx, VoiceActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
@@ -68,13 +54,6 @@ object Actions {
         }
     }
 
-    fun toggleTorch(ctx: Context) {
-        when (Torch.toggle(ctx)) {
-            true -> toast(ctx, "הפנס נדלק")
-            false -> toast(ctx, "הפנס כבה")
-            null -> toast(ctx, "אי אפשר להדליק את הפנס כרגע")
-        }
-    }
 
     fun navigateHome(ctx: Context, address: String) = navigateTo(ctx, address)
 
@@ -98,15 +77,6 @@ object Actions {
         }
     }
 
-    fun openCamera(ctx: Context) {
-        try {
-            ctx.startActivity(
-                Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        } catch (_: ActivityNotFoundException) {
-            toast(ctx, "לא נמצאה מצלמה")
-        }
-    }
 
     fun toast(ctx: Context, text: String) {
         Toast.makeText(ctx.applicationContext, text, Toast.LENGTH_SHORT).show()

@@ -91,7 +91,6 @@ private fun activeChips(ctx: Context): List<String> {
     }
     val reminders = AutoPrefs.reminders(ctx).size
     if (reminders > 0) chips += if (reminders == 1) "🛒 תזכורת אחת" else "🛒 $reminders תזכורות"
-    if (Torch.on) chips += "🔦 פנס דולק"
     return chips
 }
 
@@ -171,24 +170,10 @@ fun HomeScreen(resumes: Int) {
                     )
                 }
 
-                // פעם ראשונה: עוד אין מספר וואטסאפ
-                if (Prefs.phone(ctx).isBlank()) {
-                    Text(
-                        "להתחלה: להקליד את מספר הוואטסאפ שלך ←",
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(scheme.tertiaryContainer)
-                            .clickable { openSettings() }
-                            .padding(16.dp),
-                        color = scheme.onTertiaryContainer,
-                    )
-                }
-
                 // ---------- האייקונים, שלושה בשורה ----------
                 val tiles: List<Triple<ImageVector, String, () -> Unit>> =
                     QuickAction.entries.map { action ->
-                        val label = if (action == QuickAction.FLASH && Torch.on) "פנס דולק" else action.label
+                        val label = action.label
                         val onClick: () -> Unit = {
                             if (!Actions.run(ctx, action)) openSettings()
                             refresh++
@@ -199,7 +184,7 @@ fun HomeScreen(resumes: Int) {
                 tiles.chunked(3).forEach { row ->
                     Row(Modifier.fillMaxWidth()) {
                         row.forEach { (icon, label, onClick) ->
-                            val lit = label == "פנס דולק"
+                            val lit = false
                             Tile(icon, label, lit, Modifier.weight(1f), onClick)
                         }
                         repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }

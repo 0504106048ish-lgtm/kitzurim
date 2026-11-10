@@ -56,15 +56,6 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- פתק מהיר: חלון קטן מעל המסך, המקלדת נפתחת מיד -->
-        <activity
-            android:name=".NoteActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:windowSoftInputMode="stateVisible|adjustResize"
-            android:theme="@style/Theme.Kitzurim.Translucent" />
-
         <!-- פקודה קולית: שקופה, רק פותחת את חלון הדיבור ומבצעת -->
         <activity
             android:name=".VoiceActivity"

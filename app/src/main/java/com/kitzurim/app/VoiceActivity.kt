@@ -44,8 +44,8 @@ import kotlinx.coroutines.delay
 
 /**
  * פקודה קולית: נפתח חלון הדיבור של גוגל בעברית, ואז מבצעים את מה שאמרת.
- * דוגמאות: "שלח לאמא שאני מגיע בעוד עשר דקות", "נווט הביתה", "תדליק פנס",
- * "תרשום לקנות חלב", "תתקשר לדוד", "תזכיר לי לקנות חלב כשאני ליד שופרסל".
+ * דוגמאות: "שלח לאמא שאני מגיע בעוד עשר דקות", "נווט הביתה",
+ * "תתקשר לדוד", "תזכיר לי לקנות חלב כשאני ליד שופרסל".
  */
 class VoiceActivity : ComponentActivity() {
     private var pending: String? = null
@@ -158,6 +158,12 @@ class VoiceActivity : ComponentActivity() {
         }
         when (cmd) {
             is VoiceCommand.Send -> {
+                if (cmd.toSelf() && Prefs.phone(this).isBlank()) {
+                    Actions.toast(this, "כדי לשלוח לעצמך, צריך להקליד את המספר שלך בהגדרות")
+                    startActivity(Intent(this, SettingsActivity::class.java))
+                    finish()
+                    return
+                }
                 val target = if (cmd.toSelf()) Triple("עצמך", Prefs.phone(this), cmd.words.drop(1))
                 else VoiceCommands.findContact(this, cmd.words)
                 if (target == null) {
@@ -193,12 +199,6 @@ class VoiceActivity : ComponentActivity() {
                 }
             }
             is VoiceCommand.Navigate -> Actions.navigateTo(this, cmd.place)
-            VoiceCommand.Torch -> Actions.toggleTorch(this)
-            VoiceCommand.Camera -> Actions.openCamera(this)
-            is VoiceCommand.Note -> {
-                Prefs.setNotes(this, listOf(cmd.text) + Prefs.notes(this))
-                Actions.toast(this, "📝 נשמר בפתקים: ${cmd.text}")
-            }
             is VoiceCommand.Remind -> {
                 if (cmd.place == null) {
                     Actions.toast(this, "צריך להגיד איפה, למשל: כשאני ליד הסופר")
@@ -223,9 +223,6 @@ sealed class VoiceCommand {
     data class Call(val words: List<String>) : VoiceCommand()
     data object Home : VoiceCommand()
     data class Navigate(val place: String) : VoiceCommand()
-    data object Torch : VoiceCommand()
-    data object Camera : VoiceCommand()
-    data class Note(val text: String) : VoiceCommand()
     data class Remind(val text: String, val place: String?) : VoiceCommand()
     data class Unknown(val heard: String) : VoiceCommand()
 
@@ -236,7 +233,6 @@ object VoiceCommands {
     private val SEND = setOf("שלח", "תשלח", "שלחי", "תשלחי", "כתוב", "תכתוב", "תכתבי", "תגיד", "תגידי", "הודעה")
     private val CALL = setOf("תתקשר", "התקשר", "תתקשרי", "חייג", "תחייג", "תחייגי")
     private val NAV = setOf("נווט", "תנווט", "ניווט", "תנווטי", "סע", "קח", "תיקח")
-    private val NOTE = setOf("תרשום", "רשום", "תרשמי", "פתק", "תזכור")
     private val REMIND = setOf("תזכיר", "תזכירי", "תזכורת", "הזכר")
 
     /** מילים שמתחילות ב-ש אבל ה-ש היא חלק מהמילה (לא "ש" של "שאני מגיע") */
@@ -252,14 +248,11 @@ object VoiceCommands {
         if (first in SEND && rest.isNotEmpty()) return VoiceCommand.Send(stripLamed(rest))
         if (first in CALL && rest.isNotEmpty()) return VoiceCommand.Call(stripLamed(rest))
         if (first in REMIND) return parseRemind(rest)
-        if (first in NOTE && rest.isNotEmpty()) return VoiceCommand.Note(rest.joinToString(" "))
         if ("הביתה" in words || (first in NAV && rest.firstOrNull() in listOf("הביתה", "לבית"))) return VoiceCommand.Home
         if (first in NAV && rest.isNotEmpty()) {
             val place = stripLamed(rest).joinToString(" ")
             return VoiceCommand.Navigate(place)
         }
-        if (words.any { it.contains("פנס") }) return VoiceCommand.Torch
-        if (words.any { it.contains("מצלמה") || it == "תצלם" || it == "צלם" }) return VoiceCommand.Camera
         return VoiceCommand.Unknown(heard)
     }
 
