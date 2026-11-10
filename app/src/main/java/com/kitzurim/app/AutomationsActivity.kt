@@ -179,6 +179,11 @@ fun AutomationsScreen(resumes: Int) {
                         Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + ctx.packageName)),
                     )
                 }
+                // שליחה אוטומטית: בשביל "שלח לאמא ש..." בקול, בלי ללחוץ "שלח"
+                Status(AutoSend.allowed(ctx), "שליחה אוטומטית בוואטסאפ: מאושר", "שליחה אוטומטית בוואטסאפ: לא מאושר") {
+                    Actions.toast(ctx, "בחר \"קיצורים: שליחה אוטומטית\" והפעל")
+                    open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
                 // התראות: בשביל סיכום הנסיעה והתזכורות לפי מקום
                 Status(Notify.allowed(ctx), "התראות: מאושר", "התראות: לא מאושר") {
                     if (Build.VERSION.SDK_INT >= 33) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)

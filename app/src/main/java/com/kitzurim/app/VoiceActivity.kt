@@ -105,9 +105,10 @@ class VoiceActivity : ComponentActivity() {
     private fun startCountdown(name: String, number: String) {
         setContent {
             KitzurimTheme {
-                CallCountdown(
-                    name = name,
-                    number = number,
+                Countdown(
+                    emoji = "📞",
+                    title = "מתקשר ל$name",
+                    detail = number,
                     onCancel = { finish() },
                     onCall = {
                         try {
@@ -115,6 +116,29 @@ class VoiceActivity : ComponentActivity() {
                         } catch (_: SecurityException) {
                             dial(number)
                         }
+                        finish()
+                    },
+                )
+            }
+        }
+    }
+
+    /** "שולח לאמא: אני מגיע… בעוד 3": אחרי 3 שניות הצ'אט נפתח, ושירות הנגישות לוחץ "שלח" */
+    private fun startSendCountdown(name: String, number: String, text: String) {
+        setContent {
+            KitzurimTheme {
+                Countdown(
+                    emoji = "💬",
+                    title = "שולח ל$name",
+                    detail = "\"$text\"",
+                    onCancel = { finish() },
+                    onCall = {
+                        if (AutoSend.allowed(this)) {
+                            AutoSend.arm(this)
+                        } else {
+                            Actions.toast(this, "כדי שזה יישלח לבד: לאשר \"שליחה אוטומטית\" במסך האוטומציות")
+                        }
+                        Actions.openWhatsApp(this, number, text)
                         finish()
                     },
                 )
@@ -140,8 +164,13 @@ class VoiceActivity : ComponentActivity() {
                     Actions.toast(this, "לא מצאתי איש קשר בשם \"${cmd.words.firstOrNull() ?: ""}\"")
                 } else {
                     val text = VoiceCommands.cleanMessage(target.third)
-                    Actions.toast(this, "שולח ל${target.first}")
-                    Actions.openWhatsApp(this, target.second, text)
+                    if (text.isNullOrBlank()) {
+                        // בלי הודעה: רק פותחים את הצ'אט
+                        Actions.openWhatsApp(this, target.second, null)
+                    } else {
+                        startSendCountdown(target.first, target.second, text)
+                        return
+                    }
                 }
             }
             is VoiceCommand.Call -> {
@@ -292,8 +321,9 @@ object VoiceCommands {
     }
 }
 
+/** ספירה לאחור לפני פעולה: אפשר לבטל אם הזיהוי טעה, או ללחוץ "עכשיו" */
 @Composable
-fun CallCountdown(name: String, number: String, onCancel: () -> Unit, onCall: () -> Unit) {
+fun Countdown(emoji: String, title: String, detail: String, onCancel: () -> Unit, onCall: () -> Unit) {
     var seconds by remember { mutableIntStateOf(3) }
     var done by remember { mutableStateOf(false) }
     val callOnce = {
@@ -322,9 +352,9 @@ fun CallCountdown(name: String, number: String, onCancel: () -> Unit, onCall: ()
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("📞", fontSize = 40.sp)
-                Text("מתקשר ל$name", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-                Text(number, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(emoji, fontSize = 40.sp)
+                Text(title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
                 Text(
                     "בעוד $seconds",
                     style = MaterialTheme.typography.displaySmall,
