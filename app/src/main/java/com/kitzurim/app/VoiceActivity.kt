@@ -12,6 +12,35 @@ import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 /**
  * פקודה קולית: נפתח חלון הדיבור של גוגל בעברית, ואז מבצעים את מה שאמרת.
@@ -49,6 +78,50 @@ class VoiceActivity : ComponentActivity() {
         }
     }
 
+    private var pendingCall: Pair<String, String>? = null
+
+    private val callPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        val target = pendingCall
+        pendingCall = null
+        when {
+            target == null -> finish()
+            ok -> startCountdown(target.first, target.second)
+            else -> {
+                // בלי הרשאה: פותחים את החייגן עם המספר, ואתה לוחץ "חייג"
+                dial(target.second)
+                finish()
+            }
+        }
+    }
+
+    private fun canCall() =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+
+    private fun dial(number: String) {
+        startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number")))
+    }
+
+    /** "מתקשר לדוד… בעוד 3": אפשר לבטל אם הזיהוי טעה, ואחרי 3 שניות השיחה מתחילה לבד */
+    private fun startCountdown(name: String, number: String) {
+        setContent {
+            KitzurimTheme {
+                CallCountdown(
+                    name = name,
+                    number = number,
+                    onCancel = { finish() },
+                    onCall = {
+                        try {
+                            startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")))
+                        } catch (_: SecurityException) {
+                            dial(number)
+                        }
+                        finish()
+                    },
+                )
+            }
+        }
+    }
+
     private fun needsContacts(): Boolean =
         ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED
 
@@ -75,9 +148,14 @@ class VoiceActivity : ComponentActivity() {
                 val target = VoiceCommands.findContact(this, cmd.words)
                 if (target == null) {
                     Actions.toast(this, "לא מצאתי איש קשר בשם \"${cmd.words.firstOrNull() ?: ""}\"")
+                } else if (canCall()) {
+                    startCountdown(target.first, target.second)
+                    return
                 } else {
-                    // פותח את החייגן עם המספר. השיחה עצמה מתחילה בלחיצה שלך
-                    startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + target.second)))
+                    // פעם ראשונה: מבקשים הרשאה לבצע שיחות
+                    pendingCall = target.first to target.second
+                    callPermission.launch(Manifest.permission.CALL_PHONE)
+                    return
                 }
             }
             VoiceCommand.Home -> {
@@ -211,5 +289,52 @@ object VoiceCommands {
             if (found != null) return Triple(found.first, found.second, words.drop(n))
         }
         return null
+    }
+}
+
+@Composable
+fun CallCountdown(name: String, number: String, onCancel: () -> Unit, onCall: () -> Unit) {
+    var seconds by remember { mutableIntStateOf(3) }
+    var done by remember { mutableStateOf(false) }
+    val callOnce = {
+        if (!done) {
+            done = true
+            onCall()
+        }
+    }
+    LaunchedEffect(Unit) {
+        while (seconds > 0) {
+            delay(1000)
+            seconds--
+        }
+        callOnce()
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .systemBarsPadding(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.padding(24.dp)) {
+            Column(
+                Modifier.padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("📞", fontSize = 40.sp)
+                Text("מתקשר ל$name", style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                Text(number, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "בעוד $seconds",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = { done = true; onCancel() }) { Text("ביטול") }
+                    Button(onClick = { callOnce() }) { Text("עכשיו") }
+                }
+            }
+        }
     }
 }
