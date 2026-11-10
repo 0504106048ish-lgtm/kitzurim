@@ -1,6 +1,9 @@
 package com.kitzurim.app
 
 import android.Manifest
+import android.app.TimePickerDialog
+import android.provider.ContactsContract
+import java.util.UUID
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -29,6 +32,10 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,6 +87,7 @@ private fun open(ctx: Context, intent: Intent) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AutomationsScreen(resumes: Int) {
     val ctx = LocalContext.current
@@ -99,6 +107,33 @@ fun AutomationsScreen(resumes: Int) {
     val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (NightCalls.roleHeld(ctx)) AutoPrefs.setNightCallsEnabled(ctx, true)
         refresh++
+    }
+    // בחירת איש קשר שלא יקבל מענה אוטומטי (בלי הרשאה לאנשי הקשר: הטלפון נותן רק את מי שבחרת)
+    val contactLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
+        val name = uri?.let {
+            try {
+                ctx.contentResolver.query(it, arrayOf(ContactsContract.Contacts.DISPLAY_NAME), null, null, null)
+                    ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            } catch (_: Exception) {
+                null
+            }
+        }
+        if (name != null) AutoPrefs.addExcluded(ctx, name)
+        refresh++
+    }
+
+    /** בוחרים שעת התחלה ואז שעת סיום, ונוצר טווח שקט לכל ימי השבוע */
+    fun addRule() {
+        TimePickerDialog(ctx, { _, h1, m1 ->
+            TimePickerDialog(ctx, { _, h2, m2 ->
+                AutoPrefs.addRule(
+                    ctx,
+                    QuietRule(UUID.randomUUID().toString(), h1 * 60 + m1, h2 * 60 + m2, QuietRule.ALL_DAYS),
+                )
+                ScheduledQuiet.apply(ctx)
+                refresh++
+            }, (h1 + 1) % 24, m1, true).apply { setTitle("עד איזו שעה?") }.show()
+        }, 8, 0, true).apply { setTitle("מאיזו שעה?") }.show()
     }
 
     // ההגדרות וההרשאות נקראות מחדש אחרי כל שינוי, ואחרי חזרה מההגדרות של הטלפון
@@ -194,6 +229,89 @@ fun AutomationsScreen(resumes: Int) {
                     AutoPrefs.setDrivingActive(ctx, it)
                     refresh++
                 }
+
+                // אנשים שלא מקבלים מענה
+                HorizontalDivider()
+                Text("לא עונים אוטומטית ל:", fontWeight = FontWeight.Medium)
+                val excluded = AutoPrefs.excluded(ctx)
+                if (excluded.isEmpty()) {
+                    Text(
+                        "כולם מקבלים מענה",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                excluded.forEach { name ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🙅 $name", Modifier.weight(1f))
+                        IconButton(onClick = { AutoPrefs.removeExcluded(ctx, name); refresh++ }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "הסרה")
+                        }
+                    }
+                }
+                OutlinedButton(onClick = { contactLauncher.launch(null) }) { Text("הוספת איש קשר") }
+
+                // מי קיבל תשובה
+                HorizontalDivider()
+                Text("מי קיבל תשובה אוטומטית", fontWeight = FontWeight.Medium)
+                val log = AutoPrefs.replyLog(ctx)
+                if (log.isEmpty()) {
+                    Text(
+                        "עוד אף אחד",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    log.forEach { Text("💬 $it", style = MaterialTheme.typography.bodySmall) }
+                    TextButton(onClick = { AutoPrefs.clearReplyLog(ctx); refresh++ }) { Text("ניקוי הרשימה") }
+                }
+            }
+
+            // ---------- שקט לפי שעות קבועות ----------
+            Section(
+                "🕐 שקט לפי שעות",
+                checked = AutoPrefs.scheduleEnabled(ctx),
+                onCheck = {
+                    AutoPrefs.setScheduleEnabled(ctx, it)
+                    ScheduledQuiet.apply(ctx)
+                    refresh++
+                },
+            ) {
+                Text(
+                    "בשעות שקבעת הטלפון עובר לשקט, ובסופן הצלצול חוזר למה שהיה. אפשר לבחור באילו ימים.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Status(QuietPlaces.dndAllowed(ctx), "שקט מלא: מאושר", "שקט מלא: לא מאושר (בינתיים רק רטט)") {
+                    open(ctx, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                }
+                AutoPrefs.rules(ctx).forEach { rule ->
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(ScheduledQuiet.describe(rule), Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                            IconButton(onClick = {
+                                AutoPrefs.removeRule(ctx, rule.id)
+                                ScheduledQuiet.apply(ctx)
+                                refresh++
+                            }) { Icon(Icons.Filled.Delete, contentDescription = "מחיקה") }
+                        }
+                        // הימים: לחיצה מדליקה או מכבה יום
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            ScheduledQuiet.DAY_LETTERS.forEachIndexed { i, letter ->
+                                FilterChip(
+                                    selected = rule.hasDay(i),
+                                    onClick = {
+                                        AutoPrefs.updateRule(ctx, rule.toggleDay(i))
+                                        ScheduledQuiet.apply(ctx)
+                                        refresh++
+                                    },
+                                    label = { Text(letter) },
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider()
+                }
+                OutlinedButton(onClick = { addRule() }) { Text("הוספת שעות שקט") }
             }
 
             // ---------- שיחות לא מוכרות בלילה ----------

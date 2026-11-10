@@ -52,6 +52,8 @@ class ReplyListener : NotificationListenerService() {
 
         val chat = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return
         if (AutoPrefs.alreadyReplied(this, chat)) return
+        // אנשים שבחרת שלא יקבלו מענה אוטומטי
+        if (AutoPrefs.excluded(this).any { it.equals(chat.trim(), ignoreCase = true) }) return
 
         // הכפתור "השב" שבהתראה: ממלאים בו את הטקסט ושולחים
         val action = n.actions?.firstOrNull { !it.remoteInputs.isNullOrEmpty() } ?: return

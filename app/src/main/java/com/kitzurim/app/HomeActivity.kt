@@ -86,6 +86,9 @@ private fun activeChips(ctx: Context): List<String> {
         val n = AutoPrefs.places(ctx).size
         chips += if (n == 1) "🤫 מקום שקט אחד" else "🤫 $n מקומות שקטים"
     }
+    if (AutoPrefs.scheduleEnabled(ctx) && AutoPrefs.rules(ctx).isNotEmpty()) {
+        chips += if (AutoPrefs.inScheduledQuiet(ctx)) "🕐 שעת שקט עכשיו" else "🕐 שעות שקט"
+    }
     if (Torch.on) chips += "🔦 פנס דולק"
     return chips
 }

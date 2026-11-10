@@ -117,5 +117,6 @@ class GeofenceReceiver : BroadcastReceiver() {
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         QuietPlaces.register(ctx)
+        ScheduledQuiet.apply(ctx)
     }
 }

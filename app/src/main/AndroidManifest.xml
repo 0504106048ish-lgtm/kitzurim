@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- שקט לפי שעות: לעבור לשקט בדיוק בשעה שנקבעה -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <!-- להירשם מחדש אחרי הפעלה מחדש של הטלפון -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- לבקש מסמסונג לא לעצור את האוטומציות -->
@@ -92,6 +95,10 @@
         <!-- שקט לפי מקום -->
         <receiver
             android:name=".GeofenceReceiver"
+            android:exported="false" />
+        <!-- שקט לפי שעות -->
+        <receiver
+            android:name=".ScheduleReceiver"
             android:exported="false" />
         <receiver
             android:name=".BootReceiver"

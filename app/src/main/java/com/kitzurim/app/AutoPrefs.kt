@@ -50,7 +50,23 @@ object AutoPrefs {
 
     /** כל צ'אט מקבל תשובה אחת בלבד בכל נסיעה */
     fun alreadyReplied(c: Context, chat: String) = chat in list(c, "replied")
-    fun markReplied(c: Context, chat: String) = setList(c, "replied", list(c, "replied") + chat)
+    fun markReplied(c: Context, chat: String) {
+        setList(c, "replied", list(c, "replied") + chat)
+        // הרשימה שמוצגת במסך: מי קיבל תשובה ומתי (30 האחרונים)
+        setList(c, "reply_log", (listOf("${now()} · $chat") + replyLog(c)).take(30))
+    }
+
+    fun replyLog(c: Context) = list(c, "reply_log")
+    fun clearReplyLog(c: Context) = setList(c, "reply_log", emptyList())
+
+    /** אנשים שלא מקבלים מענה אוטומטי (לפי השם כמו שהוא מופיע בוואטסאפ) */
+    fun excluded(c: Context) = list(c, "excluded")
+    fun addExcluded(c: Context, name: String) {
+        if (name.isNotBlank() && name !in excluded(c)) setList(c, "excluded", excluded(c) + name.trim())
+    }
+    fun removeExcluded(c: Context, name: String) = setList(c, "excluded", excluded(c) - name)
+
+    private fun now(): String = SimpleDateFormat("dd/MM HH:mm", Locale("he")).format(Date())
 
     // ---------- שיחות לא מוכרות בלילה ----------
     fun nightCallsEnabled(c: Context) = sp(c).getBoolean("night_calls", false)
@@ -58,8 +74,7 @@ object AutoPrefs {
 
     fun rejectedCalls(c: Context) = list(c, "rejected")
     fun addRejected(c: Context, number: String) {
-        val time = SimpleDateFormat("dd/MM HH:mm", Locale("he")).format(Date())
-        setList(c, "rejected", (listOf("$time · $number") + rejectedCalls(c)).take(30))
+        setList(c, "rejected", (listOf("${now()} · $number") + rejectedCalls(c)).take(30))
     }
     fun clearRejected(c: Context) = setList(c, "rejected", emptyList())
 
@@ -90,4 +105,44 @@ object AutoPrefs {
     fun enterQuiet(c: Context, previousRinger: Int) =
         sp(c).edit().putBoolean("in_quiet", true).putInt("saved_ringer", previousRinger).apply()
     fun leaveQuiet(c: Context) = sp(c).edit().putBoolean("in_quiet", false).apply()
+
+    // ---------- שקט לפי שעות קבועות ----------
+    fun scheduleEnabled(c: Context) = sp(c).getBoolean("schedule_enabled", false)
+    fun setScheduleEnabled(c: Context, on: Boolean) = sp(c).edit().putBoolean("schedule_enabled", on).apply()
+
+    fun rules(c: Context): List<QuietRule> = list(c, "rules").mapNotNull {
+        try {
+            val o = JSONObject(it)
+            QuietRule(o.getString("id"), o.getInt("start"), o.getInt("end"), o.getInt("days"))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun saveRules(c: Context, rules: List<QuietRule>) = setList(c, "rules", rules.map {
+        JSONObject().put("id", it.id).put("start", it.start).put("end", it.end).put("days", it.days).toString()
+    })
+
+    fun addRule(c: Context, r: QuietRule) = saveRules(c, rules(c) + r)
+    fun updateRule(c: Context, r: QuietRule) = saveRules(c, rules(c).map { if (it.id == r.id) r else it })
+    fun removeRule(c: Context, id: String) = saveRules(c, rules(c).filter { it.id != id })
+
+    fun inScheduledQuiet(c: Context) = sp(c).getBoolean("in_sched_quiet", false)
+    fun scheduledSavedRinger(c: Context) = sp(c).getInt("sched_saved_ringer", 2)
+    fun enterScheduledQuiet(c: Context, previousRinger: Int) =
+        sp(c).edit().putBoolean("in_sched_quiet", true).putInt("sched_saved_ringer", previousRinger).apply()
+    fun leaveScheduledQuiet(c: Context) = sp(c).edit().putBoolean("in_sched_quiet", false).apply()
+}
+
+/**
+ * שעות שקט קבועות. start ו-end בדקות מתחילת היום (08:30 = 510).
+ * days: ביט לכל יום, ראשון = ביט 0 ... שבת = ביט 6. אם end קטן מ-start, השקט נמשך אל תוך הלילה.
+ */
+data class QuietRule(val id: String, val start: Int, val end: Int, val days: Int) {
+    fun hasDay(d: Int) = days and (1 shl d) != 0
+    fun toggleDay(d: Int) = copy(days = days xor (1 shl d))
+
+    companion object {
+        const val ALL_DAYS = 0b1111111
+    }
 }
