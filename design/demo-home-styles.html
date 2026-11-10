@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מסך פתיחה</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{--bg:#f3f2ee;--text:#1f1f1d;--muted:#6b6a65;--border:rgba(0,0,0,.12);--accent:#185FA5;--accentBg:#E6F1FB;--frame:#1f1f1d;--card:#fff}
+@media (prefers-color-scheme: dark){:root{--bg:#1a1a19;--text:#f1efe8;--muted:#b4b2a9;--border:rgba(255,255,255,.14);--accent:#85B7EB;--accentBg:#0C447C;--frame:#d3d1c7;--card:#262624}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;padding:16px}
+.wrap{max-width:1240px;margin:0 auto}
+h1{font-size:20px;font-weight:500;margin:4px 0 4px;text-align:center}
+.sub{font-size:14px;color:var(--muted);text-align:center;margin:0 0 18px}
+.grid{display:flex;flex-wrap:wrap;gap:26px;justify-content:center}
+.opt{display:flex;flex-direction:column;align-items:center;gap:10px;width:286px}
+.lbl{font-size:15px;font-weight:500}
+.desc{font-size:13px;color:var(--muted);text-align:center;line-height:1.5;min-height:40px}
+.rec{font-size:12px;background:var(--accentBg);color:var(--accent);padding:3px 10px;border-radius:8px}
+.ph{position:relative;width:270px;height:560px;border:6px solid var(--frame);border-radius:36px;overflow:hidden;background:#f8f9ff;color:#191c20;font-size:13px}
+.in{position:absolute;inset:0;padding:32px 14px 16px;overflow:hidden}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.hi{font-size:12px;color:#43474e}.ttl{font-size:22px}
+.gear{font-size:22px;color:#43474e}
+.ic{width:40px;height:40px;border-radius:50%;background:#d3e4ff;color:#001c38;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.s{font-size:11px;color:#43474e}
+.t{font-size:14px}
+/* A */
+.ga{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.ca{background:#e6ebf3;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;cursor:pointer}
+.ca.wide{grid-column:span 2;flex-direction:row;align-items:center}
+.ca.on{background:#d3e4ff}.ca.on .ic{background:#2b5ea7;color:#fff}
+/* B */
+.lb{background:#e6ebf3;border-radius:16px;overflow:hidden}
+.rb{display:flex;align-items:center;gap:12px;padding:11px 12px;border-bottom:1px solid #d3d7df;cursor:pointer}
+.rb:last-child{border:none}
+.rb .ti-chevron-left{margin-right:auto;color:#73777f}
+.hdr{font-size:12px;color:#2b5ea7;margin:14px 6px 6px}
+/* C */
+.hero{background:#2b5ea7;color:#fff;border-radius:22px;padding:16px;margin-bottom:16px}
+.hero .s{color:#d3e4ff}
+.chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.chip{background:rgba(255,255,255,.18);border-radius:10px;padding:4px 9px;font-size:11px}
+.gc{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 6px}
+.cc{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;cursor:pointer}
+.cc .ic{width:58px;height:58px;font-size:26px;border-radius:20px}
+/* D */
+.big{background:#d3e4ff;border-radius:20px;padding:16px;display:flex;align-items:center;gap:12px;margin-bottom:10px;cursor:pointer}
+.big .ic{width:52px;height:52px;font-size:26px;background:#2b5ea7;color:#fff}
+.gd{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.cd{background:#e6ebf3;border-radius:14px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;cursor:pointer}
+.cd .ic{width:34px;height:34px;font-size:18px}
+.stat{background:#e6ebf3;border-radius:14px;padding:12px}
+.srow{display:flex;align-items:center;gap:8px;padding:5px 0}
+.dot{width:8px;height:8px;border-radius:50%;background:#2b5ea7}.dot.off{background:#c3c6cf}
+.toast{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);background:#2e3036;color:#eff0f7;font-size:12px;padding:7px 13px;border-radius:14px;opacity:0;transition:opacity .3s;white-space:nowrap;z-index:5}
+.foot{font-size:13px;color:var(--muted);text-align:center;margin-top:22px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>איך תיראה קיצורים בפתיחה</h1>
+<p class="sub">4 סגנונות למסך הראשי. אפשר ללחוץ על הכפתורים בכל אחד.</p>
+<div class="grid">
+
+<div class="opt"><div class="lbl">א. כרטיסים</div><div class="desc">מה שבניתי עכשיו. כרטיס גדול לכל פעולה, עם הסבר קצר.</div>
+<div class="ph"><div class="in">
+<div class="top"><div><div class="hi">בוקר טוב</div><div class="ttl">קיצורים</div></div><i class="ti ti-settings gear"></i></div>
+<div class="ga" id="A"></div></div><div class="toast"></div></div></div>
+
+<div class="opt"><div class="lbl">ב. רשימה מסודרת</div><div class="desc">כמו מסך ההגדרות של סמסונג. שורות בקבוצות, הכול נקי ומסודר.</div>
+<div class="ph"><div class="in">
+<div class="top"><div><div class="hi">בוקר טוב</div><div class="ttl">קיצורים</div></div><i class="ti ti-settings gear"></i></div>
+<div class="hdr">פעולות מהירות</div><div class="lb" id="B1"></div>
+<div class="hdr">אוטומטי</div><div class="lb" id="B2"></div></div><div class="toast"></div></div></div>
+
+<div class="opt"><div class="lbl">ג. פס עליון + אייקונים</div><div class="desc">פס צבעוני למעלה שמראה מה פעיל עכשיו, ומתחתיו אייקונים גדולים כמו מסך בית.</div>
+<div class="ph"><div class="in">
+<div class="top"><div class="ttl">קיצורים</div><i class="ti ti-settings gear"></i></div>
+<div class="hero"><div class="t">בוקר טוב 👋</div><div class="s">יום שלישי, 10 בנובמבר</div>
+<div class="chips"><span class="chip">🚗 מענה בנהיגה</span><span class="chip">🤫 2 מקומות שקטים</span><span class="chip">📵 לילה</span></div></div>
+<div class="gc" id="C"></div></div><div class="toast"></div></div></div>
+
+<div class="opt"><div class="lbl">ד. לוח בקרה</div><div class="desc">הפעולה הכי חשובה בגדול למעלה, השאר בשורה קטנה, ומתחת מצב האוטומציות במבט אחד.</div>
+<div class="ph"><div class="in">
+<div class="top"><div><div class="hi">בוקר טוב</div><div class="ttl">קיצורים</div></div><i class="ti ti-settings gear"></i></div>
+<div class="big" id="Dbig"><div class="ic"><i class="ti ti-messages"></i></div><div><div class="t">צ'אט עם עצמי</div><div class="s">פתיחה מיידית בוואטסאפ</div></div></div>
+<div class="gd" id="D"></div>
+<div class="stat"><div class="t" style="margin-bottom:6px">אוטומציות</div>
+<div class="srow"><span class="dot"></span><span style="flex:1">מענה בנהיגה</span><span class="s">פעיל</span></div>
+<div class="srow"><span class="dot"></span><span style="flex:1">מספרים לא מוכרים בלילה</span><span class="s">פעיל</span></div>
+<div class="srow"><span class="dot off"></span><span style="flex:1">שקט לפי מקום</span><span class="s">כבוי</span></div>
+</div></div><div class="toast"></div></div></div>
+
+</div>
+<p class="foot"><b>ההמלצה שלי: ד. לוח בקרה.</b> הצ'אט, שהוא הדבר שאתה הכי משתמש בו, נמצא בגדול ובמקום הכי נוח. כל השאר נכנס במסך אחד בלי לגלול, ורואים מיד אילו אוטומציות עובדות.</p>
+</div>
+<script>
+const A=[['ti-messages','צ\'אט','הצ\'אט עם עצמך','נפתח הצ\'אט בוואטסאפ'],['ti-send','הודעה מוכנה','הודעה כתובה מראש','נפתח עם "שלום לך!"'],['ti-bulb','פנס','הדלקה וכיבוי','flash'],['ti-notes','פתק','לרשום משהו מהר','חלון פתק נפתח'],['ti-camera','מצלמה','צילום מהיר','המצלמה נפתחת'],['ti-home','הביתה','ניווט בוויז','ניווט הביתה נפתח']];
+function toast(el,t){const ts=el.closest('.ph').querySelector('.toast');ts.textContent=t;ts.style.opacity=1;clearTimeout(ts._t);ts._t=setTimeout(()=>ts.style.opacity=0,1500)}
+function act(el,a){if(a[3]!=='flash'){toast(el,a[3]);return}const on=el.classList.toggle('on');toast(el,on?'הפנס נדלק':'הפנס כבה')}
+const ga=document.getElementById('A');
+A.forEach(a=>{const d=document.createElement('div');d.className='ca';d.innerHTML=`<div class="ic"><i class="ti ${a[0]}"></i></div><div><div class="t">${a[1]}</div><div class="s">${a[2]}</div></div>`;d.onclick=()=>act(d,a);ga.appendChild(d)});
+const w=document.createElement('div');w.className='ca wide on';w.innerHTML='<div class="ic"><i class="ti ti-automation"></i></div><div><div class="t">אוטומציות</div><div class="s">2 פעילות עכשיו</div></div>';w.onclick=()=>toast(w,'מסך האוטומציות נפתח');ga.appendChild(w);
+const b1=document.getElementById('B1');
+A.forEach(a=>{const r=document.createElement('div');r.className='rb';r.innerHTML=`<div class="ic"><i class="ti ${a[0]}"></i></div><div><div class="t">${a[1]}</div><div class="s">${a[2]}</div></div><i class="ti ti-chevron-left"></i>`;r.onclick=()=>toast(r,a[3]==='flash'?'הפנס נדלק':a[3]);b1.appendChild(r)});
+const b2=document.getElementById('B2');
+[['ti-car','מענה בנהיגה','פעיל'],['ti-phone-off','מספרים לא מוכרים בלילה','פעיל'],['ti-map-pin','שקט לפי מקום','כבוי']].forEach(a=>{const r=document.createElement('div');r.className='rb';r.innerHTML=`<div class="ic"><i class="ti ${a[0]}"></i></div><div><div class="t">${a[1]}</div><div class="s">${a[2]}</div></div><i class="ti ti-chevron-left"></i>`;r.onclick=()=>toast(r,'מסך האוטומציות נפתח');b2.appendChild(r)});
+const gc=document.getElementById('C');
+[...A,['ti-automation','אוטומציות','','מסך האוטומציות נפתח']].forEach(a=>{const d=document.createElement('div');d.className='cc';d.innerHTML=`<div class="ic"><i class="ti ${a[0]}"></i></div><span>${a[1]}</span>`;d.onclick=()=>toast(d,a[3]==='flash'?'הפנס נדלק':a[3]);gc.appendChild(d)});
+const gd=document.getElementById('D');
+A.slice(1).forEach(a=>{const d=document.createElement('div');d.className='cd';d.innerHTML=`<div class="ic"><i class="ti ${a[0]}"></i></div><span>${a[1]}</span>`;d.onclick=()=>toast(d,a[3]==='flash'?'הפנס נדלק':a[3]);gd.appendChild(d)});
+gd.style.gridTemplateColumns='repeat(5,1fr)';
+const big=document.getElementById('Dbig');big.onclick=()=>toast(big,'נפתח הצ\'אט בוואטסאפ');
+</script>
+</body>
+</html>

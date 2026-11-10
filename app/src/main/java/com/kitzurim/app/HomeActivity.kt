@@ -6,9 +6,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,13 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoMode
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,13 +38,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
-/** המסך הראשי: נכנסים לאפליקציה ובוחרים פעולה. (הלחצן הצדדי והעיגול יחוברו בהמשך) */
+/** המסך הראשי: פס עליון עם מה שפעיל עכשיו, ומתחתיו אייקונים גדולים. (הלחצן הצדדי והעיגול יחוברו בהמשך) */
 class HomeActivity : ComponentActivity() {
     private val resumes = mutableIntStateOf(0)
 
@@ -58,15 +65,6 @@ class HomeActivity : ComponentActivity() {
     }
 }
 
-private fun describe(a: QuickAction, torchOn: Boolean): String = when (a) {
-    QuickAction.CHAT -> "הצ'אט עם עצמך בוואטסאפ"
-    QuickAction.MESSAGE -> "הודעה כתובה מראש"
-    QuickAction.FLASH -> if (torchOn) "דולק עכשיו" else "הדלקה וכיבוי"
-    QuickAction.NOTE -> "לרשום משהו מהר"
-    QuickAction.CAMERA -> "צילום מהיר"
-    QuickAction.HOME -> "ניווט בוויז"
-}
-
 private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
     in 5..11 -> "בוקר טוב"
     in 12..16 -> "צהריים טובים"
@@ -74,88 +72,122 @@ private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_
     else -> "לילה טוב"
 }
 
-private fun activeAutomations(ctx: Context): Int = listOf(
-    AutoPrefs.drivingEnabled(ctx),
-    AutoPrefs.nightCallsEnabled(ctx) && NightCalls.roleHeld(ctx),
-    AutoPrefs.quietEnabled(ctx),
-).count { it }
+/** "יום שלישי, 10 בנובמבר" */
+private fun today(): String = SimpleDateFormat("EEEE, d 'ב'MMMM", Locale("he")).format(Date())
 
+/** מה פעיל עכשיו, לפס העליון */
+private fun activeChips(ctx: Context): List<String> {
+    val chips = mutableListOf<String>()
+    if (AutoPrefs.drivingEnabled(ctx)) {
+        chips += if (AutoPrefs.drivingActive(ctx)) "🚗 נוהג עכשיו" else "🚗 מענה בנהיגה"
+    }
+    if (AutoPrefs.nightCallsEnabled(ctx) && NightCalls.roleHeld(ctx)) chips += "📵 לילה"
+    if (AutoPrefs.quietEnabled(ctx)) {
+        val n = AutoPrefs.places(ctx).size
+        chips += if (n == 1) "🤫 מקום שקט אחד" else "🤫 $n מקומות שקטים"
+    }
+    if (Torch.on) chips += "🔦 פנס דולק"
+    return chips
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(resumes: Int) {
     val ctx = LocalContext.current
     var refresh by remember { mutableIntStateOf(0) }
     val openSettings = { ctx.startActivity(Intent(ctx, SettingsActivity::class.java)) }
+    val openAutomations = { ctx.startActivity(Intent(ctx, AutomationsActivity::class.java)) }
+    val scheme = MaterialTheme.colorScheme
 
     key(resumes, refresh) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Surface(Modifier.fillMaxSize(), color = scheme.background) {
             Column(
                 Modifier
                     .fillMaxSize()
                     .systemBarsPadding()
                     .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(greeting(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("קיצורים", style = MaterialTheme.typography.headlineMedium)
-                    }
+                    Text("קיצורים", Modifier.weight(1f), style = MaterialTheme.typography.headlineSmall)
                     IconButton(onClick = openSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "הגדרות")
                     }
                 }
 
+                // ---------- הפס העליון ----------
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(scheme.primary)
+                        .clickable { openAutomations() }
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text("${greeting()} 👋", color = scheme.onPrimary, style = MaterialTheme.typography.titleLarge)
+                    Text(today(), color = scheme.onPrimary.copy(alpha = 0.8f))
+                    Spacer(Modifier.size(8.dp))
+                    val chips = activeChips(ctx)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        (chips.ifEmpty { listOf("אין אוטומציות פעילות · להפעלה ←") }).forEach {
+                            Text(
+                                it,
+                                Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.White.copy(alpha = 0.2f))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                color = scheme.onPrimary,
+                                fontSize = 13.sp,
+                            )
+                        }
+                    }
+                }
+
                 // פעם ראשונה: עוד אין מספר וואטסאפ
                 if (Prefs.phone(ctx).isBlank()) {
-                    Card(
-                        onClick = openSettings,
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            "להתחלה: להקליד את מספר הוואטסאפ שלך ←",
-                            Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        )
-                    }
+                    Text(
+                        "להתחלה: להקליד את מספר הוואטסאפ שלך ←",
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(scheme.tertiaryContainer)
+                            .clickable { openSettings() }
+                            .padding(16.dp),
+                        color = scheme.onTertiaryContainer,
+                    )
                 }
 
-                // הפעולות, שתיים בשורה
-                QuickAction.entries.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        pair.forEach { action ->
-                            val highlighted = action == QuickAction.FLASH && Torch.on
-                            ActionCard(
-                                icon = action.icon,
-                                title = if (highlighted) "פנס דולק" else action.label,
-                                subtitle = describe(action, Torch.on),
-                                highlighted = highlighted,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                if (!Actions.run(ctx, action)) openSettings()
-                                refresh++
-                            }
+                // ---------- האייקונים, שלושה בשורה ----------
+                val tiles: List<Triple<ImageVector, String, () -> Unit>> =
+                    QuickAction.entries.map { action ->
+                        val label = if (action == QuickAction.FLASH && Torch.on) "פנס דולק" else action.label
+                        val onClick: () -> Unit = {
+                            if (!Actions.run(ctx, action)) openSettings()
+                            refresh++
                         }
-                        if (pair.size == 1) Spacer(Modifier.weight(1f))
+                        Triple(action.icon, label, onClick)
+                    } + Triple(Icons.Filled.AutoMode, "אוטומציות", openAutomations)
+
+                tiles.chunked(3).forEach { row ->
+                    Row(Modifier.fillMaxWidth()) {
+                        row.forEach { (icon, label, onClick) ->
+                            val lit = label == "פנס דולק"
+                            Tile(icon, label, lit, Modifier.weight(1f), onClick)
+                        }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
-
-                // אוטומציות
-                val active = activeAutomations(ctx)
-                ActionCard(
-                    icon = Icons.Filled.AutoMode,
-                    title = "אוטומציות",
-                    subtitle = if (active == 0) "נהיגה, לילה, שקט לפי מקום" else "$active פעילות עכשיו",
-                    highlighted = active > 0,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { ctx.startActivity(Intent(ctx, AutomationsActivity::class.java)) }
 
                 Text(
                     "בהמשך: פתיחה מהירה בלחיצה כפולה על הלחצן הצדדי",
-                    Modifier.fillMaxWidth().padding(top = 8.dp),
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = scheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -163,40 +195,32 @@ fun HomeScreen(resumes: Int) {
     }
 }
 
+/** אייקון גדול עם שם מתחתיו, כמו במסך הבית של הטלפון */
 @Composable
-private fun ActionCard(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    highlighted: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
+private fun Tile(icon: ImageVector, label: String, lit: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    Card(
-        onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = if (highlighted) scheme.primaryContainer else scheme.surfaceContainerHigh,
-        ),
-        modifier = modifier,
+    Column(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(
-                Modifier
-                    .size(46.dp)
-                    .background(if (highlighted) scheme.primary else scheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = if (highlighted) scheme.onPrimary else scheme.onPrimaryContainer,
-                )
-            }
-            Column {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-            }
+        Box(
+            Modifier
+                .size(66.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(if (lit) scheme.primary else scheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (lit) scheme.onPrimary else scheme.onPrimaryContainer,
+                modifier = Modifier.size(30.dp),
+            )
         }
+        Text(label, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, maxLines = 1)
     }
 }
