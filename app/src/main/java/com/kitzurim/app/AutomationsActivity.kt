@@ -1,6 +1,10 @@
 package com.kitzurim.app
 
 import android.Manifest
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import android.app.Activity
 import androidx.activity.result.contract.ActivityResultContract
 import android.app.TimePickerDialog
@@ -136,6 +140,10 @@ fun AutomationsScreen(resumes: Int) {
     var remError by remember { mutableStateOf<String?>(null) }
     var remBusy by remember { mutableStateOf(false) }
 
+    // איזו תיקייה פתוחה ("" = רשימת התיקיות). כפתור "חזרה" של הטלפון חוזר לרשימה
+    var folder by rememberSaveable { mutableStateOf("") }
+    BackHandler(enabled = folder.isNotEmpty()) { folder = "" }
+
     /** בוחרים שעת התחלה ואז שעת סיום, ונוצר טווח שקט לכל ימי השבוע */
     fun addRule() {
         TimePickerDialog(ctx, { _, h1, m1 ->
@@ -162,34 +170,51 @@ fun AutomationsScreen(resumes: Int) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("אוטומציות", style = MaterialTheme.typography.headlineMedium)
-            Text("דברים שקורים לבד, בלי ללחוץ על כלום", color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-            // ---------- ריצה ברקע ----------
-            val pm = ctx.getSystemService(PowerManager::class.java)
-            val bgOk = pm?.isIgnoringBatteryOptimizations(ctx.packageName) == true
-            Section("ריצה ברקע") {
-                Text(
-                    "סמסונג עוצרת אפליקציות שרצות ברקע. כדי שהאוטומציות יעבדו, צריך לאשר לקיצורים לרוץ בלי הגבלה.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Status(bgOk, "ריצה ברקע: מאושר", "ריצה ברקע: לא מאושר") {
-                    open(
-                        ctx,
-                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + ctx.packageName)),
-                    )
-                }
-                // שליחה אוטומטית: בשביל "שלח לאמא ש..." בקול, בלי ללחוץ "שלח"
-                Status(AutoSend.allowed(ctx), "שליחה אוטומטית בוואטסאפ: מאושר", "שליחה אוטומטית בוואטסאפ: לא מאושר") {
-                    Actions.toast(ctx, "בחר \"קיצורים: שליחה אוטומטית\" והפעל")
-                    open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                }
-                // התראות: בשביל סיכום הנסיעה והתזכורות לפי מקום
-                Status(Notify.allowed(ctx), "התראות: מאושר", "התראות: לא מאושר") {
-                    if (Build.VERSION.SDK_INT >= 33) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            val current = FOLDERS.firstOrNull { it.id == folder }
+            if (current == null) {
+                Text("אוטומציות", style = MaterialTheme.typography.headlineMedium)
+                Text("דברים שקורים לבד, בלי ללחוץ על כלום", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { folder = "" }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "חזרה")
+                    }
+                    Text(current.emoji + " " + current.title, style = MaterialTheme.typography.headlineSmall)
                 }
             }
 
+            // ---------- ההרשאות הכלליות: מופיעות רק כשחסר משהו, ונעלמות כשמאשרים ----------
+            val pm = ctx.getSystemService(PowerManager::class.java)
+            val bgOk = pm?.isIgnoringBatteryOptimizations(ctx.packageName) == true
+            val sendOk = AutoSend.allowed(ctx)
+            val notifOk = Notify.allowed(ctx)
+            if (current == null && (!bgOk || !sendOk || !notifOk)) {
+                Section("⚠️ כדי שהכול יעבוד, צריך לאשר") {
+                    Status(bgOk, "", "ריצה ברקע (סמסונג עוצרת אפליקציות ברקע)") {
+                        open(
+                            ctx,
+                            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + ctx.packageName)),
+                        )
+                    }
+                    Status(notifOk, "", "התראות (לסיכום הנסיעה ולתזכורות)") {
+                        if (Build.VERSION.SDK_INT >= 33) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                    Status(sendOk, "", "שליחה אוטומטית בוואטסאפ (לפקודות קוליות)") {
+                        Actions.toast(ctx, "בחר \"קיצורים: שליחה אוטומטית\" והפעל")
+                        open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }
+                    if (!sendOk || !Driving.listenerAllowed(ctx)) RestrictedHelp(ctx)
+                }
+            }
+
+            // ---------- רשימת התיקיות ----------
+            if (current == null) {
+                FOLDERS.forEach { f ->
+                    FolderRow(f.emoji, f.title, folderStatus(ctx, f.id)) { folder = f.id }
+                }
+            }
+
+            if (folder == "drive") {
             // ---------- מצב נהיגה ----------
             Section(
                 "🚗 מענה אוטומטי בנהיגה",
@@ -200,19 +225,10 @@ fun AutomationsScreen(resumes: Int) {
                     "כשהטלפון מתחבר לבלוטות' של הרכב, מי שכותב לך בוואטסאפ מקבל תשובה אחת. בקבוצות לא עונים.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Status(Driving.listenerAllowed(ctx), "גישה להתראות: מאושר", "גישה להתראות: לא מאושר") {
+                Status(Driving.listenerAllowed(ctx), "", "גישה להתראות (לקרוא הודעות וואטסאפ)") {
                     open(ctx, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                 }
-                if (!Driving.listenerAllowed(ctx)) {
-                    Text(
-                        "אם האפשרות אפורה: הגדרות ← אפליקציות ← קיצורים ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\", ואז שוב כאן.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(onClick = {
-                        open(ctx, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + ctx.packageName)))
-                    }) { Text("לפתוח את פרטי האפליקציה") }
-                }
+                if (!Driving.listenerAllowed(ctx)) RestrictedHelp(ctx)
 
                 val car = AutoPrefs.carName(ctx)
                 Text(if (car.isBlank()) "הרכב: עוד לא נבחר" else "הרכב: $car", fontWeight = FontWeight.Medium)
@@ -298,7 +314,9 @@ fun AutomationsScreen(resumes: Int) {
                     TextButton(onClick = { AutoPrefs.clearReplyLog(ctx); refresh++ }) { Text("ניקוי הרשימה") }
                 }
             }
+            }
 
+            if (folder == "quiet") {
             // ---------- שקט לפי שעות קבועות ----------
             Section(
                 "🕐 שקט לפי שעות",
@@ -345,7 +363,9 @@ fun AutomationsScreen(resumes: Int) {
                 }
                 OutlinedButton(onClick = { addRule() }) { Text("הוספת שעות שקט") }
             }
+            }
 
+            if (folder == "remind") {
             // ---------- תזכורת לפי מקום ----------
             Section("🛒 תזכורות לפי מקום") {
                 Text(
@@ -355,7 +375,13 @@ fun AutomationsScreen(resumes: Int) {
                 val fineOk = granted(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
                 val bgLocOk = Build.VERSION.SDK_INT < 29 || granted(ctx, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                 if (!fineOk || !bgLocOk) {
-                    Status(false, "", "צריך לאשר מיקום \"כל הזמן\" (בכרטיס שקט לפי מקום)") {}
+                    Status(false, "", "מיקום \"לאפשר כל הזמן\"") {
+                        if (!fineOk) {
+                            locLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        } else if (Build.VERSION.SDK_INT >= 29) {
+                            locLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        }
+                    }
                 }
                 AutoPrefs.reminders(ctx).forEach { r ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -435,7 +461,9 @@ fun AutomationsScreen(resumes: Int) {
                     }) { Text("במקום שבו אני עכשיו") }
                 }
             }
+            }
 
+            if (folder == "night") {
             // ---------- שיחות לא מוכרות בלילה ----------
             Section(
                 "📵 מספרים לא מוכרים בלילה",
@@ -466,7 +494,9 @@ fun AutomationsScreen(resumes: Int) {
                     TextButton(onClick = { AutoPrefs.clearRejected(ctx); refresh++ }) { Text("ניקוי הרשימה") }
                 }
             }
+            }
 
+            if (folder == "quiet") {
             // ---------- שקט לפי מקום ----------
             Section(
                 "🤫 שקט לפי מקום",
@@ -540,6 +570,7 @@ fun AutomationsScreen(resumes: Int) {
                     }
                 }) { Text(if (adding) "מחפש מיקום..." else "הוספת המקום שבו אני נמצא עכשיו") }
             }
+            }
         }
     }
     }
@@ -571,18 +602,80 @@ private fun SwitchRow(text: String, checked: Boolean, onCheck: (Boolean) -> Unit
     }
 }
 
-/** שורת הרשאה: ✓ כשהיא מאושרת, או כפתור "לאשר" כשלא */
+/** שורת הרשאה שחסרה, עם כפתור "לאשר". כשההרשאה מאושרת, השורה נעלמת */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 private fun Status(ok: Boolean, okText: String, needText: String, fix: () -> Unit) {
+    if (ok) return
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            if (ok) Icons.Filled.CheckCircle else Icons.Filled.ErrorOutline,
-            contentDescription = null,
-            tint = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-        )
-        Text(if (ok) okText else needText, Modifier.weight(1f).padding(horizontal = 8.dp))
-        if (!ok) TextButton(onClick = fix) { Text("לאשר") }
+        Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+        Text(needText, Modifier.weight(1f).padding(horizontal = 8.dp))
+        TextButton(onClick = fix) { Text("לאשר") }
     }
+}
+
+/** תיקייה במסך האוטומציות */
+private data class Folder(val id: String, val emoji: String, val title: String)
+
+private val FOLDERS = listOf(
+    Folder("drive", "🚗", "נהיגה"),
+    Folder("quiet", "🤫", "שקט (לפי מקום ולפי שעות)"),
+    Folder("night", "📵", "שיחות בלילה"),
+    Folder("remind", "🛒", "תזכורות לפי מקום"),
+)
+
+/** שורת המצב שמתחת לשם התיקייה */
+private fun folderStatus(ctx: Context, id: String): String = when (id) {
+    "drive" -> when {
+        !AutoPrefs.drivingEnabled(ctx) -> "כבוי"
+        AutoPrefs.drivingActive(ctx) -> "פעיל · נוהג עכשיו"
+        AutoPrefs.carName(ctx).isBlank() -> "פעיל · עוד לא נבחר רכב"
+        else -> "פעיל · " + AutoPrefs.carName(ctx)
+    }
+    "quiet" -> {
+        val parts = mutableListOf<String>()
+        if (AutoPrefs.quietEnabled(ctx)) parts += "${AutoPrefs.places(ctx).size} מקומות"
+        if (AutoPrefs.scheduleEnabled(ctx)) parts += "${AutoPrefs.rules(ctx).size} טווחי שעות"
+        if (parts.isEmpty()) "כבוי" else "פעיל · " + parts.joinToString(" · ")
+    }
+    "night" -> if (AutoPrefs.nightCallsEnabled(ctx) && NightCalls.roleHeld(ctx)) "פעיל · 23:00–07:00" else "כבוי"
+    "remind" -> AutoPrefs.reminders(ctx).size.let { if (it == 0) "אין תזכורות" else "$it תזכורות" }
+    else -> ""
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FolderRow(emoji: String, title: String, status: String, onClick: () -> Unit) {
+    val on = status.startsWith("פעיל") || status.endsWith("תזכורות") && !status.startsWith("אין")
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(emoji, style = MaterialTheme.typography.headlineSmall)
+            Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
+        }
+    }
+}
+
+/** מה לעשות כשאנדרואיד או סמסונג חוסמים את האישור ("האפליקציה לא תקבל גישה") */
+@Composable
+private fun RestrictedHelp(ctx: Context) {
+    Text(
+        "אם כתוב \"האפליקציה לא תקבל גישה\" או שהאפשרות אפורה:\n" +
+            "1. הגדרות ← אפליקציות ← קיצורים ← ⋮ למעלה ← \"אפשר הגדרות מוגבלות\"\n" +
+            "2. אם אין ⋮: הגדרות ← אבטחה ופרטיות ← \"חסימה אוטומטית\" ← לכבות, לאשר, ואז אפשר להדליק שוב",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    TextButton(onClick = {
+        open(ctx, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + ctx.packageName)))
+    }) { Text("לפתוח את פרטי האפליקציה") }
 }
 
 /** בחירת מספר טלפון מאנשי הקשר (מחזיר גם את השם וגם את המספר, בלי הרשאה לכל אנשי הקשר) */
