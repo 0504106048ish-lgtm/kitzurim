@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -165,6 +166,69 @@ fun AutomationsScreen(resumes: Int) {
         }, 8, 0, true).apply { setTitle("מאיזו שעה?") }.show()
     }
 
+    // ---------- "לאשר הכול": פותח כל אישור שחסר, אחד אחרי השני ----------
+    // ההרשאות הרגילות קופצות יחד, ובכל הרשאה שיש לה מסך הגדרות משלה,
+    // כשחוזרים לאפליקציה נפתח מיד המסך של הבאה. כל אישור נשאל פעם אחת בכל סבב
+    var wizard by rememberSaveable { mutableStateOf(false) }
+    var tried by rememberSaveable { mutableStateOf("") }
+    val multiLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+
+    val runtimePerms = buildList {
+        add(Manifest.permission.READ_CONTACTS)
+        add(Manifest.permission.CALL_PHONE)
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+        if (Build.VERSION.SDK_INT >= 31) add(Manifest.permission.BLUETOOTH_CONNECT)
+    }
+
+
+    val steps = listOf(
+        Step("runtime", { runtimePerms.any { !granted(ctx, it) } }) {
+            multiLauncher.launch(runtimePerms.filter { !granted(ctx, it) }.toTypedArray())
+        },
+        Step("bgloc", {
+            Build.VERSION.SDK_INT >= 29 && granted(ctx, Manifest.permission.ACCESS_FINE_LOCATION) &&
+                !granted(ctx, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }) {
+            Actions.toast(ctx, "לבחור \"לאפשר כל הזמן\" ולחזור")
+            locLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        },
+        Step("battery", { ctx.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(ctx.packageName) != true }) {
+            open(ctx, Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + ctx.packageName)))
+        },
+        Step("dnd", { !QuietPlaces.dndAllowed(ctx) }) {
+            Actions.toast(ctx, "להפעיל את \"קיצורים\" ולחזור")
+            open(ctx, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+        },
+        Step("listener", { !Driving.listenerAllowed(ctx) }) {
+            Actions.toast(ctx, "להפעיל את \"קיצורים\" ולחזור")
+            open(ctx, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        },
+        Step("accessibility", { !AutoSend.allowed(ctx) }) {
+            Actions.toast(ctx, "לבחור \"קיצורים: שליחה אוטומטית\", להפעיל ולחזור")
+            open(ctx, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        },
+    )
+    val missingCount = steps.count { it.missing() }
+
+    fun nextStep() {
+        val done = tried.split(",").filter { it.isNotBlank() }
+        val step = steps.firstOrNull { it.missing() && it.id !in done }
+        if (step == null) {
+            wizard = false
+            tried = ""
+            val left = steps.count { it.missing() }
+            Actions.toast(ctx, if (left == 0) "הכול מאושר ✓" else "נשארו $left אישורים. אפשר ללחוץ שוב")
+            refresh++
+        } else {
+            tried = (done + step.id).joinToString(",")
+            step.launch()
+        }
+    }
+
+    // חזרנו לאפליקציה (מאישור או ממסך הגדרות): ממשיכים לאישור הבא
+    LaunchedEffect(resumes) { if (wizard) nextStep() }
+
     // ההגדרות וההרשאות נקראות מחדש אחרי כל שינוי, ואחרי חזרה מההגדרות של הטלפון
     key(resumes, refresh) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -195,8 +259,20 @@ fun AutomationsScreen(resumes: Int) {
             val bgOk = pm?.isIgnoringBatteryOptimizations(ctx.packageName) == true
             val sendOk = AutoSend.allowed(ctx)
             val notifOk = Notify.allowed(ctx)
-            if (current == null && (!bgOk || !sendOk || !notifOk)) {
+            if (current == null && missingCount > 0) {
                 Section("⚠️ כדי שהכול יעבוד, צריך לאשר") {
+                    Text(
+                        "חסרים $missingCount אישורים. הכפתור יפתח לך כל אחד בתורו: מאשרים וחוזרים, והבא נפתח לבד.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(
+                        onClick = {
+                            wizard = true
+                            tried = ""
+                            nextStep()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("✓ לאשר הכול") }
                     Status(bgOk, "", "ריצה ברקע (סמסונג עוצרת אפליקציות ברקע)") {
                         open(
                             ctx,
@@ -693,3 +769,6 @@ class PickPhone : ActivityResultContract<Unit?, Uri?>() {
     override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
         if (resultCode == Activity.RESULT_OK) intent?.data else null
 }
+
+/** אישור אחד בסבב "לאשר הכול" */
+private class Step(val id: String, val missing: () -> Boolean, val launch: () -> Unit)
