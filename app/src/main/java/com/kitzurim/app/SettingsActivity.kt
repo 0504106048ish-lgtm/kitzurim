@@ -119,32 +119,27 @@ fun SettingsScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("🎙️ חיבור ללחצן הצדדי", fontWeight = FontWeight.Medium)
                     Text("ככה לחיצה כפולה על הלחצן הצדדי פותחת ישר את הפקודה הקולית:")
-                    Text("1. הגדרות הטלפון ← תכונות מתקדמות ← לחצן צד")
-                    Text("2. מפעילים \"לחיצה כפולה\" ובוחרים \"פתיחת אפליקציה\"")
-                    Text("3. בוחרים ב\"קיצורים קולי\" (האייקון עם המיקרופון)")
+                    var voiceFirst by remember { mutableStateOf(Prefs.voiceFirst(ctx)) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("1. להדליק: פתיחה ישר לפקודה קולית", Modifier.weight(1f))
+                        Switch(checked = voiceFirst, onCheckedChange = {
+                            voiceFirst = it
+                            Prefs.setVoiceFirst(ctx, it)
+                        })
+                    }
+                    Text("2. הגדרות הטלפון ← תכונות מתקדמות ← לחצן צד")
+                    Text("3. מפעילים \"לחיצה כפולה\", בוחרים \"פתיחת אפליקציה\" ← \"קיצורים\"")
+                    Text(
+                        "מעכשיו גם האייקון של קיצורים פותח ישר את הדיבור. לאפליקציה עצמה: לוחצים \"חזרה\" בחלון הדיבור.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     OutlinedButton(onClick = {
                         try {
                             ctx.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
                         } catch (_: Exception) {
                         }
                     }) { Text("לפתוח את הגדרות הטלפון") }
-                    HorizontalDivider()
-                    Text("אם \"קיצורים קולי\" לא מופיע ברשימה:", fontWeight = FontWeight.Medium)
-                    var voiceFirst by remember { mutableStateOf(Prefs.voiceFirst(ctx)) }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("פתיחה ישר לפקודה קולית")
-                            Text(
-                                "אז בוחרים בלחצן הצדדי את \"קיצורים\" הרגיל. לאפליקציה עצמה: לחיצה ארוכה על האייקון ← \"פתיחת קיצורים\"",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(checked = voiceFirst, onCheckedChange = {
-                            voiceFirst = it
-                            Prefs.setVoiceFirst(ctx, it)
-                        })
-                    }
                 }
             }
 

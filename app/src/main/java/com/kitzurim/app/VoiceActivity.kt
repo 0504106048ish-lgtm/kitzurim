@@ -48,6 +48,11 @@ import kotlinx.coroutines.delay
  * "תתקשר לדוד", "תזכיר לי לקנות חלב כשאני ליד שופרסל".
  */
 class VoiceActivity : ComponentActivity() {
+    companion object {
+        /** נפתח מהאייקון (מצב "פתיחה ישר לפקודה קולית"): "חזרה" בחלון הדיבור פותח את האפליקציה */
+        const val BACK_TO_HOME = "back_to_home"
+    }
+
     private var pending: String? = null
 
     /** שאלת המשך: מה שאמרת עכשיו הוא תשובה ("למי?", "מה לכתוב?") ולא פקודה חדשה */
@@ -61,6 +66,12 @@ class VoiceActivity : ComponentActivity() {
         askPrefix = null
         askTextFor = null
         when {
+            // "פתיחה ישר לפקודה קולית": לחיצה על "חזרה" בחלון הדיבור פותחת את האפליקציה עצמה
+            heard.isNullOrBlank() && prefix == null && textFor == null &&
+                intent?.getBooleanExtra(BACK_TO_HOME, false) == true -> {
+                startActivity(Intent(this, HomeActivity::class.java).putExtra("open_home", true))
+                finish()
+            }
             heard.isNullOrBlank() -> finish()
             // "מה לכתוב לאליהו?" ← "שאני מגיע"
             textFor != null -> {
