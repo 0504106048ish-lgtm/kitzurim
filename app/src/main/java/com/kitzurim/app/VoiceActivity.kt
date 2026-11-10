@@ -50,9 +50,41 @@ import kotlinx.coroutines.delay
 class VoiceActivity : ComponentActivity() {
     private var pending: String? = null
 
+    /** שאלת המשך: מה שאמרת עכשיו הוא תשובה ("למי?", "מה לכתוב?") ולא פקודה חדשה */
+    private var askPrefix: String? = null
+    private var askTextFor: Pair<String, String>? = null
+
     private val speech = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
         val heard = res.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-        if (heard.isNullOrBlank()) finish() else handle(heard)
+        val prefix = askPrefix
+        val textFor = askTextFor
+        askPrefix = null
+        askTextFor = null
+        when {
+            heard.isNullOrBlank() -> finish()
+            // "מה לכתוב לאליהו?" ← "שאני מגיע"
+            textFor != null -> {
+                val text = VoiceCommands.cleanMessage(heard.trim().split(Regex("\\s+")))
+                if (text.isNullOrBlank()) finish() else startSendCountdown(textFor.first, textFor.second, text)
+            }
+            // "למי לשלוח?" ← "לאליהו שאני מגיע": ממשיכים כאילו אמרת "שלח לאליהו שאני מגיע"
+            prefix != null -> handle("$prefix $heard")
+            else -> handle(heard)
+        }
+    }
+
+    /** פותח שוב את חלון הדיבור עם שאלה */
+    private fun listen(prompt: String) {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL")
+            .putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
+        try {
+            speech.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            Actions.toast(this, "לא נמצא זיהוי דיבור בטלפון")
+            finish()
+        }
     }
 
     private val contactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
@@ -66,16 +98,7 @@ class VoiceActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "he-IL")
-            .putExtra(RecognizerIntent.EXTRA_PROMPT, "מה לעשות?")
-        try {
-            speech.launch(intent)
-        } catch (_: ActivityNotFoundException) {
-            Actions.toast(this, "לא נמצא זיהוי דיבור בטלפון")
-            finish()
-        }
+        listen("מה לעשות?")
     }
 
     private var pendingCall: Pair<String, String>? = null
@@ -158,6 +181,12 @@ class VoiceActivity : ComponentActivity() {
         }
         when (cmd) {
             is VoiceCommand.Send -> {
+                // "שלח וואטסאפ" בלי למי: שואלים
+                if (cmd.words.isEmpty()) {
+                    askPrefix = "שלח"
+                    listen("למי לשלוח וואטסאפ?")
+                    return
+                }
                 if (cmd.toSelf() && Prefs.phone(this).isBlank()) {
                     Actions.toast(this, "כדי לשלוח לעצמך, צריך להקליד את המספר שלך בהגדרות")
                     startActivity(Intent(this, SettingsActivity::class.java))
@@ -171,15 +200,22 @@ class VoiceActivity : ComponentActivity() {
                 } else {
                     val text = VoiceCommands.cleanMessage(target.third)
                     if (text.isNullOrBlank()) {
-                        // בלי הודעה: רק פותחים את הצ'אט
-                        Actions.openWhatsApp(this, target.second, null)
+                        // "שלח לאליהו" בלי הודעה: שואלים מה לכתוב
+                        askTextFor = target.first to target.second
+                        listen("מה לכתוב ל${target.first}?")
                     } else {
                         startSendCountdown(target.first, target.second, text)
-                        return
                     }
+                    return
                 }
             }
             is VoiceCommand.Call -> {
+                // "תתקשר" בלי למי: שואלים
+                if (cmd.words.isEmpty()) {
+                    askPrefix = "תתקשר"
+                    listen("למי להתקשר?")
+                    return
+                }
                 val target = VoiceCommands.findContact(this, cmd.words)
                 if (target == null) {
                     Actions.toast(this, "לא מצאתי איש קשר בשם \"${cmd.words.firstOrNull() ?: ""}\"")
@@ -211,7 +247,10 @@ class VoiceActivity : ComponentActivity() {
                     }
                 }
             }
-            is VoiceCommand.Unknown -> Actions.toast(this, "לא הבנתי: \"${cmd.heard}\"")
+            is VoiceCommand.Unknown -> Actions.toast(
+                this,
+                "לא הבנתי \"${cmd.heard}\". אפשר להגיד למשל: שלח לאמא שאני מגיע, תתקשר לדוד, נווט הביתה",
+            )
         }
         finish()
     }
@@ -255,8 +294,11 @@ object VoiceCommands {
         val first = words[0]
         val rest = words.drop(1)
 
-        if (first in SEND) dropFillers(rest).let { if (it.isNotEmpty()) return VoiceCommand.Send(it) }
-        if (first in CALL) dropFillers(rest).let { if (it.isNotEmpty()) return VoiceCommand.Call(it) }
+        // גם בלי שם ("שלח וואטסאפ"): אז שואלים למי
+        if (first in SEND) return VoiceCommand.Send(dropFillers(rest))
+        if (first in CALL) return VoiceCommand.Call(dropFillers(rest))
+        // "וואטסאפ לאליהו" בלי "שלח"
+        if (first.contains("טסאפ") || first.lowercase() == "whatsapp") return VoiceCommand.Send(dropFillers(rest))
         if (first in REMIND) return parseRemind(rest)
         if ("הביתה" in words || (first in NAV && rest.firstOrNull() in listOf("הביתה", "לבית"))) return VoiceCommand.Home
         if (first in NAV && rest.isNotEmpty()) {
