@@ -10,6 +10,11 @@ import java.util.Locale
 /** מקום שבו הטלפון עובר לשקט */
 data class Place(val id: String, val name: String, val lat: Double, val lng: Double)
 
+/** תשובה מיוחדת בנהיגה לאדם מסוים (מזוהה לפי מספר, ואם אין מספר אז לפי שם) */
+data class CustomReply(val name: String, val number: String, val text: String) {
+    fun entry() = Excluded.encode(name, number)
+}
+
 /** הודעה שהגיעה בזמן נסיעה */
 data class DriveMessage(val chat: String, val text: String, val time: String, val number: String)
 
@@ -76,6 +81,33 @@ object AutoPrefs {
         if (entry !in excluded(c)) setList(c, "excluded", excluded(c) + entry)
     }
     fun removeExcluded(c: Context, entry: String) = setList(c, "excluded", excluded(c) - entry)
+
+    // ---------- תשובה מיוחדת לאנשים מסוימים ----------
+    fun customReplies(c: Context): List<CustomReply> = list(c, "custom_replies").mapNotNull {
+        try {
+            val o = JSONObject(it)
+            CustomReply(o.getString("name"), o.optString("num"), o.getString("text"))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun addCustomReply(c: Context, r: CustomReply) {
+        // אותו אדם פעם אחת: תשובה חדשה מחליפה את הקודמת
+        val others = customReplies(c).filter { it.entry() != r.entry() }
+        saveCustomReplies(c, others + r)
+    }
+
+    fun removeCustomReply(c: Context, r: CustomReply) =
+        saveCustomReplies(c, customReplies(c).filter { it.entry() != r.entry() })
+
+    private fun saveCustomReplies(c: Context, all: List<CustomReply>) = setList(c, "custom_replies", all.map {
+        JSONObject().put("name", it.name).put("num", it.number).put("text", it.text).toString()
+    })
+
+    /** התשובה לצ'אט הזה: מיוחדת אם הגדרת לו, ואחרת הרגילה */
+    fun replyFor(c: Context, chat: String, number: String?): String =
+        customReplies(c).firstOrNull { Excluded.matches(it.entry(), chat, number) }?.text ?: replyText(c)
 
     // ---------- סיכום הנסיעה ----------
     fun summaryEnabled(c: Context) = sp(c).getBoolean("summary_enabled", true)

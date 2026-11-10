@@ -72,7 +72,8 @@ class ReplyListener : NotificationListenerService() {
         val action = n.actions?.firstOrNull { !it.remoteInputs.isNullOrEmpty() } ?: return
         val inputs = action.remoteInputs
         val results = Bundle()
-        inputs.forEach { results.putCharSequence(it.resultKey, AutoPrefs.replyText(this)) }
+        val reply = AutoPrefs.replyFor(this, chat, number)
+        inputs.forEach { results.putCharSequence(it.resultKey, reply) }
         val fill = Intent()
         RemoteInput.addResultsToIntent(inputs, fill, results)
         try {

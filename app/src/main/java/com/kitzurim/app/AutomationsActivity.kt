@@ -136,6 +136,34 @@ fun AutomationsScreen(resumes: Int) {
         if (picked != null) AutoPrefs.addExcluded(ctx, picked.first, picked.second)
         refresh++
     }
+    // תשובה מיוחדת: כותבים את הטקסט, ואז בוחרים למי
+    var customText by remember { mutableStateOf("") }
+    var customError by remember { mutableStateOf<String?>(null) }
+    val customLauncher = rememberLauncherForActivityResult(PickPhone()) { uri ->
+        val picked = uri?.let {
+            try {
+                ctx.contentResolver.query(
+                    it,
+                    arrayOf(
+                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                        ContactsContract.CommonDataKinds.Phone.NUMBER,
+                    ),
+                    null, null, null,
+                )?.use { c -> if (c.moveToFirst()) c.getString(0) to c.getString(1) else null }
+            } catch (_: Exception) {
+                null
+            }
+        }
+        if (picked != null) {
+            AutoPrefs.addCustomReply(
+                ctx,
+                CustomReply(picked.first.trim(), picked.second.filter { it.isDigit() }, customText.trim()),
+            )
+            customText = ""
+            Actions.toast(ctx, "נשמר: ${picked.first} יקבל תשובה מיוחדת")
+        }
+        refresh++
+    }
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
     var remText by remember { mutableStateOf("") }
     var remPlace by remember { mutableStateOf("") }
@@ -262,8 +290,44 @@ fun AutomationsScreen(resumes: Int) {
                     value = reply,
                     onValueChange = { reply = it; AutoPrefs.setReplyText(ctx, it) },
                     label = { Text("התשובה האוטומטית") },
+                    supportingText = { Text("מה שכל אחד מקבל (חוץ ממי שיש לו תשובה מיוחדת)") },
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                // תשובה מיוחדת לאנשים מסוימים
+                HorizontalDivider()
+                Text("תשובה מיוחדת לאנשים מסוימים", fontWeight = FontWeight.Medium)
+                AutoPrefs.customReplies(ctx).forEach { r ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("💌 " + r.name, fontWeight = FontWeight.Medium)
+                            Text(
+                                "\"${r.text}\"",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        IconButton(onClick = { AutoPrefs.removeCustomReply(ctx, r); refresh++ }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "מחיקה")
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = customText,
+                    onValueChange = { customText = it; customError = null },
+                    label = { Text("תשובה מיוחדת") },
+                    placeholder = { Text("אני בדרך הביתה ❤️") },
+                    isError = customError != null,
+                    supportingText = { Text(customError ?: "כותבים את התשובה, ואז בוחרים למי") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedButton(onClick = {
+                    if (customText.isBlank()) {
+                        customError = "קודם לכתוב את התשובה"
+                    } else {
+                        customLauncher.launch(null)
+                    }
+                }) { Text("בחירת איש קשר") }
                 SwitchRow("אני נוהג עכשיו (הפעלה ידנית)", AutoPrefs.drivingActive(ctx)) {
                     AutoPrefs.setDrivingActive(ctx, it)
                     if (!it) DriveSummary.show(ctx)
