@@ -54,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -144,6 +145,12 @@ fun AutomationsScreen(resumes: Int) {
     var folder by rememberSaveable { mutableStateOf("") }
     BackHandler(enabled = folder.isNotEmpty()) { folder = "" }
 
+    // מיקום הגלילה נשמר מחוץ לבנייה מחדש של המסך, כדי שאחרי לחיצה או חזרה תישאר איפה שהיית.
+    // לרשימת התיקיות ולתיקייה הפתוחה יש גלילה נפרדת; תיקייה חדשה נפתחת מלמעלה
+    val listScroll = rememberScrollState()
+    val folderScroll = rememberScrollState()
+    LaunchedEffect(folder) { if (folder.isNotEmpty()) folderScroll.scrollTo(0) }
+
     /** בוחרים שעת התחלה ואז שעת סיום, ונוצר טווח שקט לכל ימי השבוע */
     fun addRule() {
         TimePickerDialog(ctx, { _, h1, m1 ->
@@ -166,7 +173,7 @@ fun AutomationsScreen(resumes: Int) {
                 .fillMaxSize()
                 .systemBarsPadding()
                 .imePadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(if (folder.isEmpty()) listScroll else folderScroll)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {

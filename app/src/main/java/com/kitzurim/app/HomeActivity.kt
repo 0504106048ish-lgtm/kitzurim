@@ -104,13 +104,16 @@ fun HomeScreen(resumes: Int) {
     val openAutomations = { ctx.startActivity(Intent(ctx, AutomationsActivity::class.java)) }
     val scheme = MaterialTheme.colorScheme
 
+    // מיקום הגלילה נשמר מחוץ לבנייה מחדש, כדי שאחרי לחיצה או חזרה תישאר איפה שהיית
+    val scroll = rememberScrollState()
+
     key(resumes, refresh) {
         Surface(Modifier.fillMaxSize(), color = scheme.background) {
             Column(
                 Modifier
                     .fillMaxSize()
                     .systemBarsPadding()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scroll)
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
