@@ -1,6 +1,8 @@
 package com.kitzurim.app
 
 import android.Manifest
+import android.app.Activity
+import androidx.activity.result.contract.ActivityResultContract
 import android.app.TimePickerDialog
 import android.provider.ContactsContract
 import java.util.UUID
@@ -108,19 +110,31 @@ fun AutomationsScreen(resumes: Int) {
         if (NightCalls.roleHeld(ctx)) AutoPrefs.setNightCallsEnabled(ctx, true)
         refresh++
     }
-    // בחירת איש קשר שלא יקבל מענה אוטומטי (בלי הרשאה לאנשי הקשר: הטלפון נותן רק את מי שבחרת)
-    val contactLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
-        val name = uri?.let {
+    // בחירת איש קשר שלא יקבל מענה אוטומטי. נשמרים גם השם וגם המספר,
+    // כדי לזהות אותו גם כשהשם בוואטסאפ שונה מאנשי הקשר (בלי הרשאה: הטלפון נותן רק את מי שבחרת)
+    val contactLauncher = rememberLauncherForActivityResult(PickPhone()) { uri ->
+        val picked = uri?.let {
             try {
-                ctx.contentResolver.query(it, arrayOf(ContactsContract.Contacts.DISPLAY_NAME), null, null, null)
-                    ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                ctx.contentResolver.query(
+                    it,
+                    arrayOf(
+                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                        ContactsContract.CommonDataKinds.Phone.NUMBER,
+                    ),
+                    null, null, null,
+                )?.use { c -> if (c.moveToFirst()) c.getString(0) to c.getString(1) else null }
             } catch (_: Exception) {
                 null
             }
         }
-        if (name != null) AutoPrefs.addExcluded(ctx, name)
+        if (picked != null) AutoPrefs.addExcluded(ctx, picked.first, picked.second)
         refresh++
     }
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
+    var remText by remember { mutableStateOf("") }
+    var remPlace by remember { mutableStateOf("") }
+    var remError by remember { mutableStateOf<String?>(null) }
+    var remBusy by remember { mutableStateOf(false) }
 
     /** בוחרים שעת התחלה ואז שעת סיום, ונוצר טווח שקט לכל ימי השבוע */
     fun addRule() {
@@ -159,11 +173,15 @@ fun AutomationsScreen(resumes: Int) {
                     "סמסונג עוצרת אפליקציות שרצות ברקע. כדי שהאוטומציות יעבדו, צריך לאשר לקיצורים לרוץ בלי הגבלה.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Status(bgOk, "מאושר", "לא מאושר") {
+                Status(bgOk, "ריצה ברקע: מאושר", "ריצה ברקע: לא מאושר") {
                     open(
                         ctx,
                         Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + ctx.packageName)),
                     )
+                }
+                // התראות: בשביל סיכום הנסיעה והתזכורות לפי מקום
+                Status(Notify.allowed(ctx), "התראות: מאושר", "התראות: לא מאושר") {
+                    if (Build.VERSION.SDK_INT >= 33) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
 
@@ -227,7 +245,16 @@ fun AutomationsScreen(resumes: Int) {
                 )
                 SwitchRow("אני נוהג עכשיו (הפעלה ידנית)", AutoPrefs.drivingActive(ctx)) {
                     AutoPrefs.setDrivingActive(ctx, it)
+                    if (!it) DriveSummary.show(ctx)
                     refresh++
+                }
+                SwitchRow("סיכום ההודעות בסוף הנסיעה", AutoPrefs.summaryEnabled(ctx)) {
+                    AutoPrefs.setSummaryEnabled(ctx, it)
+                    refresh++
+                }
+                val inDrive = AutoPrefs.driveMessages(ctx).size
+                TextButton(onClick = { ctx.startActivity(Intent(ctx, DriveSummaryActivity::class.java)) }) {
+                    Text(if (inDrive > 0) "📨 הסיכום של הנסיעה האחרונה ($inDrive הודעות)" else "📨 הסיכום של הנסיעה האחרונה")
                 }
 
                 // אנשים שלא מקבלים מענה
@@ -241,10 +268,10 @@ fun AutomationsScreen(resumes: Int) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                excluded.forEach { name ->
+                excluded.forEach { entry ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🙅 $name", Modifier.weight(1f))
-                        IconButton(onClick = { AutoPrefs.removeExcluded(ctx, name); refresh++ }) {
+                        Text("🙅 " + Excluded.name(entry), Modifier.weight(1f))
+                        IconButton(onClick = { AutoPrefs.removeExcluded(ctx, entry); refresh++ }) {
                             Icon(Icons.Filled.Delete, contentDescription = "הסרה")
                         }
                     }
@@ -312,6 +339,96 @@ fun AutomationsScreen(resumes: Int) {
                     HorizontalDivider()
                 }
                 OutlinedButton(onClick = { addRule() }) { Text("הוספת שעות שקט") }
+            }
+
+            // ---------- תזכורת לפי מקום ----------
+            Section("🛒 תזכורות לפי מקום") {
+                Text(
+                    "התזכורת קופצת כשאתה מגיע למקום, ואז נמחקת. אפשר גם בקול: \"תזכיר לי לקנות חלב כשאני ליד שופרסל\".",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val fineOk = granted(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
+                val bgLocOk = Build.VERSION.SDK_INT < 29 || granted(ctx, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                if (!fineOk || !bgLocOk) {
+                    Status(false, "", "צריך לאשר מיקום \"כל הזמן\" (בכרטיס שקט לפי מקום)") {}
+                }
+                AutoPrefs.reminders(ctx).forEach { r ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(r.text, fontWeight = FontWeight.Medium)
+                            Text(
+                                "📍 " + r.place,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        IconButton(onClick = { Reminders.remove(ctx, r.id); refresh++ }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "מחיקה")
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = remText,
+                    onValueChange = { remText = it; remError = null },
+                    label = { Text("מה להזכיר") },
+                    placeholder = { Text("לקנות חלב") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = remPlace,
+                    onValueChange = { remPlace = it; remError = null },
+                    label = { Text("איפה") },
+                    placeholder = { Text("שופרסל רמות, או שם של מקום ששמרת") },
+                    singleLine = true,
+                    isError = remError != null,
+                    supportingText = { remError?.let { Text(it) } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        when {
+                            remText.isBlank() -> remError = "צריך לכתוב מה להזכיר"
+                            remPlace.isBlank() -> remError = "צריך לכתוב איפה"
+                            remBusy -> {}
+                            else -> {
+                                remBusy = true
+                                Reminders.addByName(ctx, remText.trim(), remPlace.trim()) { ok ->
+                                    remBusy = false
+                                    if (ok) {
+                                        remText = ""
+                                        remPlace = ""
+                                        Actions.toast(ctx, "התזכורת נשמרה")
+                                    } else {
+                                        remError = "לא מצאתי את המקום. לנסות לכתוב גם את העיר"
+                                    }
+                                    refresh++
+                                }
+                            }
+                        }
+                    }) { Text(if (remBusy) "מחפש..." else "הוספה") }
+                    OutlinedButton(onClick = {
+                        when {
+                            remText.isBlank() -> remError = "צריך לכתוב מה להזכיר"
+                            !fineOk -> remError = "קודם לאשר מיקום"
+                            remBusy -> {}
+                            else -> {
+                                remBusy = true
+                                val name = remPlace.trim().ifBlank { "המקום ששמרת" }
+                                Reminders.addHere(ctx, remText.trim(), name) { ok ->
+                                    remBusy = false
+                                    if (ok) {
+                                        remText = ""
+                                        remPlace = ""
+                                        Actions.toast(ctx, "התזכורת נשמרה למקום הזה")
+                                    } else {
+                                        remError = "לא הצלחתי למצוא את המיקום שלך"
+                                    }
+                                    refresh++
+                                }
+                            }
+                        }
+                    }) { Text("במקום שבו אני עכשיו") }
+                }
             }
 
             // ---------- שיחות לא מוכרות בלילה ----------
@@ -461,4 +578,13 @@ private fun Status(ok: Boolean, okText: String, needText: String, fix: () -> Uni
         Text(if (ok) okText else needText, Modifier.weight(1f).padding(horizontal = 8.dp))
         if (!ok) TextButton(onClick = fix) { Text("לאשר") }
     }
+}
+
+/** בחירת מספר טלפון מאנשי הקשר (מחזיר גם את השם וגם את המספר, בלי הרשאה לכל אנשי הקשר) */
+class PickPhone : ActivityResultContract<Unit?, Uri?>() {
+    override fun createIntent(context: Context, input: Unit?) =
+        Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
+        if (resultCode == Activity.RESULT_OK) intent?.data else null
 }

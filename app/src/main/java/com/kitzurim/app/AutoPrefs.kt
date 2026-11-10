@@ -10,6 +10,12 @@ import java.util.Locale
 /** מקום שבו הטלפון עובר לשקט */
 data class Place(val id: String, val name: String, val lat: Double, val lng: Double)
 
+/** הודעה שהגיעה בזמן נסיעה */
+data class DriveMessage(val chat: String, val text: String, val time: String, val number: String)
+
+/** "תזכיר לי X כשאני ב-Y" */
+data class PlaceReminder(val id: String, val text: String, val place: String, val lat: Double, val lng: Double)
+
 /** ההגדרות של האוטומציות. נשמרות רק בטלפון */
 object AutoPrefs {
     const val DEFAULT_REPLY = "אני נוהג, אחזור אליך בהקדם 🚗"
@@ -41,8 +47,11 @@ object AutoPrefs {
     fun drivingActive(c: Context) = sp(c).getBoolean("driving_active", false)
     fun setDrivingActive(c: Context, on: Boolean) {
         sp(c).edit().putBoolean("driving_active", on).apply()
-        // נסיעה חדשה: כל אחד יקבל שוב תשובה אחת
-        if (on) setList(c, "replied", emptyList())
+        // נסיעה חדשה: כל אחד יקבל שוב תשובה אחת, והסיכום מתחיל מחדש
+        if (on) {
+            setList(c, "replied", emptyList())
+            setList(c, "drive_log", emptyList())
+        }
     }
 
     fun replyText(c: Context) = sp(c).getString("reply_text", DEFAULT_REPLY) ?: DEFAULT_REPLY
@@ -61,10 +70,56 @@ object AutoPrefs {
 
     /** אנשים שלא מקבלים מענה אוטומטי (לפי השם כמו שהוא מופיע בוואטסאפ) */
     fun excluded(c: Context) = list(c, "excluded")
-    fun addExcluded(c: Context, name: String) {
-        if (name.isNotBlank() && name !in excluded(c)) setList(c, "excluded", excluded(c) + name.trim())
+    fun addExcluded(c: Context, name: String, number: String?) {
+        if (name.isBlank()) return
+        val entry = Excluded.encode(name, number)
+        if (entry !in excluded(c)) setList(c, "excluded", excluded(c) + entry)
     }
-    fun removeExcluded(c: Context, name: String) = setList(c, "excluded", excluded(c) - name)
+    fun removeExcluded(c: Context, entry: String) = setList(c, "excluded", excluded(c) - entry)
+
+    // ---------- סיכום הנסיעה ----------
+    fun summaryEnabled(c: Context) = sp(c).getBoolean("summary_enabled", true)
+    fun setSummaryEnabled(c: Context, on: Boolean) = sp(c).edit().putBoolean("summary_enabled", on).apply()
+
+    /** ההודעות שהגיעו בנסיעה האחרונה */
+    fun driveMessages(c: Context): List<DriveMessage> = list(c, "drive_log").mapNotNull {
+        try {
+            val o = JSONObject(it)
+            DriveMessage(o.getString("chat"), o.getString("text"), o.getString("time"), o.optString("num"))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun addDriveMessage(c: Context, chat: String, text: String, number: String?) {
+        val all = driveMessages(c)
+        // וואטסאפ מעדכן את אותה התראה כמה פעמים: לא שומרים את אותה הודעה פעמיים
+        if (all.any { it.chat == chat && it.text == text }) return
+        val o = JSONObject().put("chat", chat).put("text", text).put("time", nowTime()).put("num", number ?: "")
+        setList(c, "drive_log", (list(c, "drive_log") + o.toString()).takeLast(200))
+    }
+
+    fun clearDriveMessages(c: Context) = setList(c, "drive_log", emptyList())
+
+    private fun nowTime(): String = SimpleDateFormat("HH:mm", Locale("he")).format(Date())
+
+    // ---------- תזכורות לפי מקום ----------
+    fun reminders(c: Context): List<PlaceReminder> = list(c, "reminders").mapNotNull {
+        try {
+            val o = JSONObject(it)
+            PlaceReminder(o.getString("id"), o.getString("text"), o.getString("place"), o.getDouble("lat"), o.getDouble("lng"))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun addReminder(c: Context, r: PlaceReminder) {
+        val o = JSONObject().put("id", r.id).put("text", r.text).put("place", r.place).put("lat", r.lat).put("lng", r.lng)
+        setList(c, "reminders", list(c, "reminders") + o.toString())
+    }
+
+    fun removeReminder(c: Context, id: String) =
+        setList(c, "reminders", list(c, "reminders").filter { !it.contains("\"id\":\"$id\"") })
 
     private fun now(): String = SimpleDateFormat("dd/MM HH:mm", Locale("he")).format(Date())
 

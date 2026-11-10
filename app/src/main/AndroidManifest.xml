@@ -12,6 +12,10 @@
     <!-- שקט לפי שעות: לעבור לשקט בדיוק בשעה שנקבעה -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <!-- פקודה קולית: למצוא את איש הקשר שאמרת -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- סיכום נסיעה ותזכורת לפי מקום -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- להירשם מחדש אחרי הפעלה מחדש של הטלפון -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- לבקש מסמסונג לא לעצור את האוטומציות -->
@@ -57,6 +61,23 @@
             android:taskAffinity=""
             android:windowSoftInputMode="stateVisible|adjustResize"
             android:theme="@style/Theme.Kitzurim.Translucent" />
+
+        <!-- פקודה קולית: שקופה, רק פותחת את חלון הדיבור ומבצעת -->
+        <activity
+            android:name=".VoiceActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Kitzurim.Translucent" />
+
+        <activity
+            android:name=".DriveSummaryActivity"
+            android:exported="false" />
+
+        <!-- תזכורת לפי מקום -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
 
         <activity
             android:name=".AutomationsActivity"

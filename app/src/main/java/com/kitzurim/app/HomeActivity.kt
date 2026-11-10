@@ -89,6 +89,8 @@ private fun activeChips(ctx: Context): List<String> {
     if (AutoPrefs.scheduleEnabled(ctx) && AutoPrefs.rules(ctx).isNotEmpty()) {
         chips += if (AutoPrefs.inScheduledQuiet(ctx)) "🕐 שעת שקט עכשיו" else "🕐 שעות שקט"
     }
+    val reminders = AutoPrefs.reminders(ctx).size
+    if (reminders > 0) chips += if (reminders == 1) "🛒 תזכורת אחת" else "🛒 $reminders תזכורות"
     if (Torch.on) chips += "🔦 פנס דולק"
     return chips
 }

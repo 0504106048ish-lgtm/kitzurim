@@ -28,6 +28,9 @@ object Actions {
                 Intent(ctx, NoteActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
             QuickAction.CAMERA -> openCamera(ctx)
+            QuickAction.VOICE -> ctx.startActivity(
+                Intent(ctx, VoiceActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
             QuickAction.HOME -> {
                 if (Prefs.home(ctx).isBlank()) {
                     toast(ctx, "צריך להקליד כתובת בית בהגדרות")
@@ -73,8 +76,10 @@ object Actions {
         }
     }
 
-    /** ניווט הביתה: קודם בוויז, ואם אין וויז אז בגוגל מפות */
-    fun navigateHome(ctx: Context, address: String) {
+    fun navigateHome(ctx: Context, address: String) = navigateTo(ctx, address)
+
+    /** ניווט לכתובת או למקום: קודם בוויז, ואם אין וויז אז בגוגל מפות */
+    fun navigateTo(ctx: Context, address: String) {
         val waze = Intent(
             Intent.ACTION_VIEW,
             Uri.parse("https://waze.com/ul?q=" + Uri.encode(address) + "&navigate=yes"),

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -55,6 +56,7 @@ enum class QuickAction(val label: String, val icon: ImageVector) {
     NOTE("פתק", Icons.Filled.EditNote),
     CAMERA("מצלמה", Icons.Filled.PhotoCamera),
     HOME("הביתה", Icons.Filled.Home),
+    VOICE("פקודה קולית", Icons.Filled.Mic),
 }
 
 /** נפתח מהלחיצה הכפולה על הלחצן הצדדי: שקוף מעל המסך, עם הכפתורים בעיגול */
