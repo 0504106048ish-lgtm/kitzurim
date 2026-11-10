@@ -39,8 +39,9 @@ class SettingsActivity : ComponentActivity() {
                 SettingsScreen(
                     initialPhone = Prefs.phone(this),
                     initialMessage = Prefs.message(this),
-                    onSave = { phone, message ->
-                        Prefs.save(this, phone, message)
+                    initialHome = Prefs.home(this),
+                    onSave = { phone, message, home ->
+                        Prefs.save(this, phone, message, home)
                         Actions.toast(this, "נשמר")
                         finish()
                     },
@@ -55,11 +56,13 @@ class SettingsActivity : ComponentActivity() {
 fun SettingsScreen(
     initialPhone: String,
     initialMessage: String,
-    onSave: (String, String) -> Unit,
+    initialHome: String,
+    onSave: (String, String, String) -> Unit,
     onTest: (String, String) -> Unit,
 ) {
     var phone by remember { mutableStateOf(initialPhone) }
     var message by remember { mutableStateOf(initialMessage) }
+    var home by remember { mutableStateOf(initialHome) }
     var error by remember { mutableStateOf<String?>(null) }
 
     fun phoneOk(): Boolean {
@@ -98,9 +101,18 @@ fun SettingsScreen(
                 label = { Text("ההודעה המוכנה") },
                 modifier = Modifier.fillMaxWidth(),
             )
+            OutlinedTextField(
+                value = home,
+                onValueChange = { home = it },
+                label = { Text("כתובת הבית") },
+                placeholder = { Text("רחוב הרצל 10, ירושלים") },
+                supportingText = { Text("הכפתור \"הביתה\" מנווט לכאן בוויז") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = { if (phoneOk()) onSave(phone, message) }) { Text("שמירה") }
+                Button(onClick = { if (phoneOk()) onSave(phone, message, home) }) { Text("שמירה") }
                 OutlinedButton(onClick = { if (phoneOk()) onTest(phone, message) }) { Text("בדיקה בוואטסאפ") }
             }
 

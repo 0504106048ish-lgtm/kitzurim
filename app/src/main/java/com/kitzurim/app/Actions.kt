@@ -43,6 +43,26 @@ object Actions {
         }
     }
 
+    /** ניווט הביתה: קודם בוויז, ואם אין וויז אז בגוגל מפות */
+    fun navigateHome(ctx: Context, address: String) {
+        val waze = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("https://waze.com/ul?q=" + Uri.encode(address) + "&navigate=yes"),
+        ).setPackage("com.waze").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            ctx.startActivity(waze)
+            return
+        } catch (_: ActivityNotFoundException) {
+        }
+        val maps = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + Uri.encode(address)))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            ctx.startActivity(maps)
+        } catch (_: ActivityNotFoundException) {
+            toast(ctx, "לא נמצאה אפליקציית ניווט")
+        }
+    }
+
     fun openCamera(ctx: Context) {
         try {
             ctx.startActivity(

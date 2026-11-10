@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FlashlightOn
 import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -53,6 +54,7 @@ enum class QuickAction(val label: String, val icon: ImageVector) {
     FLASH("פנס", Icons.Filled.FlashlightOn),
     NOTE("פתק", Icons.Filled.EditNote),
     CAMERA("מצלמה", Icons.Filled.PhotoCamera),
+    HOME("הביתה", Icons.Filled.Home),
 }
 
 /** נפתח מהלחיצה הכפולה על הלחצן הצדדי: שקוף מעל המסך, עם הכפתורים בעיגול */
@@ -107,6 +109,15 @@ class MenuActivity : ComponentActivity() {
                 Intent(this, NoteActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
             QuickAction.CAMERA -> Actions.openCamera(this)
+            QuickAction.HOME -> {
+                // עוד אין כתובת בית: פותחים את ההגדרות כדי להקליד אותה
+                if (Prefs.home(this).isBlank()) {
+                    Actions.toast(this, "צריך להקליד כתובת בית בהגדרות")
+                    openSettings()
+                    return
+                }
+                Actions.navigateHome(this, Prefs.home(this))
+            }
         }
         close()
     }

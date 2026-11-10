@@ -12,8 +12,14 @@ object Prefs {
     fun phone(c: Context): String = sp(c).getString("phone", "") ?: ""
     fun message(c: Context): String = sp(c).getString("message", DEFAULT_MESSAGE) ?: DEFAULT_MESSAGE
 
-    fun save(c: Context, phone: String, message: String) {
-        sp(c).edit().putString("phone", phone.trim()).putString("message", message).apply()
+    fun home(c: Context): String = sp(c).getString("home", "") ?: ""
+
+    fun save(c: Context, phone: String, message: String, home: String) {
+        sp(c).edit()
+            .putString("phone", phone.trim())
+            .putString("message", message)
+            .putString("home", home.trim())
+            .apply()
     }
 
     fun notes(c: Context): List<String> {

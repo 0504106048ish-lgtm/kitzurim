@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>התראה קבועה</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{--bg:#f3f2ee;--card:#fff;--text:#1f1f1d;--muted:#6b6a65;--border:rgba(0,0,0,.12);--accent:#185FA5;--accentBg:#E6F1FB;--frame:#1f1f1d}
+@media (prefers-color-scheme: dark){:root{--bg:#1a1a19;--card:#262624;--text:#f1efe8;--muted:#b4b2a9;--border:rgba(255,255,255,.14);--accent:#85B7EB;--accentBg:#0C447C;--frame:#d3d1c7}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;padding:16px}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:16px}
+h1{font-size:20px;font-weight:500;margin:4px 0 0}
+.sub{font-size:14px;color:var(--muted);text-align:center;line-height:1.6;margin:0}
+.chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.chip{padding:8px 16px;border-radius:10px;font-size:14px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text)}
+.chip.on{background:var(--accentBg);color:var(--accent);border-color:var(--accent)}
+.ph{position:relative;width:270px;height:540px;border:6px solid var(--frame);border-radius:36px;overflow:hidden}
+.lock{position:absolute;inset:0;background:#1d3557;color:#fff;display:flex;flex-direction:column;align-items:center;padding-top:46px}
+.time{font-size:62px;font-weight:300;letter-spacing:1px;line-height:1}
+.date{font-size:13px;opacity:.85;margin-top:6px}
+.notif{width:244px;background:rgba(255,255,255,.93);color:#1f1f1d;border-radius:20px;padding:12px;margin-top:26px}
+.nh{display:flex;align-items:center;gap:6px;font-size:11px;color:#555}
+.nh .dot{width:18px;height:18px;border-radius:50%;background:#185FA5;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px}
+.nt{font-size:13px;margin:6px 0 10px}
+.btns{display:flex;justify-content:space-between}
+.b{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;cursor:pointer;width:54px}
+.b i{width:40px;height:40px;border-radius:50%;background:#E6F1FB;color:#185FA5;display:flex;align-items:center;justify-content:center;font-size:20px}
+.b.on i{background:#185FA5;color:#fff}
+.corner{position:absolute;bottom:22px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;cursor:pointer}
+.shade{position:absolute;inset:0;background:#e9edf2;color:#1f1f1d;padding:30px 12px;display:none}
+.qs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.qs div{height:42px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;color:#666;font-size:18px}
+.shade .notif{margin:0 auto}
+.toast{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;font-size:12px;padding:6px 12px;border-radius:14px;opacity:0;transition:opacity .3s;white-space:nowrap}
+.note{font-size:13px;color:var(--muted);line-height:1.7;max-width:420px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>התראה קבועה עם כפתורים</h1>
+<p class="sub">פס קבוע שתמיד נמצא שם: על מסך הנעילה ובתפריט ההתראות.<br>לחץ על הכפתורים כדי לראות מה קורה.</p>
+<div class="chips">
+<span class="chip on" data-v="lock">מסך נעילה</span><span class="chip" data-v="shade">תפריט התראות</span>
+</div>
+<div class="ph">
+<div class="lock" id="lock">
+<div class="time">10:24</div>
+<div class="date">יום שלישי, 10 בנובמבר</div>
+<div class="notif" id="n1"></div>
+<div class="corner" style="right:22px"><i class="ti ti-phone"></i></div>
+<div class="corner" style="left:22px" id="cornerCam"><i class="ti ti-camera"></i></div>
+</div>
+<div class="shade" id="shade">
+<div class="qs"><div><i class="ti ti-wifi"></i></div><div><i class="ti ti-volume"></i></div><div><i class="ti ti-bluetooth"></i></div><div><i class="ti ti-rotate"></i></div></div>
+<div class="notif" id="n2" style="box-shadow:0 1px 3px rgba(0,0,0,.08)"></div>
+</div>
+<div class="toast" id="toast"></div>
+</div>
+<p class="note">ההתראה לא מצלצלת ולא קופצת, היא פשוט יושבת שם בשקט. אפשר לבחור אילו 4 כפתורים יופיעו בה. אם היא מפריעה, מכבים אותה בהגדרות של קיצורים.</p>
+</div>
+<script>
+const btns=[['ti-bulb','פנס','flash'],['ti-home','הביתה','t:ניווט הביתה נפתח בוויז'],['ti-note','פתק','t:חלון פתק נפתח'],['ti-circle-dot','העיגול','t:התפריט העגול נפתח']];
+let torch=false;
+function render(id){const n=document.getElementById(id);
+n.innerHTML='<div class="nh"><span class="dot"><i class="ti ti-circle-dot"></i></span>קיצורים</div><div class="nt">גישה מהירה</div><div class="btns">'+
+btns.map(b=>`<div class="b ${b[2]==='flash'&&torch?'on':''}" data-a="${b[2]}"><i class="ti ${b[0]}"></i><span>${b[2]==='flash'&&torch?'פנס דולק':b[1]}</span></div>`).join('')+'</div>';
+n.querySelectorAll('.b').forEach(e=>e.onclick=()=>act(e.dataset.a))}
+function all(){render('n1');render('n2')}
+function toast(t){const el=document.getElementById('toast');el.textContent=t;el.style.opacity=1;clearTimeout(window._t);window._t=setTimeout(()=>el.style.opacity=0,1700)}
+function act(a){if(a==='flash'){torch=!torch;all();toast(torch?'הפנס נדלק':'הפנס כבה');return}toast(a.slice(2))}
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');
+document.getElementById('lock').style.display=c.dataset.v==='lock'?'flex':'none';document.getElementById('shade').style.display=c.dataset.v==='shade'?'block':'none'});
+all();
+</script>
+</body>
+</html>
