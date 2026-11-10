@@ -45,6 +45,8 @@ data class BatteryInfo(
     val currentMa: Int?,
     val tempC: Double?,
     val minutesToFull: Long?,
+    /** אחוז עם שתי ספרות אחרי הנקודה (55.02), או null אם הטלפון לא מדווח כמה מטען יש */
+    val precise: Double?,
 )
 
 object Battery {
@@ -76,7 +78,30 @@ object Battery {
         } else {
             null
         }
-        return BatteryInfo(percent, charging, full, plug, current, temp, toFull)
+        return BatteryInfo(percent, charging, full, plug, current, temp, toFull, precise(ctx, bm, percent))
+    }
+
+    /**
+     * אחוז עם שתי ספרות: אנדרואיד נותן רק מספר שלם (55), אבל הסוללה מדווחת גם כמה מטען יש בה עכשיו.
+     * לומדים מזה כמה מטען יש בסוללה מלאה (ממוצע שמתעדכן לאט), ומחלקים.
+     * התוצאה נשארת תמיד בתוך האחוז השלם שהטלפון מראה (55.00 עד 55.99).
+     */
+    private fun precise(ctx: Context, bm: BatteryManager?, percent: Int): Double? {
+        val counter = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
+            ?.takeIf { it > 0 && it != Int.MIN_VALUE }?.toDouble() ?: return null
+        if (percent <= 0) return null
+        val sp = ctx.getSharedPreferences("kitzurim_battery", Context.MODE_PRIVATE)
+        var full = sp.getFloat("full", 0f).toDouble()
+        // לומדים רק באחוזים האמצעיים, שם המדידה הכי יציבה
+        if (percent in 15..95) {
+            // האחוז השלם הוא בממוצע חצי אחוז מתחת לאמת, אז מוסיפים 0.5
+            val sample = counter * 100.0 / (percent + 0.5)
+            full = if (full <= 0) sample else full * 0.97 + sample * 0.03
+            sp.edit().putFloat("full", full.toFloat()).apply()
+        }
+        if (full <= 0) return null
+        val value = counter * 100.0 / full
+        return value.coerceIn(percent.toDouble(), percent + 0.99).coerceAtMost(100.0)
     }
 
     fun minutesText(m: Long): String = when {
@@ -102,10 +127,10 @@ fun BatteryCard() {
         ctx.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         onDispose { ctx.unregisterReceiver(receiver) }
     }
-    // הזרם והזמן עד מלא משתנים כל הזמן: מרעננים כל 3 שניות
+    // האחוז המדויק, הזרם והזמן עד מלא משתנים כל הזמן: מרעננים כל 2 שניות
     LaunchedEffect(Unit) {
         while (true) {
-            delay(3000)
+            delay(2000)
             info = Battery.read(ctx, null)
         }
     }
@@ -130,7 +155,7 @@ fun BatteryCard() {
                 fontSize = 26.sp,
             )
             Text(
-                "${info.percent}%",
+                (info.precise?.let { "%.2f".format(it) } ?: "${info.percent}") + "%",
                 Modifier.padding(horizontal = 10.dp),
                 fontSize = 34.sp,
                 fontWeight = FontWeight.Medium,
