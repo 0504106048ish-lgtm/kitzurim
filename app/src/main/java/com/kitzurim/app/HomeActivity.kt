@@ -157,6 +157,9 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
+                // סוללה: אחוז מדויק, ובטעינה גם זמן עד מלא, זרם וחום
+                BatteryCard()
+
                 // חסרים אישורים: פס אחד שמוביל למסך האישורים
                 val missing = Perms.missingCount(ctx)
                 if (missing > 0) {
