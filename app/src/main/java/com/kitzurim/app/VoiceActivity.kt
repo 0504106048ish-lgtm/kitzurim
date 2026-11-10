@@ -218,7 +218,7 @@ class VoiceActivity : ComponentActivity() {
 }
 
 sealed class VoiceCommand {
-    /** words: מה שבא אחרי "שלח ל", בלי ה-ל (השם, ואחריו ההודעה) */
+    /** words: מה שבא אחרי "שלח" (השם, ואחריו ההודעה), בלי מילים כמו "וואטסאפ" ו"הודעה" */
     data class Send(val words: List<String>) : VoiceCommand()
     data class Call(val words: List<String>) : VoiceCommand()
     data object Home : VoiceCommand()
@@ -226,7 +226,7 @@ sealed class VoiceCommand {
     data class Remind(val text: String, val place: String?) : VoiceCommand()
     data class Unknown(val heard: String) : VoiceCommand()
 
-    fun toSelf() = this is Send && words.firstOrNull() in listOf("עצמי", "עצמך")
+    fun toSelf() = this is Send && words.firstOrNull() in listOf("עצמי", "לעצמי", "עצמך", "לעצמך")
 }
 
 object VoiceCommands {
@@ -235,8 +235,18 @@ object VoiceCommands {
     private val NAV = setOf("נווט", "תנווט", "ניווט", "תנווטי", "סע", "קח", "תיקח")
     private val REMIND = setOf("תזכיר", "תזכירי", "תזכורת", "הזכר")
 
+    /** מילים שהן לא חלק מהשם ולא מההודעה: "תשלח וואטסאפ לאליהו", "תשלח הודעה לאליהו" */
+    private val FILLER = setOf(
+        "וואטסאפ", "ווטסאפ", "ואטסאפ", "וואטספ", "whatsapp", "בוואטסאפ", "בווטסאפ", "בואטסאפ",
+        "הודעה", "הודעת", "הודעות", "מסר", "טלפון", "בטלפון", "שיחה", "ל", "אל", "את",
+    )
+
     /** מילים שמתחילות ב-ש אבל ה-ש היא חלק מהמילה (לא "ש" של "שאני מגיע") */
     private val REAL_SHIN = setOf("שלום", "שבת", "שבוע", "שנה", "שעה", "שעתיים", "שתי", "שני", "שניים", "שלוש", "שש", "שבע", "שמונה", "שם", "שמח")
+
+    private fun isFiller(w: String) = w.lowercase() in FILLER
+
+    private fun dropFillers(words: List<String>) = words.dropWhile { isFiller(it) }
 
     fun parse(heard: String): VoiceCommand {
         val text = heard.trim().replace(Regex("[.,!?]"), "")
@@ -245,8 +255,8 @@ object VoiceCommands {
         val first = words[0]
         val rest = words.drop(1)
 
-        if (first in SEND && rest.isNotEmpty()) return VoiceCommand.Send(stripLamed(rest))
-        if (first in CALL && rest.isNotEmpty()) return VoiceCommand.Call(stripLamed(rest))
+        if (first in SEND) dropFillers(rest).let { if (it.isNotEmpty()) return VoiceCommand.Send(it) }
+        if (first in CALL) dropFillers(rest).let { if (it.isNotEmpty()) return VoiceCommand.Call(it) }
         if (first in REMIND) return parseRemind(rest)
         if ("הביתה" in words || (first in NAV && rest.firstOrNull() in listOf("הביתה", "לבית"))) return VoiceCommand.Home
         if (first in NAV && rest.isNotEmpty()) {
@@ -256,7 +266,7 @@ object VoiceCommands {
         return VoiceCommand.Unknown(heard)
     }
 
-    /** "לאמא" ← "אמא", "לדוד כהן" ← "דוד כהן" */
+    /** "לקניון מלחה" ← "קניון מלחה" */
     private fun stripLamed(words: List<String>): List<String> {
         val w = words.toMutableList()
         if (w.firstOrNull() in listOf("ל", "אל")) w.removeAt(0)
@@ -275,42 +285,78 @@ object VoiceCommands {
         if (where.isNotEmpty() && where[0].length > 2 && (where[0].startsWith("ל") || where[0].startsWith("ב"))) {
             where = listOf(where[0].drop(1)) + where.drop(1)
         }
-        // "כשאגיע לעבודה": המילה עם כש היא הפועל, ואז המקום אחריה
         return VoiceCommand.Remind(what, where.joinToString(" ").ifBlank { null })
     }
 
-    /** "שאני מגיע" ← "אני מגיע" */
+    /** "שאני מגיע" ← "אני מגיע". מילים כמו "בוואטסאפ" בהתחלה לא נכנסות להודעה */
     fun cleanMessage(words: List<String>): String? {
-        if (words.isEmpty()) return null
-        val w = words.toMutableList()
+        val w = dropFillers(words).toMutableList()
+        if (w.isEmpty()) return null
         if (w[0].startsWith("ש") && w[0].length > 2 && w[0] !in REAL_SHIN) w[0] = w[0].drop(1)
         return w.joinToString(" ")
     }
 
     /**
-     * מחפש איש קשר לפי המילים הראשונות (עד 3 מילים, הכי ארוך שנמצא).
+     * כמה טוב השם שאמרת מתאים לשם באנשי הקשר:
+     * 4 = בדיוק אותו שם, 3 = השם מתחיל בו ("אליהו כהן"), 2 = מילה שלמה בתוך השם ("משה אליהו"),
+     * 1 = רק חלק ממילה ("אליהוו"). 0 = לא מתאים
+     */
+    private fun score(contact: String, said: String): Int {
+        val c = contact.trim().lowercase()
+        val s = said.trim().lowercase()
+        if (s.isEmpty()) return 0
+        return when {
+            c == s -> 4
+            c.startsWith("$s ") -> 3
+            c.split(Regex("\\s+")).joinToString(" ").let { " $it ".contains(" $s ") } -> 2
+            s.length >= 3 && c.contains(s) -> 1
+            else -> 0
+        }
+    }
+
+    /**
+     * מחפש איש קשר לפי המילים הראשונות (עד 3 מילים).
+     * מעדיף התאמה מלאה של שם, ומנסה את המילה הראשונה גם בלי "ל" ("לאליהו" ← "אליהו") וגם איתה ("לאה").
      * מחזיר: שם, מספר טלפון, והמילים שנשארו (ההודעה).
      */
     fun findContact(ctx: Context, words: List<String>): Triple<String, String, List<String>>? {
-        for (n in minOf(3, words.size) downTo 1) {
-            val name = words.take(n).joinToString(" ")
-            val found = try {
-                ctx.contentResolver.query(
-                    ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                    arrayOf(
-                        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                        ContactsContract.CommonDataKinds.Phone.NUMBER,
-                    ),
-                    "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
-                    arrayOf("%$name%"),
-                    null,
-                )?.use { c -> if (c.moveToFirst()) c.getString(0) to c.getString(1) else null }
-            } catch (_: Exception) {
-                null
-            }
-            if (found != null) return Triple(found.first, found.second, words.drop(n))
+        val contacts: List<Pair<String, String>> = try {
+            ctx.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(
+                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ),
+                null, null, null,
+            )?.use { c ->
+                buildList {
+                    while (c.moveToNext()) {
+                        val name = c.getString(0)
+                        val number = c.getString(1)
+                        if (name != null && number != null) add(name to number)
+                    }
+                }
+            } ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
         }
-        return null
+        if (contacts.isEmpty() || words.isEmpty()) return null
+
+        var weak: Triple<String, String, List<String>>? = null
+        for (n in minOf(3, words.size) downTo 1) {
+            val said = words.take(n).joinToString(" ")
+            val variants = buildList {
+                if (said.length > 2 && said.startsWith("ל")) add(said.drop(1))
+                add(said)
+            }
+            for (v in variants) {
+                val best = contacts.maxByOrNull { score(it.first, v) } ?: continue
+                val s = score(best.first, v)
+                if (s >= 2) return Triple(best.first, best.second, words.drop(n))
+                if (s == 1 && weak == null) weak = Triple(best.first, best.second, words.drop(n))
+            }
+        }
+        return weak
     }
 }
 
