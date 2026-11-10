@@ -72,6 +72,11 @@
             android:name=".DriveSummaryActivity"
             android:exported="false" />
 
+        <!-- התראה בהגעה למקום וביציאה ממנו -->
+        <receiver
+            android:name=".PlaceAlertReceiver"
+            android:exported="false" />
+
         <!-- תזכורת לפי מקום -->
         <receiver
             android:name=".ReminderReceiver"

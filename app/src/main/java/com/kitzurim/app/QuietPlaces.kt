@@ -151,5 +151,6 @@ class BootReceiver : BroadcastReceiver() {
         QuietPlaces.register(ctx)
         ScheduledQuiet.apply(ctx)
         Reminders.register(ctx)
+        PlaceAlerts.register(ctx)
     }
 }

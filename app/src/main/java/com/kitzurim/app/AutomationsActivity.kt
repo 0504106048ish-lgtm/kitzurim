@@ -106,6 +106,15 @@ fun AutomationsScreen(resumes: Int) {
     var placeName by remember { mutableStateOf("") }
     var placeAddress by remember { mutableStateOf("") }
     var placeRadius by remember { mutableStateOf(200f) }
+    // התראות מקום
+    var alName by remember { mutableStateOf("") }
+    var alAddress by remember { mutableStateOf("") }
+    var alText by remember { mutableStateOf("") }
+    var alArrive by remember { mutableStateOf(true) }
+    var alLeave by remember { mutableStateOf(false) }
+    var alRadius by remember { mutableStateOf(200f) }
+    var alError by remember { mutableStateOf<String?>(null) }
+    var alBusy by remember { mutableStateOf(false) }
     var placeError by remember { mutableStateOf<String?>(null) }
     var adding by remember { mutableStateOf(false) }
 
@@ -529,6 +538,139 @@ fun AutomationsScreen(resumes: Int) {
             }
             }
 
+            if (folder == "alerts") {
+            // ---------- התראה בהגעה למקום וביציאה ממנו ----------
+            Section("🔔 התראות מקום") {
+                Text(
+                    "התראה בכל פעם שמגיעים למקום או עוזבים אותו. בשונה מתזכורת, היא לא נמחקת אחרי פעם אחת.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val fineA = granted(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
+                val bgA = Build.VERSION.SDK_INT < 29 || granted(ctx, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                Status(fineA && bgA && Notify.allowed(ctx), "", "מיקום \"כל הזמן\" והתראות") {
+                    ctx.startActivity(Intent(ctx, PermissionsActivity::class.java))
+                }
+
+                val alerts = PlaceAlerts.all(ctx)
+                alerts.forEach { a ->
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("📍 " + a.name, fontWeight = FontWeight.Medium)
+                                Text(
+                                    PlaceAlerts.describe(a) + if (a.text.isNotBlank()) " · \"${a.text}\"" else "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            IconButton(onClick = { PlaceAlerts.remove(ctx, a.id); refresh++ }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "מחיקה")
+                            }
+                        }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(
+                                selected = a.onArrive,
+                                onClick = { PlaceAlerts.update(ctx, a.copy(onArrive = !a.onArrive)); refresh++ },
+                                label = { Text("בהגעה") },
+                            )
+                            FilterChip(
+                                selected = a.onLeave,
+                                onClick = { PlaceAlerts.update(ctx, a.copy(onLeave = !a.onLeave)); refresh++ },
+                                label = { Text("ביציאה") },
+                            )
+                        }
+                    }
+                    HorizontalDivider()
+                }
+
+                Text("הוספת מקום", fontWeight = FontWeight.Medium)
+                OutlinedTextField(
+                    value = alName,
+                    onValueChange = { alName = it; alError = null },
+                    label = { Text("שם המקום") },
+                    placeholder = { Text("העבודה") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = alAddress,
+                    onValueChange = { alAddress = it; alError = null },
+                    label = { Text("כתובת או שם של מקום") },
+                    placeholder = { Text("רחוב הרצל 10, ירושלים") },
+                    singleLine = true,
+                    isError = alError != null,
+                    supportingText = { Text(alError ?: "או להשאיר ריק וללחוץ \"המקום שבו אני עכשיו\"") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = alText,
+                    onValueChange = { alText = it },
+                    label = { Text("מה לכתוב בהתראה (לא חובה)") },
+                    placeholder = { Text("לבדוק שנעלתי את הרכב") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text("מתי להתריע", style = MaterialTheme.typography.bodySmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = alArrive, onClick = { alArrive = !alArrive }, label = { Text("כשאני מגיע") })
+                    FilterChip(selected = alLeave, onClick = { alLeave = !alLeave }, label = { Text("כשאני עוזב") })
+                }
+                Text("גודל האזור", style = MaterialTheme.typography.bodySmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(100f to "קטן · 100 מ'", 200f to "בינוני · 200 מ'", 500f to "גדול · 500 מ'").forEach { (r, label) ->
+                        FilterChip(selected = alRadius == r, onClick = { alRadius = r }, label = { Text(label) })
+                    }
+                }
+                val onAlertAdded: (Boolean) -> Unit = { ok ->
+                    alBusy = false
+                    if (ok) {
+                        Actions.toast(ctx, "🔔 ${alName.trim()} נשמר")
+                        alName = ""
+                        alAddress = ""
+                        alText = ""
+                    } else {
+                        alError = if (alAddress.isNotBlank()) {
+                            "לא מצאתי את הכתובת. לנסות לכתוב גם את העיר"
+                        } else {
+                            "לא הצלחתי למצוא את המיקום שלך. לבדוק שהמיקום בטלפון דולק"
+                        }
+                    }
+                    refresh++
+                }
+                fun alertCheck(): Boolean {
+                    alError = when {
+                        alName.isBlank() -> "צריך לתת שם למקום"
+                        !alArrive && !alLeave -> "לבחור מתי להתריע: בהגעה, ביציאה או שניהם"
+                        else -> null
+                    }
+                    return alError == null && !alBusy
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        if (alertCheck()) {
+                            if (alAddress.isBlank()) {
+                                alError = "צריך לכתוב כתובת או שם של מקום"
+                            } else {
+                                alBusy = true
+                                PlaceAlerts.addByAddress(
+                                    ctx, alName.trim(), alAddress.trim(), alRadius, alArrive, alLeave, alText.trim(), onAlertAdded,
+                                )
+                            }
+                        }
+                    }) { Text(if (alBusy) "מחפש..." else "הוספה לפי הכתובת") }
+                    OutlinedButton(onClick = {
+                        if (alertCheck()) {
+                            if (!fineA) {
+                                alError = "קודם לאשר מיקום"
+                            } else {
+                                alBusy = true
+                                PlaceAlerts.addHere(ctx, alName.trim(), alRadius, alArrive, alLeave, alText.trim(), onAlertAdded)
+                            }
+                        }
+                    }) { Text("המקום שבו אני עכשיו") }
+                }
+            }
+            }
+
             if (folder == "night") {
             // ---------- שיחות לא מוכרות בלילה ----------
             Section(
@@ -741,6 +883,7 @@ private val FOLDERS = listOf(
     Folder("quiet", "🤫", "שקט (לפי מקום ולפי שעות)"),
     Folder("night", "📵", "שיחות בלילה"),
     Folder("remind", "🛒", "תזכורות לפי מקום"),
+    Folder("alerts", "🔔", "התראות בהגעה וביציאה"),
 )
 
 /** שורת המצב שמתחת לשם התיקייה */
@@ -759,6 +902,7 @@ private fun folderStatus(ctx: Context, id: String): String = when (id) {
     }
     "night" -> if (AutoPrefs.nightCallsEnabled(ctx) && NightCalls.roleHeld(ctx)) "פעיל · 23:00–07:00" else "כבוי"
     "remind" -> AutoPrefs.reminders(ctx).size.let { if (it == 0) "אין תזכורות" else "$it תזכורות" }
+    "alerts" -> PlaceAlerts.all(ctx).size.let { if (it == 0) "אין התראות" else "פעיל · $it מקומות" }
     else -> ""
 }
 
