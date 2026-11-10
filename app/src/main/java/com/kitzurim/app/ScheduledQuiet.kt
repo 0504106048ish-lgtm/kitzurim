@@ -50,10 +50,12 @@ object ScheduledQuiet {
                 AutoPrefs.enterScheduledQuiet(ctx, am.ringerMode)
                 QuietPlaces.setRinger(ctx, AudioManager.RINGER_MODE_SILENT)
                 Actions.toast(ctx, "🤫 שעת שקט: הטלפון בשקט")
+                ActivityLog.add(ctx, "🕐", "שעת שקט התחילה")
             } else if (!want && AutoPrefs.inScheduledQuiet(ctx)) {
                 QuietPlaces.setRinger(ctx, AutoPrefs.scheduledSavedRinger(ctx))
                 AutoPrefs.leaveScheduledQuiet(ctx)
                 Actions.toast(ctx, "🔔 שעת השקט נגמרה: הצלצול חזר")
+                ActivityLog.add(ctx, "🔔", "שעת שקט נגמרה")
             }
         }
         scheduleNext(ctx)

@@ -132,6 +132,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 Intent(ctx, HomeActivity::class.java),
             )
             AutoPrefs.removeReminder(ctx, r.id)
+            ActivityLog.add(ctx, "🛒", "תזכורת ב${r.place}: ${r.text}")
         }
         Reminders.register(ctx)
     }

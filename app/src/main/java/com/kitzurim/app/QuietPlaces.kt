@@ -133,12 +133,14 @@ class GeofenceReceiver : BroadcastReceiver() {
                 if (!AutoPrefs.inQuietPlace(ctx)) AutoPrefs.enterQuiet(ctx, am.ringerMode)
                 QuietPlaces.setRinger(ctx, AudioManager.RINGER_MODE_SILENT)
                 Actions.toast(ctx, "🤫 $name: הטלפון בשקט")
+                ActivityLog.add(ctx, "🤫", "השתקתי ב$name")
             }
             Geofence.GEOFENCE_TRANSITION_EXIT -> {
                 if (AutoPrefs.inQuietPlace(ctx)) {
                     QuietPlaces.setRinger(ctx, AutoPrefs.savedRinger(ctx))
                     AutoPrefs.leaveQuiet(ctx)
                     Actions.toast(ctx, "🔔 יצאת מ$name: הצלצול חזר")
+                    ActivityLog.add(ctx, "🔔", "יצאת מ$name, הצלצול חזר")
                 }
             }
         }

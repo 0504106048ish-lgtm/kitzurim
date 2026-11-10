@@ -111,6 +111,23 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("⚙️ אוטומציות: נהיגה, לילה, שקט לפי מקום") }
 
+            // חיבור ללחצן הצדדי: לחיצה כפולה פותחת את הפקודה הקולית
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("🎙️ חיבור ללחצן הצדדי", fontWeight = FontWeight.Medium)
+                    Text("ככה לחיצה כפולה על הלחצן הצדדי פותחת ישר את הפקודה הקולית:")
+                    Text("1. הגדרות הטלפון ← תכונות מתקדמות ← לחצן צד")
+                    Text("2. מפעילים \"לחיצה כפולה\" ובוחרים \"פתיחת אפליקציה\"")
+                    Text("3. בוחרים ב\"קיצורים קולי\" (האייקון עם המיקרופון)")
+                    OutlinedButton(onClick = {
+                        try {
+                            ctx.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+                        } catch (_: Exception) {
+                        }
+                    }) { Text("לפתוח את הגדרות הטלפון") }
+                }
+            }
+
         }
     }
 }

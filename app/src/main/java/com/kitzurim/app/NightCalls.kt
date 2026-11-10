@@ -22,6 +22,7 @@ class NightCallScreener : CallScreeningService() {
                 .setSkipNotification(true)
                 .setSkipCallLog(false)
             AutoPrefs.addRejected(this, details.handle?.schemeSpecificPart ?: "מספר חסוי")
+            ActivityLog.add(this, "📵", "דחיתי שיחה מ" + (details.handle?.schemeSpecificPart ?: "מספר חסוי"))
         }
         respondToCall(details, response.build())
     }

@@ -440,9 +440,9 @@ fun AutomationsScreen(resumes: Int) {
             }
             }
 
-            if (folder == "remind") {
+            if (folder == "places") {
             // ---------- תזכורת לפי מקום ----------
-            Section("🛒 תזכורות לפי מקום") {
+            Section("🛒 תזכורת חד־פעמית") {
                 Text(
                     "התזכורת קופצת כשאתה מגיע למקום, ואז נמחקת. אפשר גם בקול: \"תזכיר לי לקנות חלב כשאני ליד שופרסל\".",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -538,9 +538,9 @@ fun AutomationsScreen(resumes: Int) {
             }
             }
 
-            if (folder == "alerts") {
+            if (folder == "places") {
             // ---------- התראה בהגעה למקום וביציאה ממנו ----------
-            Section("🔔 התראות מקום") {
+            Section("🔔 התראה בכל הגעה או יציאה") {
                 Text(
                     "התראה בכל פעם שמגיעים למקום או עוזבים אותו. בשונה מתזכורת, היא לא נמחקת אחרי פעם אחת.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -882,8 +882,7 @@ private val FOLDERS = listOf(
     Folder("drive", "🚗", "נהיגה"),
     Folder("quiet", "🤫", "שקט (לפי מקום ולפי שעות)"),
     Folder("night", "📵", "שיחות בלילה"),
-    Folder("remind", "🛒", "תזכורות לפי מקום"),
-    Folder("alerts", "🔔", "התראות בהגעה וביציאה"),
+    Folder("places", "📍", "מקומות: תזכורות והתראות"),
 )
 
 /** שורת המצב שמתחת לשם התיקייה */
@@ -901,8 +900,14 @@ private fun folderStatus(ctx: Context, id: String): String = when (id) {
         if (parts.isEmpty()) "כבוי" else "פעיל · " + parts.joinToString(" · ")
     }
     "night" -> if (AutoPrefs.nightCallsEnabled(ctx) && NightCalls.roleHeld(ctx)) "פעיל · 23:00–07:00" else "כבוי"
-    "remind" -> AutoPrefs.reminders(ctx).size.let { if (it == 0) "אין תזכורות" else "$it תזכורות" }
-    "alerts" -> PlaceAlerts.all(ctx).size.let { if (it == 0) "אין התראות" else "פעיל · $it מקומות" }
+    "places" -> {
+        val alerts = PlaceAlerts.all(ctx).count { it.onArrive || it.onLeave }
+        val rem = AutoPrefs.reminders(ctx).size
+        if (alerts + rem == 0) "אין עדיין" else listOfNotNull(
+            if (alerts > 0) "$alerts התראות" else null,
+            if (rem > 0) "$rem תזכורות" else null,
+        ).joinToString(" · ", prefix = "פעיל · ")
+    }
     else -> ""
 }
 

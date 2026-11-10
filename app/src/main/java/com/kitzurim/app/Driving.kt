@@ -28,10 +28,13 @@ class CarReceiver : BroadcastReceiver() {
             BluetoothDevice.ACTION_ACL_CONNECTED -> {
                 AutoPrefs.setDrivingActive(ctx, true)
                 if (enabled) Actions.toast(ctx, "🚗 מצב נהיגה: מענה אוטומטי פעיל")
+                ActivityLog.add(ctx, "🚗", "התחלת נסיעה")
             }
             BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
                 AutoPrefs.setDrivingActive(ctx, false)
                 if (enabled) Actions.toast(ctx, "מצב נהיגה כבה")
+                val got = AutoPrefs.driveMessages(ctx).size
+                ActivityLog.add(ctx, "🏁", if (got > 0) "סוף נסיעה · הגיעו $got הודעות" else "סוף נסיעה")
                 DriveSummary.show(ctx)
             }
         }
@@ -79,6 +82,7 @@ class ReplyListener : NotificationListenerService() {
         try {
             action.actionIntent.send(this, 0, fill)
             AutoPrefs.markReplied(this, chat)
+            ActivityLog.add(this, "💬", "עניתי אוטומטית ל$chat")
         } catch (_: PendingIntent.CanceledException) {
         }
     }

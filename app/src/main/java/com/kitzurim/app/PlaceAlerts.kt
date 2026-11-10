@@ -168,6 +168,7 @@ class PlaceAlertReceiver : BroadcastReceiver() {
             if (arrived && !a.onArrive) return@forEach
             if (!arrived && !a.onLeave) return@forEach
             val title = if (arrived) "📍 הגעת ל${a.name}" else "🚶 יצאת מ${a.name}"
+            ActivityLog.add(ctx, if (arrived) "📍" else "🚶", if (arrived) "הגעת ל${a.name}" else "יצאת מ${a.name}")
             Notify.post(
                 ctx, (a.id + arrived).hashCode(),
                 title,

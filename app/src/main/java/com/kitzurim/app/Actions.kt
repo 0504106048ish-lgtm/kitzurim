@@ -5,11 +5,15 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.ui.graphics.vector.ImageVector
 
-/** מה שכל כפתור בעיגול עושה בפועל */
+/** מה שכל כפתור עושה בפועל */
 object Actions {
     /**
-     * מפעיל פעולה (מהמסך הראשי או מהעיגול).
+     * מפעיל פעולה מהמסך הראשי.
      * מחזיר false כשחסר משהו בהגדרות (מספר טלפון או כתובת בית), ואז צריך לפתוח אותן.
      */
     fun run(ctx: Context, action: QuickAction): Boolean {
@@ -81,4 +85,10 @@ object Actions {
     fun toast(ctx: Context, text: String) {
         Toast.makeText(ctx.applicationContext, text, Toast.LENGTH_SHORT).show()
     }
+}
+
+/** הכפתורים במסך הפתיחה */
+enum class QuickAction(val label: String, val icon: ImageVector) {
+    HOME("הביתה", Icons.Filled.Home),
+    VOICE("פקודה קולית", Icons.Filled.Mic),
 }

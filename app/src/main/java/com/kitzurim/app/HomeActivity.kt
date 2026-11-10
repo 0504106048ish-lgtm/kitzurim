@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -160,6 +161,9 @@ fun HomeScreen(resumes: Int) {
                 // סוללה: אחוז מדויק, ובטעינה גם זמן עד מלא, זרם וחום
                 BatteryCard()
 
+                // מה קיצורים עשתה לבד היום
+                TodayCard()
+
                 // חסרים אישורים: פס אחד שמוביל למסך האישורים
                 val missing = Perms.missingCount(ctx)
                 if (missing > 0) {
@@ -197,10 +201,10 @@ fun HomeScreen(resumes: Int) {
                 }
 
                 Text(
-                    "בהמשך: פתיחה מהירה בלחיצה כפולה על הלחצן הצדדי",
-                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    "🎙️ לחיצה כפולה על הלחצן הצדדי = פקודה קולית · איך מחברים ←",
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { openSettings() }.padding(vertical = 10.dp),
                     style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant,
+                    color = scheme.primary,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -235,5 +239,43 @@ private fun Tile(icon: ImageVector, label: String, lit: Boolean, modifier: Modif
             )
         }
         Text(label, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, maxLines = 1)
+    }
+}
+
+/** "מה קרה היום": מה שקיצורים עשתה לבד מחצות (5 אחרונים, ולחיצה מראה את כולם) */
+@Composable
+private fun TodayCard() {
+    val ctx = LocalContext.current
+    val events = remember { ActivityLog.today(ctx) }
+    var expanded by remember { mutableStateOf(false) }
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(scheme.surfaceContainerHigh)
+            .clickable(enabled = events.size > 5) { expanded = !expanded }
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("מה קרה היום", style = MaterialTheme.typography.titleMedium)
+        if (events.isEmpty()) {
+            Text(
+                "עוד לא קרה כלום. כשקיצורים תעשה משהו לבד (תענה בנהיגה, תשתיק, תזכיר), זה יופיע כאן.",
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+            )
+        } else {
+            (if (expanded) events else events.take(5)).forEach { e ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(e.emoji, Modifier.padding(end = 8.dp))
+                    Text(e.text, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    Text(e.clock(), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                }
+            }
+            if (events.size > 5 && !expanded) {
+                Text("ועוד ${events.size - 5} · לראות הכול", style = MaterialTheme.typography.bodySmall, color = scheme.primary)
+            }
+        }
     }
 }
