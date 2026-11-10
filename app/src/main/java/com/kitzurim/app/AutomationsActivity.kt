@@ -104,6 +104,8 @@ fun AutomationsScreen(resumes: Int) {
     var showCars by remember { mutableStateOf(false) }
     var reply by remember { mutableStateOf(AutoPrefs.replyText(ctx)) }
     var placeName by remember { mutableStateOf("") }
+    var placeAddress by remember { mutableStateOf("") }
+    var placeRadius by remember { mutableStateOf(200f) }
     var placeError by remember { mutableStateOf<String?>(null) }
     var adding by remember { mutableStateOf(false) }
 
@@ -593,9 +595,21 @@ fun AutomationsScreen(resumes: Int) {
                     open(ctx, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
                 }
 
-                AutoPrefs.places(ctx).forEach { p ->
+                // המקומות ששמרת (כמה שרוצים)
+                val places = AutoPrefs.places(ctx)
+                if (places.isNotEmpty()) {
+                    Text("המקומות שלך (${places.size})", fontWeight = FontWeight.Medium)
+                }
+                places.forEach { p ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("📍 " + p.name, Modifier.weight(1f))
+                        Column(Modifier.weight(1f)) {
+                            Text("📍 " + p.name)
+                            Text(
+                                "ברדיוס ${p.radius.toInt()} מטר",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         IconButton(onClick = {
                             AutoPrefs.removePlace(ctx, p.id)
                             QuietPlaces.register(ctx)
@@ -603,36 +617,77 @@ fun AutomationsScreen(resumes: Int) {
                         }) { Icon(Icons.Filled.Delete, contentDescription = "מחיקה") }
                     }
                 }
+
+                // הוספת מקום חדש
+                HorizontalDivider()
+                Text("הוספת מקום", fontWeight = FontWeight.Medium)
                 OutlinedTextField(
                     value = placeName,
                     onValueChange = { placeName = it; placeError = null },
                     label = { Text("שם המקום") },
                     placeholder = { Text("בית כנסת") },
                     singleLine = true,
-                    isError = placeError != null,
-                    supportingText = { Text(placeError ?: "צריך להיות במקום עצמו כשמוסיפים אותו") },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedButton(onClick = {
-                    when {
-                        placeName.isBlank() -> placeError = "צריך לתת שם למקום"
-                        !fine -> placeError = "קודם לאשר מיקום"
-                        adding -> {}
-                        else -> {
-                            adding = true
-                            QuietPlaces.addCurrentPlace(ctx, placeName.trim()) { ok ->
-                                adding = false
-                                if (ok) {
-                                    Actions.toast(ctx, "המקום נשמר")
-                                    placeName = ""
-                                } else {
-                                    placeError = "לא הצלחתי למצוא את המיקום. לבדוק שהמיקום בטלפון דולק"
-                                }
-                                refresh++
-                            }
+                OutlinedTextField(
+                    value = placeAddress,
+                    onValueChange = { placeAddress = it; placeError = null },
+                    label = { Text("כתובת או שם של מקום") },
+                    placeholder = { Text("רחוב רבי עקיבא 10, בני ברק") },
+                    singleLine = true,
+                    isError = placeError != null,
+                    supportingText = { Text(placeError ?: "או להשאיר ריק וללחוץ \"המקום שבו אני עכשיו\"") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text("גודל האזור", style = MaterialTheme.typography.bodySmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(100f to "קטן · 100 מ'", 200f to "בינוני · 200 מ'", 500f to "גדול · 500 מ'").forEach { (r, label) ->
+                        FilterChip(
+                            selected = placeRadius == r,
+                            onClick = { placeRadius = r },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+                val onPlaceAdded: (Boolean) -> Unit = { ok ->
+                    adding = false
+                    if (ok) {
+                        Actions.toast(ctx, "📍 ${placeName.trim()} נשמר")
+                        placeName = ""
+                        placeAddress = ""
+                    } else {
+                        placeError = if (placeAddress.isNotBlank()) {
+                            "לא מצאתי את הכתובת. לנסות לכתוב גם את העיר"
+                        } else {
+                            "לא הצלחתי למצוא את המיקום שלך. לבדוק שהמיקום בטלפון דולק"
                         }
                     }
-                }) { Text(if (adding) "מחפש מיקום..." else "הוספת המקום שבו אני נמצא עכשיו") }
+                    refresh++
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        when {
+                            placeName.isBlank() -> placeError = "צריך לתת שם למקום"
+                            placeAddress.isBlank() -> placeError = "צריך לכתוב כתובת או שם של מקום"
+                            adding -> {}
+                            else -> {
+                                adding = true
+                                QuietPlaces.addByAddress(ctx, placeName.trim(), placeAddress.trim(), placeRadius, onPlaceAdded)
+                            }
+                        }
+                    }) { Text(if (adding) "מחפש..." else "הוספה לפי הכתובת") }
+                    OutlinedButton(onClick = {
+                        when {
+                            placeName.isBlank() -> placeError = "צריך לתת שם למקום"
+                            !fine -> placeError = "קודם לאשר מיקום"
+                            adding -> {}
+                            else -> {
+                                adding = true
+                                QuietPlaces.addCurrentPlace(ctx, placeName.trim(), placeRadius, onPlaceAdded)
+                            }
+                        }
+                    }) { Text("המקום שבו אני עכשיו") }
+                }
             }
             }
         }

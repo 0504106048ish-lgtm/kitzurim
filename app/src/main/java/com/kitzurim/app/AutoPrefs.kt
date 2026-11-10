@@ -8,7 +8,13 @@ import java.util.Date
 import java.util.Locale
 
 /** מקום שבו הטלפון עובר לשקט */
-data class Place(val id: String, val name: String, val lat: Double, val lng: Double)
+data class Place(
+    val id: String,
+    val name: String,
+    val lat: Double,
+    val lng: Double,
+    val radius: Float = AutoPrefs.PLACE_RADIUS_METERS,
+)
 
 /** תשובה מיוחדת בנהיגה לאדם מסוים (מזוהה לפי מספר, ואם אין מספר אז לפי שם) */
 data class CustomReply(val name: String, val number: String, val text: String) {
@@ -172,7 +178,10 @@ object AutoPrefs {
     fun places(c: Context): List<Place> = list(c, "places").mapNotNull {
         try {
             val o = JSONObject(it)
-            Place(o.getString("id"), o.getString("name"), o.getDouble("lat"), o.getDouble("lng"))
+            Place(
+                o.getString("id"), o.getString("name"), o.getDouble("lat"), o.getDouble("lng"),
+                o.optDouble("r", PLACE_RADIUS_METERS.toDouble()).toFloat(),
+            )
         } catch (_: Exception) {
             null
         }
@@ -180,6 +189,7 @@ object AutoPrefs {
 
     fun addPlace(c: Context, p: Place) {
         val o = JSONObject().put("id", p.id).put("name", p.name).put("lat", p.lat).put("lng", p.lng)
+            .put("r", p.radius.toDouble())
         setList(c, "places", list(c, "places") + o.toString())
     }
 

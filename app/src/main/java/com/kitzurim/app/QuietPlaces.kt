@@ -6,7 +6,11 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.location.Geocoder
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
+import java.util.Locale
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import com.google.android.gms.location.GeofencingRequest
@@ -32,7 +36,7 @@ object QuietPlaces {
             val fences = places.map {
                 Geofence.Builder()
                     .setRequestId(it.id)
-                    .setCircularRegion(it.lat, it.lng, AutoPrefs.PLACE_RADIUS_METERS)
+                    .setCircularRegion(it.lat, it.lng, it.radius)
                     .setExpirationDuration(Geofence.NEVER_EXPIRE)
                     .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
                     .build()
@@ -50,7 +54,7 @@ object QuietPlaces {
 
     /** שומר את המקום שבו אתה נמצא עכשיו */
     @SuppressLint("MissingPermission")
-    fun addCurrentPlace(ctx: Context, name: String, done: (Boolean) -> Unit) {
+    fun addCurrentPlace(ctx: Context, name: String, radius: Float, done: (Boolean) -> Unit) {
         try {
             LocationServices.getFusedLocationProviderClient(ctx)
                 .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
@@ -58,7 +62,10 @@ object QuietPlaces {
                     if (loc == null) {
                         done(false)
                     } else {
-                        AutoPrefs.addPlace(ctx, Place(UUID.randomUUID().toString(), name, loc.latitude, loc.longitude))
+                        AutoPrefs.addPlace(
+                            ctx,
+                            Place(UUID.randomUUID().toString(), name, loc.latitude, loc.longitude, radius),
+                        )
                         register(ctx)
                         done(true)
                     }
@@ -67,6 +74,31 @@ object QuietPlaces {
         } catch (_: SecurityException) {
             done(false)
         }
+    }
+
+    /** שומר מקום לפי כתובת או שם (למשל "בית כנסת הגדול, בני ברק"), בלי שתצטרך להיות שם */
+    fun addByAddress(ctx: Context, name: String, address: String, radius: Float, done: (Boolean) -> Unit) {
+        val main = Handler(Looper.getMainLooper())
+        Thread {
+            val found = try {
+                @Suppress("DEPRECATION")
+                Geocoder(ctx, Locale("he")).getFromLocationName(address, 1)?.firstOrNull()
+            } catch (_: Exception) {
+                null
+            }
+            main.post {
+                if (found == null) {
+                    done(false)
+                } else {
+                    AutoPrefs.addPlace(
+                        ctx,
+                        Place(UUID.randomUUID().toString(), name, found.latitude, found.longitude, radius),
+                    )
+                    register(ctx)
+                    done(true)
+                }
+            }
+        }.start()
     }
 
     fun dndAllowed(ctx: Context): Boolean =
