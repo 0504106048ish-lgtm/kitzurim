@@ -74,6 +74,10 @@
             android:theme="@style/Theme.Kitzurim.Translucent" />
 
         <activity
+            android:name=".PermissionsActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".DriveSummaryActivity"
             android:exported="false" />
 

@@ -156,6 +156,21 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
+                // חסרים אישורים: פס אחד שמוביל למסך האישורים
+                val missing = Perms.missingCount(ctx)
+                if (missing > 0) {
+                    Text(
+                        "⚠️ חסרים $missing אישורים · לסדר בלחיצה ←",
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(scheme.errorContainer)
+                            .clickable { ctx.startActivity(Intent(ctx, PermissionsActivity::class.java)) }
+                            .padding(16.dp),
+                        color = scheme.onErrorContainer,
+                    )
+                }
+
                 // פעם ראשונה: עוד אין מספר וואטסאפ
                 if (Prefs.phone(ctx).isBlank()) {
                     Text(
