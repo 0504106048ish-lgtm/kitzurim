@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מסכי קיצורים</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{--bg:#f3f2ee;--text:#1f1f1d;--muted:#6b6a65;--border:rgba(0,0,0,.12);--accent:#185FA5;--accentBg:#E6F1FB;--frame:#1f1f1d;--card:#fff}
+@media (prefers-color-scheme: dark){:root{--bg:#1a1a19;--text:#f1efe8;--muted:#b4b2a9;--border:rgba(255,255,255,.14);--accent:#85B7EB;--accentBg:#0C447C;--frame:#d3d1c7;--card:#262624}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;padding:16px}
+.wrap{max-width:640px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:16px}
+h1{font-size:20px;font-weight:500;margin:4px 0 0}
+.sub{font-size:14px;color:var(--muted);text-align:center;line-height:1.6;margin:0}
+.chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.chip{padding:8px 14px;border-radius:10px;font-size:14px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text)}
+.chip.on{background:var(--accentBg);color:var(--accent);border-color:var(--accent)}
+/* phone: Material You light, blue from wallpaper */
+.ph{position:relative;width:290px;height:600px;border:6px solid var(--frame);border-radius:38px;overflow:hidden;background:#f8f9ff;color:#191c20;font-size:13px}
+.scr{position:absolute;inset:0;overflow-y:auto;padding:34px 16px 20px;display:none}
+.scr.on{display:block}
+.scr::-webkit-scrollbar{width:0}
+.wall{background:linear-gradient(160deg,#3b5f8a,#20344f)}
+.apps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:10px 4px}
+.apps div{width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+.bub{position:absolute;width:84px;display:flex;flex-direction:column;align-items:center;gap:5px;color:#fff;font-size:12px;cursor:pointer}
+.bub i{width:58px;height:58px;border-radius:50%;background:#d3e4ff;color:#001c38;display:flex;align-items:center;justify-content:center;font-size:26px}
+.gear{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;background:rgba(248,249,255,.88);display:flex;align-items:center;justify-content:center;font-size:22px;color:#191c20;cursor:pointer}
+.h1{font-size:24px;margin:6px 0 2px}
+.h2{color:#43474e;margin-bottom:14px}
+.field{border:1px solid #73777f;border-radius:6px;padding:9px 12px;margin-top:14px;position:relative;min-height:40px;display:flex;align-items:center}
+.field label{position:absolute;top:-8px;right:10px;background:#f8f9ff;padding:0 4px;font-size:11px;color:#43474e}
+.help{font-size:11px;color:#43474e;margin:3px 12px 0}
+.row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.btn{border-radius:20px;padding:9px 18px;font-size:13px;border:1px solid #73777f;color:#2b5ea7;background:none}
+.btn.fill{background:#2b5ea7;color:#fff;border-color:#2b5ea7}
+.btn.wide{width:100%;margin-top:14px;text-align:center}
+.card{background:#e6ebf3;border-radius:12px;padding:14px;margin-top:14px}
+.card .t{font-size:15px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card p{color:#43474e;margin:8px 0;line-height:1.5}
+.sw{width:42px;height:24px;border-radius:12px;background:#dfe2eb;border:2px solid #73777f;position:relative;cursor:pointer;flex-shrink:0}
+.sw::after{content:"";position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#73777f;transition:.2s}
+.sw.on{background:#2b5ea7;border-color:#2b5ea7}
+.sw.on::after{right:19px;top:1px;width:18px;height:18px;background:#fff}
+.st{display:flex;align-items:center;gap:6px;margin:6px 0}
+.st i{font-size:18px}
+.ok{color:#2b5ea7}.bad{color:#ba1a1a}
+.st span{flex:1}
+.st b{font-weight:500;color:#2b5ea7;cursor:pointer}
+.lst div{padding:7px 0;border-bottom:1px solid #c3c6cf;font-size:12px}
+.toast{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);background:#2e3036;color:#eff0f7;font-size:12px;padding:8px 14px;border-radius:16px;opacity:0;transition:opacity .3s;white-space:nowrap;z-index:5}
+.note{font-size:13px;color:var(--muted);line-height:1.7;max-width:440px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>כך תיראה קיצורים</h1>
+<p class="sub">שלושת המסכים של האפליקציה. אפשר ללחוץ על כפתורים ועל מתגים.</p>
+<div class="chips">
+<span class="chip on" data-s="menu">התפריט העגול</span><span class="chip" data-s="settings">הגדרות</span><span class="chip" data-s="auto">אוטומציות</span>
+</div>
+<div class="ph">
+
+<div class="scr wall on" id="menu" style="padding:34px 8px">
+<div class="apps"><div><i class="ti ti-phone"></i></div><div><i class="ti ti-message"></i></div><div><i class="ti ti-camera"></i></div><div><i class="ti ti-photo"></i></div><div><i class="ti ti-calendar"></i></div><div><i class="ti ti-map-pin"></i></div><div><i class="ti ti-music"></i></div><div><i class="ti ti-clock"></i></div></div>
+<div class="scrim" id="ring"><div class="gear" onclick="go('settings')"><i class="ti ti-settings"></i></div></div>
+</div>
+
+<div class="scr" id="settings">
+<div class="h1">קיצורים</div>
+<div class="h2">הגדרות התפריט העגול</div>
+<div class="field"><label>מספר הוואטסאפ שלך</label>050-1234567</div>
+<div class="help">הצ'אט הקבוע ייפתח עם המספר הזה</div>
+<div class="field"><label>ההודעה המוכנה</label>שלום לך!</div>
+<div class="field"><label>כתובת הבית</label>רחוב הרצל 10, ירושלים</div>
+<div class="help">הכפתור "הביתה" מנווט לכאן בוויז</div>
+<div class="row"><button class="btn fill" onclick="toast('נשמר')">שמירה</button><button class="btn" onclick="toast('נפתח הצ\'אט בוואטסאפ')">בדיקה בוואטסאפ</button></div>
+<button class="btn wide" onclick="go('auto')">⚙️ אוטומציות: נהיגה, לילה, שקט לפי מקום</button>
+<div class="card"><div class="t">איך מחברים ללחצן הצדדי</div>
+<p>1. הגדרות הטלפון ← תכונות מתקדמות ← לחצן צד<br>2. מפעילים "לחיצה כפולה" ובוחרים "פתיחת אפליקציה"<br>3. בוחרים ב"קיצורים"</p></div>
+</div>
+
+<div class="scr" id="auto">
+<div class="h1">אוטומציות</div>
+<div class="h2">דברים שקורים לבד, בלי ללחוץ על כלום</div>
+
+<div class="card"><div class="t">ריצה ברקע</div>
+<p>סמסונג עוצרת אפליקציות שרצות ברקע. כדי שהאוטומציות יעבדו, צריך לאשר לקיצורים לרוץ בלי הגבלה.</p>
+<div class="st" data-perm><i class="ti ti-alert-circle bad"></i><span>לא מאושר</span><b>לאשר</b></div></div>
+
+<div class="card"><div class="t">🚗 מענה אוטומטי בנהיגה<div class="sw on"></div></div>
+<p>כשהטלפון מתחבר לבלוטות' של הרכב, מי שכותב לך בוואטסאפ מקבל תשובה אחת. בקבוצות לא עונים.</p>
+<div class="st"><i class="ti ti-circle-check ok"></i><span>גישה להתראות: מאושר</span></div>
+<div style="font-weight:500;margin-top:8px">הרכב: Toyota Car Kit</div>
+<div class="row" style="margin-top:8px"><button class="btn">החלפת הרכב</button></div>
+<div class="field"><label>התשובה האוטומטית</label>אני נוהג, אחזור אליך בהקדם 🚗</div>
+<div class="t" style="font-size:13px;margin-top:12px">אני נוהג עכשיו (הפעלה ידנית)<div class="sw"></div></div>
+</div>
+
+<div class="card"><div class="t">📵 מספרים לא מוכרים בלילה<div class="sw on"></div></div>
+<p>בין 23:00 ל־07:00, שיחה ממספר שלא שמור אצלך נדחית בשקט ונרשמת כאן. אנשי קשר מצלצלים כרגיל.</p>
+<div style="font-weight:500">שיחות שנדחו</div>
+<div class="lst"><div>10/11 02:14 · 0721234567</div><div>09/11 23:40 · מספר חסוי</div></div>
+<div class="row"><b style="color:#2b5ea7;font-weight:500;cursor:pointer" onclick="this.parentNode.previousElementSibling.innerHTML='';toast('הרשימה נוקתה')">ניקוי הרשימה</b></div>
+</div>
+
+<div class="card"><div class="t">🤫 שקט לפי מקום<div class="sw on"></div></div>
+<p>כשאתה מגיע למקום ששמרת, הטלפון עובר לשקט. כשאתה יוצא, הצלצול חוזר למה שהיה.</p>
+<div class="st"><i class="ti ti-circle-check ok"></i><span>מיקום: מאושר</span></div>
+<div class="st"><i class="ti ti-circle-check ok"></i><span>מיקום ברקע: מאושר</span></div>
+<div class="st" data-perm><i class="ti ti-alert-circle bad"></i><span>שקט מלא: לא מאושר (בינתיים רק רטט)</span><b>לאשר</b></div>
+<div class="lst" id="places"><div>📍 בית כנסת</div><div>📍 עבודה</div></div>
+<div class="field"><label>שם המקום</label><span id="pn" style="color:#73777f">שיעור</span></div>
+<div class="help">צריך להיות במקום עצמו כשמוסיפים אותו</div>
+<button class="btn wide" onclick="addPlace()">הוספת המקום שבו אני נמצא עכשיו</button>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+</div>
+<p class="note">הצבעים בדמו כחולים. בטלפון שלך הם ייקחו את הצבע מהטפט, ויתאימו את עצמם גם למצב כהה.</p>
+</div>
+<script>
+const items=[['ti-messages','צ\'אט','נפתח הצ\'אט עם עצמך בוואטסאפ'],['ti-send','הודעה מוכנה','נפתח הצ\'אט עם "שלום לך!"'],['ti-bulb','פנס','הפנס נדלק'],['ti-notes','פתק','חלון פתק נפתח'],['ti-camera','מצלמה','המצלמה נפתחת'],['ti-home','הביתה','ניווט הביתה בוויז']];
+const ring=document.getElementById('ring');
+items.forEach((it,i)=>{const a=-Math.PI/2+i*2*Math.PI/6,cx=139+Math.cos(a)*100-42,cy=294+Math.sin(a)*100-38;
+const d=document.createElement('div');d.className='bub';d.style.left=cx+'px';d.style.top=cy+'px';d.innerHTML=`<i class="ti ${it[0]}"></i><span>${it[1]}</span>`;d.onclick=()=>toast(it[2]);ring.appendChild(d)});
+function toast(t){const el=document.getElementById('toast');el.textContent=t;el.style.opacity=1;clearTimeout(window._t);window._t=setTimeout(()=>el.style.opacity=0,1700)}
+function go(s){document.querySelectorAll('.scr').forEach(x=>x.classList.toggle('on',x.id===s));document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on',c.dataset.s===s))}
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>go(c.dataset.s));
+document.querySelectorAll('.sw').forEach(s=>s.onclick=()=>s.classList.toggle('on'));
+document.querySelectorAll('[data-perm] b').forEach(b=>b.onclick=()=>{const r=b.parentNode;r.querySelector('i').className='ti ti-circle-check ok';r.querySelector('span').textContent=r.querySelector('span').textContent.split(':')[0].replace('לא מאושר','')+(r.querySelector('span').textContent.includes(':')?': מאושר':'מאושר');b.remove();toast('אושר')});
+function addPlace(){const p=document.getElementById('places');p.insertAdjacentHTML('beforeend','<div>📍 שיעור</div>');document.getElementById('pn').textContent='';toast('המקום נשמר')}
+</script>
+</body>
+</html>

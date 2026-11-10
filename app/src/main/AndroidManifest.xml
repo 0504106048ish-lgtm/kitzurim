@@ -22,19 +22,24 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Kitzurim">
 
-        <!-- התפריט העגול: נפתח שקוף מעל המסך הנוכחי. זה מה שבוחרים בלחיצה הכפולה של הלחצן הצדדי -->
+        <!-- המסך הראשי: מה שנפתח כשנכנסים לאפליקציה -->
         <activity
-            android:name=".MenuActivity"
-            android:exported="true"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:launchMode="singleTask"
-            android:theme="@style/Theme.Kitzurim.Translucent">
+            android:name=".HomeActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- התפריט העגול: נפתח שקוף מעל המסך. כרגע לא מחובר לכלום, יחובר בהמשך ללחיצה הכפולה על הלחצן הצדדי -->
+        <activity
+            android:name=".MenuActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Kitzurim.Translucent" />
 
         <activity
             android:name=".SettingsActivity"

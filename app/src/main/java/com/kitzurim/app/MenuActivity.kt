@@ -101,25 +101,7 @@ class MenuActivity : ComponentActivity() {
     }
 
     private fun runAction(action: QuickAction) {
-        when (action) {
-            QuickAction.CHAT -> Actions.openWhatsApp(this, Prefs.phone(this), null)
-            QuickAction.MESSAGE -> Actions.openWhatsApp(this, Prefs.phone(this), Prefs.message(this))
-            QuickAction.FLASH -> Actions.toggleTorch(this)
-            QuickAction.NOTE -> startActivity(
-                Intent(this, NoteActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-            QuickAction.CAMERA -> Actions.openCamera(this)
-            QuickAction.HOME -> {
-                // עוד אין כתובת בית: פותחים את ההגדרות כדי להקליד אותה
-                if (Prefs.home(this).isBlank()) {
-                    Actions.toast(this, "צריך להקליד כתובת בית בהגדרות")
-                    openSettings()
-                    return
-                }
-                Actions.navigateHome(this, Prefs.home(this))
-            }
-        }
-        close()
+        if (Actions.run(this, action)) close() else openSettings()
     }
 }
 

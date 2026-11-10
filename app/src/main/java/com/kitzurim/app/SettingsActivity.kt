@@ -84,7 +84,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text("קיצורים", style = MaterialTheme.typography.headlineMedium)
-            Text("הגדרות התפריט העגול", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("הגדרות", color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             OutlinedTextField(
                 value = phone,
@@ -124,18 +124,6 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("⚙️ אוטומציות: נהיגה, לילה, שקט לפי מקום") }
 
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("איך מחברים ללחצן הצדדי", fontWeight = FontWeight.Medium)
-                    Text("1. הגדרות הטלפון ← תכונות מתקדמות ← לחצן צד")
-                    Text("2. מפעילים \"לחיצה כפולה\" ובוחרים \"פתיחת אפליקציה\"")
-                    Text("3. בוחרים ב\"קיצורים\"")
-                    Text(
-                        "מעכשיו, לחיצה כפולה על הלחצן הצדדי פותחת את העיגול. לחיצה על גלגל השיניים שבמרכז מחזירה לכאן.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
         }
     }
 }

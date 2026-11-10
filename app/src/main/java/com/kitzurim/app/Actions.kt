@@ -9,6 +9,36 @@ import android.widget.Toast
 
 /** מה שכל כפתור בעיגול עושה בפועל */
 object Actions {
+    /**
+     * מפעיל פעולה (מהמסך הראשי או מהעיגול).
+     * מחזיר false כשחסר משהו בהגדרות (מספר טלפון או כתובת בית), ואז צריך לפתוח אותן.
+     */
+    fun run(ctx: Context, action: QuickAction): Boolean {
+        when (action) {
+            QuickAction.CHAT, QuickAction.MESSAGE -> {
+                if (Prefs.phone(ctx).isBlank()) {
+                    toast(ctx, "צריך להקליד מספר וואטסאפ בהגדרות")
+                    return false
+                }
+                val text = if (action == QuickAction.MESSAGE) Prefs.message(ctx) else null
+                openWhatsApp(ctx, Prefs.phone(ctx), text)
+            }
+            QuickAction.FLASH -> toggleTorch(ctx)
+            QuickAction.NOTE -> ctx.startActivity(
+                Intent(ctx, NoteActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            QuickAction.CAMERA -> openCamera(ctx)
+            QuickAction.HOME -> {
+                if (Prefs.home(ctx).isBlank()) {
+                    toast(ctx, "צריך להקליד כתובת בית בהגדרות")
+                    return false
+                }
+                navigateHome(ctx, Prefs.home(ctx))
+            }
+        }
+        return true
+    }
+
     /** 050-1234567 ← 972501234567 (הפורמט שוואטסאפ צריך) */
     fun normalizePhone(raw: String): String {
         val d = raw.filter { it.isDigit() }

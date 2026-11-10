@@ -16,7 +16,8 @@ class App : Application() {
 
 /** הפנס: זוכר אם הוא דולק, כדי שלחיצה אחת תדליק ולחיצה נוספת תכבה */
 object Torch {
-    private var on = false
+    var on = false
+        private set
     private var cameraId: String? = null
 
     fun init(ctx: Context) {
