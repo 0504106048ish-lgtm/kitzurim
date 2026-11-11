@@ -251,24 +251,49 @@ object CallNotif {
                 }
             }
 
-        // התראת שיחה של אנדרואיד: עיגול עם האות, כפתור נתק אדום גדול, וזמן השיחה ליד השעה
+        // עיצוב משלנו (סמסונג מראה בסגנון השיחה של אנדרואיד רק שני כפתורים, והשם נכנס מתחת לסמל):
+        // שורה אחת: העיגול עם האות, השם והזמן, ומשמאל השתק, רמקול ונתק
         val styled = runCatching {
-            val who = androidx.core.app.Person.Builder()
-                .setName(name)
-                .setIcon(androidx.core.graphics.drawable.IconCompat.createWithBitmap(pic))
-                .setImportant(true)
-                .build()
-            val b = base()
-                // אנדרואיד דורש מסך מלא בהתראת שיחה; בשיחה פעילה הערוץ שקט, אז הוא לא קופץ
-                .setFullScreenIntent(open, ringing)
-            if (ringing) {
-                b.setStyle(NotificationCompat.CallStyle.forIncomingCall(who, pi(ctx, "decline", 2), pi(ctx, "answer", 3)))
+            val v = android.widget.RemoteViews(ctx.packageName, R.layout.notif_call)
+            v.setImageViewBitmap(R.id.n_av, pic)
+            v.setTextViewText(R.id.n_name, name)
+            val at = Calls.answeredAt[c]
+            if (!ringing && at != null && st != Call.STATE_HOLDING) {
+                v.setViewVisibility(R.id.n_state, android.view.View.GONE)
+                v.setViewVisibility(R.id.n_timer, android.view.View.VISIBLE)
+                v.setChronometer(R.id.n_timer, android.os.SystemClock.elapsedRealtime() - (System.currentTimeMillis() - at), null, true)
             } else {
-                b.setStyle(NotificationCompat.CallStyle.forOngoingCall(who, pi(ctx, "hangup", 6)))
-                    .addAction(0, if (Calls.muted) "בטל השתקה" else "השתק", pi(ctx, "mute", 4))
-                    .addAction(0, "רמקול", pi(ctx, "speaker", 5))
+                v.setTextViewText(R.id.n_state, if (ringing) "שיחה נכנסת" else if (st == Call.STATE_HOLDING) "בהמתנה" else "מחייג…")
             }
-            b.build()
+            if (ringing) {
+                // שיחה נכנסת: דחה באדום וענה בירוק
+                v.setViewVisibility(R.id.n_b1, android.view.View.GONE)
+                v.setTextViewText(R.id.n_b2, "✕")
+                v.setInt(R.id.n_b2, "setBackgroundResource", R.drawable.nb_red)
+                v.setOnClickPendingIntent(R.id.n_b2, pi(ctx, "decline", 2))
+                v.setTextViewText(R.id.n_b3, "✆")
+                v.setInt(R.id.n_b3, "setBackgroundResource", R.drawable.nb_green)
+                v.setOnClickPendingIntent(R.id.n_b3, pi(ctx, "answer", 3))
+            } else {
+                val speaker = Calls.route == CallAudioState.ROUTE_SPEAKER
+                v.setTextViewText(R.id.n_b1, "🎙︎")
+                v.setInt(R.id.n_b1, "setBackgroundResource", if (Calls.muted) R.drawable.nb_on else R.drawable.nb_dark)
+                v.setTextColor(R.id.n_b1, if (Calls.muted) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                v.setOnClickPendingIntent(R.id.n_b1, pi(ctx, "mute", 4))
+                v.setTextViewText(R.id.n_b2, "🔊︎")
+                v.setInt(R.id.n_b2, "setBackgroundResource", if (speaker) R.drawable.nb_on else R.drawable.nb_dark)
+                v.setTextColor(R.id.n_b2, if (speaker) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                v.setOnClickPendingIntent(R.id.n_b2, pi(ctx, "speaker", 5))
+                v.setTextViewText(R.id.n_b3, "✆")
+                v.setOnClickPendingIntent(R.id.n_b3, pi(ctx, "hangup", 6))
+            }
+            base()
+                .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+                .setCustomContentView(v)
+                .setCustomBigContentView(v)
+                .setCustomHeadsUpContentView(v)
+                .apply { if (ringing) setFullScreenIntent(open, true) }
+                .build()
         }.getOrNull()
 
         // אם הטלפון לא תומך: ההתראה הרגילה עם שלושה כפתורים

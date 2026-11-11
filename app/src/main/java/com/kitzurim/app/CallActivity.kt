@@ -251,7 +251,8 @@ private fun CallScreenUi(c: Call?, version: Int) {
         return
     }
     val st = Calls.state(c)
-    val name = remember(c, version) { Calls.name(ctx, c) }
+    // מספר (כמו *8787) נכתב משמאל לימין, כדי שהכוכבית לא תקפוץ לצד השני
+    val name = remember(c, version) { Calls.name(ctx, c).let { n -> if (n.any { it in 'א'..'ת' }) n else "\u2066" + n + "\u2069" } }
     val number = remember(c) { Calls.number(c) }
     val photo = remember(c) { Calls.photo(ctx, c) }
     val ringing = st == Call.STATE_RINGING

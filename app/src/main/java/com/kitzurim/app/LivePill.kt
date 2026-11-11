@@ -276,7 +276,8 @@ object LivePill {
         val endW = endH + 90 * d
         val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
 
-        val root = FrameLayout(s)
+        // משמאל לימין: אחרת בעברית המיקום נמדד מצד ימין והמסגרת עפה לפינה במקום לחור
+        val root = FrameLayout(s).apply { layoutDirection = View.LAYOUT_DIRECTION_LTR }
         val bgDrawable = GradientDrawable().apply {
             cornerRadius = 40 * d
             colors = intArrayOf(Color.rgb(20, 32, 42), Color.rgb(7, 9, 13))
@@ -285,7 +286,7 @@ object LivePill {
             setStroke((1.5f * d).toInt(), Color.TRANSPARENT)
         }
         val box = View(s).apply { background = bgDrawable }
-        root.addView(box, FrameLayout.LayoutParams(screenW, screenH))
+        root.addView(box, FrameLayout.LayoutParams(screenW, screenH, Gravity.TOP or Gravity.LEFT))
         val lp = NotchOverlay.params(screenW, screenH, 0, 0, touchable = false)
         runCatching { wm.addView(root, lp) }.onFailure { return }
 
