@@ -227,9 +227,14 @@ object NotchOverlay {
         // אזור הנגיעה: קצת יותר גדול מהחור, כדי שיהיה נוח לפגוע
         val zs = g.zoneSize
         val z = View(s)
-        // אזור הנגיעה מסומן רק כשהמתג "להראות את אזור הנגיעה" דלוק (ורוד כשקיצורים פתוחה)
+        // אזור הנגיעה מסומן רק כשהמתג "להראות את אזור הנגיעה" דלוק
         if (NotchPrefs.showZone(s)) {
-            z.setBackgroundColor(if (preview) Color.argb(60, 255, 64, 129) else Color.argb(70, 255, 255, 255))
+            // עיגול דק (בלי מילוי), כדי שלא יהיה ריבוע צבעוני על המסך
+            z.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setStroke((1.5f * s.resources.displayMetrics.density).toInt(), if (preview) Color.rgb(255, 64, 129) else Color.argb(160, 255, 255, 255))
+                setColor(Color.TRANSPARENT)
+            }
         }
         attachGestures(s, z)
         runCatching {
