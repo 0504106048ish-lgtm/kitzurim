@@ -105,6 +105,7 @@ object LivePill {
     private var callActions: List<Notification.Action> = emptyList()
     private var callInfoKnown = false
     private var answeredAt = 0L // שעון רגיל (מילישניות). 0 = עוד לא ענו
+    private var dialSince = 0L // מתי התחיל החיוג (כדי להקטין אחרי 2 שניות)
     private var bigUntil = 0L
     private var menuOpen = false
 
@@ -116,7 +117,7 @@ object LivePill {
         if (answeredWall != null && answeredAt == 0L) {
             answeredAt = answeredWall
             // ענו: קודם גדול עם השם לכמה שניות, ואז קטן
-            bigUntil = SystemClock.elapsedRealtime() + 4000
+            bigUntil = SystemClock.elapsedRealtime() + 2000
         }
     }
 
@@ -143,9 +144,23 @@ object LivePill {
         val green = Color.rgb(42, 212, 154)
         when {
             // מחייג: גדול עם השם, בלי שניות
-            !answered -> if (kind != "dial") {
-                show("dial", 300, green, null, onTap = null, long = nameLine(name, "מחייג…")) { ctx, _, right ->
-                    right.addView(phoneIcon(ctx, green))
+            // מחייג: 2 שניות גדול עם השם, ואז קטן עם "…" (בלי שניות) עד שעונים
+            !answered -> {
+                val now = SystemClock.elapsedRealtime()
+                if (dialSince == 0L) dialSince = now
+                if (now - dialSince < 2000) {
+                    if (kind != "dial") {
+                        show("dial", 300, green, null, onTap = null, long = nameLine(name, "מחייג…")) { ctx, _, right ->
+                            right.addView(phoneIcon(ctx, green))
+                        }
+                    }
+                } else if (kind != "incall") {
+                    show("incall", 150, green, null, onTap = { openCallMenu() }) { ctx, left, right ->
+                        val tv = label(ctx, "•••", 14f, Color.WHITE, bold = true)
+                        timerText = tv
+                        left.addView(tv)
+                        right.addView(phoneIcon(ctx, green))
+                    }
                 }
             }
             // התפריט פתוח: רק מעדכנים את הזמן
@@ -310,6 +325,7 @@ object LivePill {
         callName = null
         callActions = emptyList()
         answeredAt = 0L
+        dialSince = 0L
         bigUntil = 0L
         menuOpen = false
         if (kind == "incall" || kind == "call" || kind == "dial" || kind == "callbig" || kind == "callmenu") hide()
@@ -842,7 +858,8 @@ object LivePill {
         val winW = max(endW, hole).toInt() + (8 * d).toInt()
         val winX = (cx - winW / 2f).toInt()
         val winH = (endTop + pillH + 6 * d).toInt()
-        val root = FrameLayout(s)
+        var onSwipe: () -> Unit = {}
+        val root = SwipeUpFrame(s) { onSwipe() }
         val box = FrameLayout(s).apply {
             background = GradientDrawable().apply {
                 cornerRadius = hole / 2f
@@ -857,6 +874,7 @@ object LivePill {
             ctl?.let { cc -> main.postDelayed({ showPlayer(cc) }, 300) }
         }
         box.setOnClickListener(openPlayer)
+        onSwipe = { hideSong(wm, root, box, content, cx - winX, cy, hole) }
         runCatching { wm.addView(root, NotchOverlay.params(winW, winH, winX, 0, touchable = true)) }.onFailure { return }
         songWindow = root
 
@@ -972,7 +990,10 @@ object LivePill {
         val padW = ((if (compact) 5 else 12) * d).toInt()
         collapsedW = h
 
-        val root = FrameLayout(s)
+        // החלקה למעלה סוגרת (חוץ משיחה, שלא תיסגר בטעות)
+        val root: FrameLayout = if (newKind in CALL_KINDS) FrameLayout(s) else SwipeUpFrame(s) {
+            if (kind == newKind) { menuOpen = false; hide() }
+        }
         // רק הרקע נמתח; התוכן כבר בגודל הסופי ורק מופיע, כדי שהטקסט לא יקפוץ בזמן המתיחה
         val b = View(s).apply {
             background = GradientDrawable().apply {
@@ -1308,5 +1329,60 @@ object LivePill {
             }
             setOnClickListener { onClick() }
         }
+    }
+}
+
+/**
+ * חלון של גלולה שאפשר לסגור בהחלקה למעלה: הגלולה עולה עם האצבע,
+ * ואם מחליקים מספיק היא נסגרת. החלקה קצרה מדי מחזירה אותה למקום.
+ * תופס את ההחלקה לפני הכפתורים שבתוכה, כך שלחיצה רגילה עדיין עובדת.
+ */
+@SuppressLint("ViewConstructor")
+class SwipeUpFrame(ctx: Context, private val onSwipeUp: () -> Unit) : FrameLayout(ctx) {
+    private val d = ctx.resources.displayMetrics.density
+    private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
+    private var downX = 0f
+    private var downY = 0f
+    private var dragging = false
+    private var done = false
+
+    private fun lift(dy: Float) {
+        for (i in 0 until childCount) getChildAt(i).translationY = dy
+    }
+
+    override fun onInterceptTouchEvent(e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = e.rawX; downY = e.rawY; dragging = false; done = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = e.rawY - downY
+                val dx = e.rawX - downX
+                if (-dy > slop && -dy > kotlin.math.abs(dx)) {
+                    dragging = true
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        if (!dragging) return super.onTouchEvent(e)
+        val dy = (e.rawY - downY).coerceAtMost(0f)
+        when (e.actionMasked) {
+            MotionEvent.ACTION_MOVE -> if (!done) lift(dy * 0.6f)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                dragging = false
+                if (!done && (-dy > 28 * d || e.actionMasked == MotionEvent.ACTION_UP && -dy > 14 * d && e.eventTime - e.downTime < 250)) {
+                    done = true
+                    onSwipeUp()
+                } else {
+                    for (i in 0 until childCount) getChildAt(i).animate().translationY(0f).setDuration(160).start()
+                }
+            }
+        }
+        return true
     }
 }
