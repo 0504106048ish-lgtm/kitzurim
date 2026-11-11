@@ -535,7 +535,7 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         val wm = NotchOverlay.wm ?: return
         // באפליקציה שבה קיצורים כבוי: רק שיחה עוברת
-        if (newKind !in CALL_KINDS && NotchOverlay.offHere()) return
+        if (newKind !in CALL_KINDS && (NotchOverlay.offHere() || NotchOverlay.pillBlocked())) return
         main.removeCallbacks(autoClose)
         removeNow()
         timerText = null

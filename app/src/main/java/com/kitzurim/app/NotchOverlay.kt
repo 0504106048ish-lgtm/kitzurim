@@ -90,6 +90,13 @@ object NotchOverlay {
         if (wasOff != nowOff) refresh()
     }
 
+    /** מסך שוכב, או מסך מלא כשהמתג "להסתיר במסך מלא" דלוק: לא מראים גלולה (חוץ משיחה) */
+    fun pillBlocked(): Boolean {
+        val s = service ?: return true
+        if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return true
+        return fullscreen && NotchPrefs.hideFullscreen(s) && !preview
+    }
+
     /** קיצורים כבוי באפליקציה שפתוחה עכשיו */
     fun offHere(): Boolean {
         val s = service ?: return false
@@ -224,7 +231,10 @@ object NotchOverlay {
     internal fun playingController(s: Context): MediaController? = try {
         val msm = s.getSystemService(MediaSessionManager::class.java)
         msm?.getActiveSessions(ComponentName(s, ReplyListener::class.java))
-            ?.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+            ?.firstOrNull {
+                it.playbackState?.state == PlaybackState.STATE_PLAYING &&
+                    !it.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE).isNullOrBlank()
+            }
     } catch (_: Exception) {
         null
     }
@@ -321,7 +331,8 @@ object NotchOverlay {
                 val pos = st.position + ((SystemClock.elapsedRealtime() - st.lastPositionUpdateTime) * st.playbackSpeed).toLong()
                 (pos.toFloat() / duration).coerceIn(0f, 1f)
             }
-            title to progress
+            // סרטון (למשל בוואטסאפ) בלי שם: זה לא שיר, לא מראים כלום
+            if (title.isBlank()) null else title to progress
         }
     } catch (_: Exception) {
         null
