@@ -32,6 +32,7 @@ object LivePill {
     private var window: FrameLayout? = null
     private var pill: LinearLayout? = null
     private var bg: View? = null
+    private var body: TextView? = null
     private var kind: String? = null
     private var timerText: TextView? = null
     private var collapsedW = 0
@@ -48,7 +49,11 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s)) return
         if (kind == "call" || kind == "incall") return // שיחה חשובה יותר
-        show("msg", 300, color, 3500, onTap = { runCatching { open?.send() } }) { ctx, left, right ->
+        // הודעה ארוכה: נשארת קצת יותר זמן כדי שיספיקו לקרוא
+        show(
+            "msg", 300, color, if (text.length > 40) 5500 else 3500,
+            onTap = { runCatching { open?.send() } }, long = text, longColor = Color.rgb(210, 216, 228),
+        ) { ctx, left, right ->
             // בעברית קוראים מימין: מי ששלח בצד ימין, ההודעה בצד שמאל
             right.addView(label(ctx, sender, 14.5f, Color.WHITE, bold = true))
             right.addView(letter(ctx, sender, color))
@@ -109,7 +114,7 @@ object LivePill {
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusic(s)) return
         if (kind == "call" || kind == "incall") return
         val purple = Color.rgb(179, 136, 255)
-        show("music", 240, purple, 3500, onTap = null) { ctx, left, right ->
+        show("music", 240, purple, 3500, onTap = null, long = title) { ctx, left, right ->
             val disc = label(ctx, "♪", 13f, Color.WHITE, bold = true)
             disc.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -125,8 +130,8 @@ object LivePill {
                 addUpdateListener { disc.rotation = it.animatedValue as Float }
                 start()
             }
-            left.addView(disc)
-            right.addView(label(ctx, title, 13.5f, Color.WHITE))
+            right.addView(disc)
+            left.addView(label(ctx, title, 13.5f, Color.WHITE))
         }
     }
 
@@ -135,16 +140,11 @@ object LivePill {
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillCharging(s)) return
         if (kind == "call" || kind == "incall") return
         val green = Color.rgb(62, 209, 140)
-        show("charge", 240, green, 3000, onTap = null) { ctx, left, right ->
-            left.addView(label(ctx, "⚡ $percent%", 14.5f, green, bold = true))
-            right.addView(
-                label(
-                    ctx,
-                    minutesToFull?.let { "מלאה בעוד " + Battery.minutesText(it) } ?: "בטעינה",
-                    13.5f,
-                    Color.WHITE,
-                )
-            )
+        val text = minutesToFull?.let { "מלאה בעוד " + Battery.minutesText(it) } ?: "בטעינה"
+        show("charge", 240, green, 3000, onTap = null, long = text) { ctx, left, right ->
+            // מימין האחוזים, משמאל כמה זמן עד מלאה (ואם לא נכנס: בשורה מתחת)
+            right.addView(label(ctx, "⚡ $percent%", 14.5f, green, bold = true))
+            left.addView(label(ctx, text, 13.5f, Color.WHITE))
         }
     }
 
@@ -156,6 +156,8 @@ object LivePill {
         color: Int,
         autoMs: Long?,
         onTap: (() -> Unit)?,
+        long: String? = null,
+        longColor: Int = Color.WHITE,
         fill: (Context, LinearLayout, LinearLayout) -> Unit,
     ) {
         val s = NotchOverlay.service ?: return
@@ -218,22 +220,54 @@ object LivePill {
         // רוחב לפי התוכן: כמה שצריך, עם מרווח נוח (לא צמוד), ולא יותר מהמקסימום.
         // שני הצדדים באותו רוחב, כדי שהחור יישאר בדיוק באמצע
         val maxSide = ((maxW - gapW - 2 * padW) / 2).coerceAtLeast(0)
+
+        // טקסט קצר: שורה אחת ליד המצלמה. טקסט ארוך: הגלולה נפתחת גם למטה, והטקסט בשורה רחבה מתחת
+        val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        left.measure(free, free)
+        val expanded = long != null && left.measuredWidth > maxSide
+        if (expanded) left.removeAllViews()
+        val body: TextView? = if (!expanded) null else label(s, long!!, 13.5f, longColor).apply {
+            maxLines = 3
+            gravity = Gravity.RIGHT
+            alpha = 0f
+            setLineSpacing(0f, 1.1f)
+        }
         fit(left, maxSide)
         fit(right, maxSide)
         val wSpec = View.MeasureSpec.makeMeasureSpec(maxSide, View.MeasureSpec.AT_MOST)
         val hSpec = View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.AT_MOST)
         left.measure(wSpec, hSpec)
         right.measure(wSpec, hSpec)
-        val side = min(max(left.measuredWidth, right.measuredWidth) + (6 * d).toInt(), maxSide)
+        var side = min(max(left.measuredWidth, right.measuredWidth) + (6 * d).toInt(), maxSide)
+
+        // גובה הכרטיס לפי כמות הטקסט: כמה שורות שצריך (עד 3), ולא יותר
+        var bodyH = 0
+        if (body != null) {
+            // רוחב לפי הטקסט: אם הוא נכנס בשתי שורות קצרות, הכרטיס לא יהיה רחב מדי
+            body.measure(free, free)
+            val lineW = body.measuredWidth
+            val cardMax = maxW - 2 * padW
+            val lines = ((lineW + cardMax - 1) / cardMax).coerceIn(1, 3)
+            val bodyW = min(cardMax, lineW / lines + (24 * d).toInt())
+            side = max(side, (bodyW + 2 * padW - gapW - 2 * padW) / 2).coerceAtMost(maxSide)
+            val cardInner = 2 * side + gapW
+            body.measure(
+                View.MeasureSpec.makeMeasureSpec(cardInner, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+            bodyH = body.measuredHeight + (8 * d).toInt()
+        }
         val targetW = max(2 * side + gapW + 2 * padW, collapsedW)
+        val targetH = h + bodyH
         p.addView(left, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
         p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
         p.addView(right, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
 
-        // החלון רק קצת רחב מהגלולה (מקום לקפיצה של המתיחה), ושקוף: רואים מה שמתחת.
+        // החלון רק קצת גדול מהגלולה (מקום לקפיצה של המתיחה), ושקוף: רואים מה שמתחת.
         // לא לחרוג מלמעלה: אם החור קרוב לקצה, הגלולה יורדת קצת
         val pillTop = max(0, (cy - h / 2f).toInt())
         val winW = min((targetW * 1.12f).toInt(), screenW)
+        if (expanded) (b.background as GradientDrawable).cornerRadius = min(h / 2f, 20 * d)
         root.addView(
             b,
             FrameLayout.LayoutParams(collapsedW, h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
@@ -242,31 +276,46 @@ object LivePill {
             p,
             FrameLayout.LayoutParams(targetW, h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
         )
+        if (body != null) {
+            root.addView(
+                body,
+                FrameLayout.LayoutParams(2 * side + gapW, bodyH, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                    .apply { topMargin = pillTop + h - (4 * d).toInt() },
+            )
+            if (onTap != null) body.setOnClickListener { onTap(); hide() }
+        }
 
         runCatching {
             wm.addView(
                 root,
-                NotchOverlay.params(winW, pillTop + h + (4 * d).toInt(), (cx - winW / 2f).toInt(), 0, touchable = newKind != "incall"),
+                NotchOverlay.params(winW, pillTop + targetH + (6 * d).toInt(), (cx - winW / 2f).toInt(), 0, touchable = newKind != "incall"),
             )
         }.onFailure { return }
         window = root
         pill = p
         bg = b
+        this.body = body
         kind = newKind
 
-        // מתיחה אלסטית: נמתחת לצדדים ועוצרת עם קפיצה קטנה ועדינה
-        ValueAnimator.ofInt(collapsedW, targetW).apply {
-            duration = 420
+        // מתיחה אלסטית: קודם לצדדים, ואם צריך גם למטה, ועוצרת עם קפיצה קטנה ועדינה
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = if (expanded) 520 else 420
             interpolator = OvershootInterpolator(0.9f)
             addUpdateListener {
+                val f = it.animatedValue as Float
+                // בכרטיס: הרוחב נגמר מהר (60% מהזמן) ואז הגובה. הקפיצה הקטנה רק בסוף
+                val fw = if (expanded) (f / 0.6f).coerceAtMost(1f) + max(0f, f - 1f) else f
+                val fh = if (expanded) ((f - 0.35f) / 0.65f).coerceIn(0f, 1.1f) else 0f
                 val lp = b.layoutParams
-                lp.width = it.animatedValue as Int
+                lp.width = (collapsedW + (targetW - collapsedW) * fw).toInt().coerceAtLeast(collapsedW)
+                lp.height = (h + bodyH * fh).toInt().coerceAtLeast(h)
                 b.layoutParams = lp
             }
             start()
         }
         left.animate().alpha(1f).setStartDelay(220).setDuration(180).start()
         right.animate().alpha(1f).setStartDelay(220).setDuration(180).start()
+        body?.animate()?.alpha(1f)?.setStartDelay(340)?.setDuration(180)?.start()
 
         if (autoMs != null) main.postDelayed(autoClose, autoMs)
     }
@@ -278,12 +327,18 @@ object LivePill {
         val b = bg ?: return removeNow()
         kind = null
         p.animate().alpha(0f).setDuration(120).start()
-        ValueAnimator.ofInt(b.width.coerceAtLeast(collapsedW), collapsedW).apply {
+        body?.animate()?.alpha(0f)?.setDuration(100)?.start()
+        val w0 = b.width.coerceAtLeast(collapsedW)
+        val h0 = b.height
+        val hMin = p.height.takeIf { it > 0 } ?: h0
+        ValueAnimator.ofFloat(1f, 0f).apply {
             duration = 240
             interpolator = AccelerateInterpolator()
             addUpdateListener {
+                val f = it.animatedValue as Float
                 val lp = b.layoutParams
-                lp.width = it.animatedValue as Int
+                lp.width = (collapsedW + (w0 - collapsedW) * f).toInt()
+                lp.height = (hMin + (h0 - hMin) * f).toInt()
                 b.layoutParams = lp
             }
             start()
@@ -296,6 +351,7 @@ object LivePill {
         window = null
         pill = null
         bg = null
+        body = null
         kind = null
     }
 
@@ -332,28 +388,31 @@ object LivePill {
     fun demo(type: String): Boolean {
         val s = NotchOverlay.service ?: return false
         if (kind == "call" || kind == "incall") return true
+        val grey = Color.rgb(210, 216, 228)
         when (type) {
-            "msg" -> {
+            "msg", "long" -> {
                 val green = Color.rgb(37, 211, 102)
-                show("msg", 300, green, 3500, onTap = null) { ctx, left, right ->
+                val text = if (type == "msg") "מה קורה?" else "אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר?"
+                show("msg", 300, green, if (text.length > 40) 5500 else 3500, onTap = null, long = text, longColor = grey) { ctx, left, right ->
                     right.addView(label(ctx, "דני", 14.5f, Color.WHITE, bold = true))
                     right.addView(letter(ctx, "דני", green))
-                    left.addView(label(ctx, "מה קורה? מגיע היום?", 13.5f, Color.rgb(210, 216, 228)))
+                    left.addView(label(ctx, text, 13.5f, grey))
                 }
             }
             "charge" -> {
                 val green = Color.rgb(62, 209, 140)
                 val b = Battery.read(s, null)
-                show("charge", 240, green, 3000, onTap = null) { ctx, left, right ->
-                    left.addView(label(ctx, "⚡ ${b.percent}%", 14.5f, green, bold = true))
-                    right.addView(label(ctx, "מלאה בעוד 1:10 שע׳", 13.5f, Color.WHITE))
+                val text = "מלאה בעוד שעה ו-10 דק׳"
+                show("charge", 240, green, 3000, onTap = null, long = text) { ctx, left, right ->
+                    right.addView(label(ctx, "⚡ ${b.percent}%", 14.5f, green, bold = true))
+                    left.addView(label(ctx, text, 13.5f, Color.WHITE))
                 }
             }
             "music" -> {
                 val purple = Color.rgb(179, 136, 255)
-                show("music", 240, purple, 3500, onTap = null) { ctx, left, right ->
-                    left.addView(label(ctx, "♪", 14f, purple, bold = true))
-                    right.addView(label(ctx, "שיר לדוגמא", 13.5f, Color.WHITE))
+                show("music", 240, purple, 3500, onTap = null, long = "שיר לדוגמא") { ctx, left, right ->
+                    right.addView(label(ctx, "♪", 14f, purple, bold = true))
+                    left.addView(label(ctx, "שיר לדוגמא", 13.5f, Color.WHITE))
                 }
             }
         }

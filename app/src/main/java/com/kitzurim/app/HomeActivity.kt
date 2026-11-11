@@ -306,8 +306,8 @@ fun HomeScreen(resumes: Int) {
                     }
                     // דוגמא: מראה את הגלולה עכשיו, בלי לחכות להודעה אמיתית
                     Text("👀 לראות דוגמא:", style = MaterialTheme.typography.bodyMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf("msg" to "💬 הודעה", "charge" to "⚡ מטען", "music" to "🎵 שיר").forEach { (type, name) ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                        listOf("msg" to "💬 קצרה", "long" to "💬 ארוכה", "charge" to "⚡ מטען", "music" to "🎵 שיר").forEach { (type, name) ->
                             TextButton(onClick = {
                                 if (!LivePill.demo(type)) Actions.toast(ctx, "קודם צריך להדליק את קיצורים בנגישות")
                             }) { Text(name) }
