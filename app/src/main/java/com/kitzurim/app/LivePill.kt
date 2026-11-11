@@ -2,6 +2,8 @@ package com.kitzurim.app
 
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
+import android.app.ActivityOptions
+import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.res.ColorStateList
@@ -9,6 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -59,11 +62,11 @@ object LivePill {
     fun showMessage(sender: String, text: String, color: Int, open: PendingIntent?) {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s)) return
-        if (kind == "call" || kind == "incall") return // שיחה חשובה יותר
+        if (inCallPill()) return // שיחה חשובה יותר
         // הודעה ארוכה: נשארת קצת יותר זמן כדי שיספיקו לקרוא
         show(
             "msg", 300, color, if (text.length > 40) 5500 else 3500,
-            onTap = { runCatching { open?.send() } }, long = senderAndText(sender, text), longColor = Color.rgb(210, 216, 228),
+            onTap = { launch(open) }, long = senderAndText(sender, text), longColor = Color.rgb(210, 216, 228),
         ) { ctx, _, right ->
             // ליד המצלמה רק העיגול עם האות; השם וההודעה בשורה מתחת, כך שהגודל לפי כמות הטקסט
             right.addView(letter(ctx, sender, color))
@@ -96,26 +99,178 @@ object LivePill {
         }
     }
 
-    /** בזמן שיחה: גלולה קטנה עם טיימר. נקראת כל שנייה */
-    fun inCall(seconds: Int) {
-        val s = NotchOverlay.service ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return
-        val text = "%02d:%02d".format(seconds / 60, seconds % 60)
-        if (kind == "incall") {
-            timerText?.text = text
-            return
-        }
-        val green = Color.rgb(42, 212, 154)
-        show("incall", 150, green, null, onTap = null) { ctx, left, right ->
-            left.addView(label(ctx, "●", 12f, green))
-            val t = label(ctx, text, 14f, Color.WHITE, bold = true)
-            timerText = t
-            right.addView(t)
+    // ---------- שיחה פעילה (יוצאת או אחרי שענית) ----------
+    // מה שידוע מההתראה של השיחה: שם, מתי ענו, והכפתורים (ניתוק, השתקה, רמקול)
+    private var callName: String? = null
+    private var callActions: List<Notification.Action> = emptyList()
+    private var callInfoKnown = false
+    private var answeredAt = 0L // שעון רגיל (מילישניות). 0 = עוד לא ענו
+    private var bigUntil = 0L
+    private var menuOpen = false
+
+    /** ההתראה של שיחה פעילה התעדכנה (נקרא מ-ReplyListener) */
+    fun ongoingCall(name: String, answeredWall: Long?, actions: List<Notification.Action>) {
+        callInfoKnown = true
+        callName = name
+        callActions = actions
+        if (answeredWall != null && answeredAt == 0L) {
+            answeredAt = answeredWall
+            // ענו: קודם גדול עם השם לכמה שניות, ואז קטן
+            bigUntil = SystemClock.elapsedRealtime() + 4000
         }
     }
 
+    private fun callAction(words: List<String>) = callActions.firstOrNull { a ->
+        val t = a.title?.toString()?.lowercase() ?: ""
+        words.any { t.contains(it) }
+    }
+
+    /** בזמן שיחה. נקראת כל שנייה. secondsFromAudio = מתי הטלפון נכנס למצב שיחה */
+    fun inCall(secondsFromAudio: Int) {
+        val s = NotchOverlay.service ?: return
+        if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return
+        // ההתראה של השיחה עוד לא הגיעה: מחכים רגע, כדי לא להראות שניות לפני שענו
+        if (!callInfoKnown && secondsFromAudio < 3) return
+        val answered = !callInfoKnown || answeredAt > 0
+        val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt().coerceAtLeast(0) else secondsFromAudio
+        val t = clock(secs * 1000L)
+        val name = callName ?: "שיחה"
+        val green = Color.rgb(42, 212, 154)
+        when {
+            // מחייג: גדול עם השם, בלי שניות
+            !answered -> if (kind != "dial") {
+                show("dial", 300, green, null, onTap = null, long = nameLine(name, "מחייג…")) { ctx, _, right ->
+                    right.addView(phoneIcon(ctx, green))
+                }
+            }
+            // התפריט פתוח: רק מעדכנים את הזמן
+            menuOpen -> if (kind == "callmenu") timerText?.text = t
+            // ענו עכשיו: גדול עם השם והזמן
+            SystemClock.elapsedRealtime() < bigUntil -> if (kind != "callbig") {
+                show("callbig", 300, green, null, onTap = { openCallMenu() }, long = nameLine(name, "בשיחה · $t")) { ctx, _, right ->
+                    right.addView(phoneIcon(ctx, green))
+                }
+            } else {
+                body?.text = nameLine(name, "בשיחה · $t")
+            }
+            // אחר כך: קטן, משמאל השניות ומימין טלפון. הקשה פותחת את התפריט
+            else -> if (kind != "incall") {
+                show("incall", 150, green, null, onTap = { openCallMenu() }) { ctx, left, right ->
+                    val tv = label(ctx, t, 14f, Color.WHITE, bold = true)
+                    timerText = tv
+                    left.addView(tv)
+                    right.addView(phoneIcon(ctx, green))
+                }
+            } else {
+                timerText?.text = t
+            }
+        }
+    }
+
+    /** תפריט השיחה: שם, זמן, וכפתורים מההתראה של השיחה (השתקה, ניתוק, רמקול) */
+    private fun openCallMenu() {
+        menuOpen = true
+        main.postDelayed({ showCallMenu() }, 280)
+    }
+
+    private fun showCallMenu() {
+        val s = NotchOverlay.service ?: return
+        if (!menuOpen) return
+        val d = s.resources.displayMetrics.density
+        val green = Color.rgb(42, 212, 154)
+        val box = LinearLayout(s).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        val name = label(s, callName ?: "שיחה", 15f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER }
+        val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt() else 0
+        val time = label(s, clock(secs * 1000L), 13f, green).apply { gravity = Gravity.CENTER }
+        box.addView(name, LinearLayout.LayoutParams(-1, -2))
+        box.addView(time, LinearLayout.LayoutParams(-1, -2))
+        val row = LinearLayout(s).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            gravity = Gravity.CENTER
+        }
+        fun btn(symbol: String, bg: Int, wide: Boolean, a: Notification.Action) = TextView(s).apply {
+            text = symbol
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            background = GradientDrawable().apply {
+                cornerRadius = 21 * d
+                setColor(bg)
+            }
+            layoutParams = LinearLayout.LayoutParams(((if (wide) 54 else 42) * d).toInt(), (42 * d).toInt()).apply {
+                marginStart = (9 * d).toInt()
+                marginEnd = (9 * d).toInt()
+            }
+            setOnClickListener {
+                runCatching { a.actionIntent.send() }
+                main.removeCallbacks(autoClose)
+                main.postDelayed(autoClose, 6000)
+            }
+        }
+        val dark = Color.rgb(42, 47, 58)
+        callAction(listOf("השתק", "mute"))?.let { row.addView(btn("🎙︎", dark, false, it)) }
+        callAction(listOf("נתק", "סיים", "סיום", "hang", "end"))?.let { row.addView(btn("✆︎", Color.rgb(229, 72, 77), true, it)) }
+        callAction(listOf("רמקול", "speaker"))?.let { row.addView(btn("🔊︎", dark, false, it)) }
+        if (row.childCount > 0) box.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * d).toInt() })
+        // הקשה על השורה של המצלמה: חוזרים לגלולה הקטנה
+        show("callmenu", 300, green, 6000, onTap = { menuOpen = false }, extra = box) { ctx, _, right ->
+            right.addView(phoneIcon(ctx, green))
+        }
+        timerText = time
+    }
+
     fun callEnded() {
-        if (kind == "incall" || kind == "call") hide()
+        callInfoKnown = false
+        callName = null
+        callActions = emptyList()
+        answeredAt = 0L
+        bigUntil = 0L
+        menuOpen = false
+        if (kind == "incall" || kind == "call" || kind == "dial" || kind == "callbig" || kind == "callmenu") hide()
+    }
+
+    /** השם בשורה אחת, ומתחת "מחייג…" או הזמן */
+    private fun nameLine(name: String, status: String): CharSequence =
+        android.text.SpannableStringBuilder().apply {
+            append(name.trim())
+            setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.ForegroundColorSpan(Color.WHITE), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            append("\n")
+            append(status)
+        }
+
+    private fun phoneIcon(ctx: Context, color: Int): TextView {
+        val d = ctx.resources.displayMetrics.density
+        return TextView(ctx).apply {
+            text = "✆︎"
+            setTextColor(Color.BLACK)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(color)
+            }
+            layoutParams = LinearLayout.LayoutParams((22 * d).toInt(), (22 * d).toInt())
+        }
+    }
+
+    /** פותח את מה שההתראה פותחת (למשל הצ'אט בוואטסאפ). מאנדרואיד 14 צריך לאשר במפורש פתיחה מהרקע */
+    private fun launch(pi: PendingIntent?) {
+        pi ?: return
+        val s = NotchOverlay.service
+        runCatching {
+            if (Build.VERSION.SDK_INT >= 34 && s != null) {
+                val o = ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+                pi.send(s, 0, null, null, null, null, o.toBundle())
+            } else {
+                pi.send()
+            }
+        }
     }
 
     // ---------- נגן: נפתח בהקשה על העיגול כשמתנגן שיר ----------
@@ -145,6 +300,9 @@ object LivePill {
 
     fun isPlayerOpen() = kind == "player"
 
+    private val CALL_KINDS = setOf("call", "incall", "dial", "callbig", "callmenu")
+    private fun inCallPill() = kind in CALL_KINDS
+
     /** מתי הנגן נסגר בנגיעה מחוץ לו: אם הנגיעה הייתה על העיגול, לא פותחים אותו מיד שוב */
     private var closedByOutside = 0L
     fun closedJustNow() = SystemClock.elapsedRealtime() - closedByOutside < 500
@@ -157,7 +315,7 @@ object LivePill {
 
     fun showPlayer(c: MediaController) {
         val s = NotchOverlay.service ?: return
-        if (kind == "call" || kind == "incall") return
+        if (inCallPill()) return
         val d = s.resources.displayMetrics.density
         val purple = Color.rgb(179, 136, 255)
         val grey = Color.rgb(160, 168, 184)
@@ -176,7 +334,7 @@ object LivePill {
             layoutDirection = View.LAYOUT_DIRECTION_RTL
             gravity = Gravity.CENTER_VERTICAL
             setOnClickListener {
-                runCatching { c.sessionActivity?.send() }
+                launch(c.sessionActivity)
                 hide()
             }
         }
@@ -320,7 +478,7 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusic(s)) return
         // הנגן פתוח: הוא כבר מתעדכן לשיר החדש בעצמו
-        if (kind == "call" || kind == "incall" || kind == "player") return
+        if (inCallPill() || kind == "player") return
         val purple = Color.rgb(179, 136, 255)
         // הקשה על הודעת השיר פותחת את הנגן המלא
         val openPlayer = {
@@ -351,7 +509,7 @@ object LivePill {
     fun showCharging(percent: Int, minutesToFull: Long?) {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillCharging(s)) return
-        if (kind == "call" || kind == "incall") return
+        if (inCallPill()) return
         val green = Color.rgb(62, 209, 140)
         val text = minutesToFull?.let { "מלאה בעוד " + Battery.minutesText(it) } ?: "בטעינה"
         show("charge", 240, green, 3000, onTap = null, long = text) { ctx, left, right ->
@@ -377,7 +535,7 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         val wm = NotchOverlay.wm ?: return
         // באפליקציה שבה קיצורים כבוי: רק שיחה עוברת
-        if (newKind != "call" && newKind != "incall" && NotchOverlay.offHere()) return
+        if (newKind !in CALL_KINDS && NotchOverlay.offHere()) return
         main.removeCallbacks(autoClose)
         removeNow()
         timerText = null
@@ -521,12 +679,13 @@ object LivePill {
         }
 
         // הנגן: נגיעה בכל מקום אחר במסך סוגרת אותו
-        val lp = NotchOverlay.params(winW, pillTop + targetH + (6 * d).toInt(), (cx - winW / 2f).toInt(), 0, touchable = newKind != "incall")
-        if (newKind == "player") {
+        val lp = NotchOverlay.params(winW, pillTop + targetH + (6 * d).toInt(), (cx - winW / 2f).toInt(), 0, touchable = newKind != "dial")
+        if (newKind == "player" || newKind == "callmenu") {
             lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
             root.setOnTouchListener { _, e ->
                 if (e.actionMasked == MotionEvent.ACTION_OUTSIDE) {
                     closedByOutside = SystemClock.elapsedRealtime()
+                    menuOpen = false
                     hide()
                 }
                 false
@@ -635,7 +794,7 @@ object LivePill {
     /** כפתור "דוגמא" במסך הבית: מראה איך תיראה הגלולה, גם כשהמתגים כבויים */
     fun demo(type: String): Boolean {
         val s = NotchOverlay.service ?: return false
-        if (kind == "call" || kind == "incall") return true
+        if (inCallPill()) return true
         val grey = Color.rgb(210, 216, 228)
         when (type) {
             "msg", "long" -> {
@@ -667,7 +826,7 @@ object LivePill {
 
     /** נכנסו לאפליקציה שבה קיצורים כבוי: סוגרים, חוץ משיחה */
     fun hideUnlessCall() {
-        if (kind != null && kind != "call" && kind != "incall") hide()
+        if (kind != null && !inCallPill()) hide()
     }
 
     // ---------- רכיבים קטנים ----------

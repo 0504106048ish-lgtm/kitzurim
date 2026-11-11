@@ -76,6 +76,13 @@ class ReplyListener : NotificationListenerService() {
             return
         }
 
+        // שיחה פעילה (יוצאת, או אחרי שענית): השם, והאם כבר ענו (כשההתראה מתחילה לספור זמן)
+        if (n.category == Notification.CATEGORY_CALL && n.flags and Notification.FLAG_ONGOING_EVENT != 0) {
+            val name = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "שיחה"
+            val counting = n.extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false)
+            LivePill.ongoingCall(name, if (counting && n.`when` > 0) n.`when` else null, n.actions?.toList() ?: emptyList())
+            return
+        }
         if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) return
         val color = lightColors[sbn.packageName]
             ?: if (n.category == Notification.CATEGORY_MESSAGE && n.color != 0) n.color else return

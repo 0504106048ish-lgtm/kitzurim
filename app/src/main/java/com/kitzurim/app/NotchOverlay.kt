@@ -341,7 +341,8 @@ object NotchOverlay {
                 volume = volume,
                 music = music,
                 ringing = callRinging,
-                callSeconds = if (callStart != 0L) ((SystemClock.elapsedRealtime() - callStart) / 1000).toInt() else null,
+                // בזמן שיחה הזמן מופיע בגלולה; הטבעת לא מתמלאת (רק מהבהבת כשמצלצלים)
+                callSeconds = null,
             )
         )
     }
