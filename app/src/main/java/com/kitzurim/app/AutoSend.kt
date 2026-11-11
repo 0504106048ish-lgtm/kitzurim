@@ -42,7 +42,7 @@ class AutoSendService : AccessibilityService() {
             if (pkg != null && pkg != "com.android.systemui" && pkg != packageName && !pkg.contains("inputmethod") &&
                 !pkg.contains("honeyboard")
             ) {
-                NotchOverlay.currentPackage = pkg
+                NotchOverlay.setCurrentApp(pkg)
             }
         }
         // מסך מלא: שורת המצב נעלמה מהמסך

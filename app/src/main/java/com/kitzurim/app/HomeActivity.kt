@@ -95,6 +95,7 @@ fun HomeScreen(resumes: Int) {
     var pickingUrl by remember { mutableStateOf<Target?>(null) }
     var addingApp by remember { mutableStateOf(false) }
     var pickingPopupApp by remember { mutableStateOf(false) }
+    var addingOffApp by remember { mutableStateOf(false) }
     var editingApp by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showPos by remember { mutableStateOf(false) }
     var pendingContact by remember { mutableStateOf<Pair<Target, ActionType>?>(null) }
@@ -286,6 +287,15 @@ fun HomeScreen(resumes: Int) {
                     SwitchLine("להפעיל את הגלולה החיה", NotchPrefs.pill(ctx)) {
                         NotchPrefs.setPill(ctx, it); refresh++
                     }
+                    // דוגמא: מראה את הגלולה עכשיו, בלי לחכות להודעה אמיתית
+                    Text("👀 לראות דוגמא:", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("msg" to "💬 הודעה", "charge" to "⚡ מטען", "music" to "🎵 שיר").forEach { (type, name) ->
+                            TextButton(onClick = {
+                                if (!LivePill.demo(type)) Actions.toast(ctx, "קודם צריך להדליק את קיצורים בנגישות")
+                            }) { Text(name) }
+                        }
+                    }
                     if (NotchPrefs.pill(ctx)) {
                         Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             SwitchLine("💬 הודעות (מי שלח ומה כתב)", NotchPrefs.pillMessages(ctx)) {
@@ -349,6 +359,22 @@ fun HomeScreen(resumes: Int) {
                     SwitchLine("🙈 להסתיר במסך מלא (סרטון, משחק, תמונה)", NotchPrefs.hideFullscreen(ctx)) {
                         NotchPrefs.setHideFullscreen(ctx, it); NotchOverlay.refresh(); refresh++
                     }
+                    // אפליקציות שבהן קיצורים לא עובד בכלל: בלי טבעת, בלי נגיעות ובלי גלולה (שיחה נכנסת כן)
+                    Text("🚫 כבוי באפליקציות האלה", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "בתוכן אין טבעת, אין נגיעה בחור ואין גלולה (חוץ משיחה נכנסת).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                    NotchPrefs.offApps(ctx).forEach { (pkg, name) ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("📱 $name", Modifier.weight(1f))
+                            TextButton(onClick = {
+                                NotchPrefs.removeOffApp(ctx, pkg); NotchOverlay.refresh(); refresh++
+                            }) { Text("להסיר") }
+                        }
+                    }
+                    TextButton(onClick = { addingOffApp = true }) { Text("+ הוספת אפליקציה") }
                 }
 
                 // ---------- תנועות לפי אפליקציה ----------
@@ -426,6 +452,15 @@ fun HomeScreen(resumes: Int) {
     }
 
     // ---------- חלונות בחירה ----------
+    // אפליקציה שבה קיצורים יהיה כבוי
+    if (addingOffApp) {
+        AppPicker(onDismiss = { addingOffApp = false }) { name, pkg ->
+            addingOffApp = false
+            NotchPrefs.addOffApp(ctx, pkg, name)
+            NotchOverlay.refresh()
+            refresh++
+        }
+    }
     // לכבות חלון קופץ של אפליקציה אחרת: פותחים את הגדרות ההתראות שלה
     if (pickingPopupApp) {
         AppPicker(onDismiss = { pickingPopupApp = false }) { _, pkg ->

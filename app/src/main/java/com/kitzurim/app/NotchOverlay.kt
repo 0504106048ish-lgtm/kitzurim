@@ -72,6 +72,25 @@ object NotchOverlay {
 
     /** האפליקציה שפתוחה עכשיו (בשביל תנועות לפי אפליקציה) */
     var currentPackage: String? = null
+        private set
+
+    /** עברו לאפליקציה אחרת: אם היא ברשימת "כבוי ב...", מסתירים הכול (ומחזירים כשיוצאים ממנה) */
+    fun setCurrentApp(pkg: String) {
+        if (pkg == currentPackage) return
+        val s = service
+        val wasOff = s != null && NotchPrefs.isOffIn(s, currentPackage)
+        currentPackage = pkg
+        if (s == null) return
+        val nowOff = NotchPrefs.isOffIn(s, pkg)
+        if (nowOff) LivePill.hideUnlessCall()
+        if (wasOff != nowOff) refresh()
+    }
+
+    /** קיצורים כבוי באפליקציה שפתוחה עכשיו */
+    fun offHere(): Boolean {
+        val s = service ?: return false
+        return !preview && NotchPrefs.isOffIn(s, currentPackage)
+    }
 
     /** מסך מלא (סרטון, משחק): מסתירים אם המתג דלוק */
     private var fullscreen = false
@@ -377,6 +396,8 @@ object NotchOverlay {
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return
         // מסך מלא (סרטון, משחק): מסתירים הכול, אם המתג דלוק
         if (fullscreen && NotchPrefs.hideFullscreen(s) && !preview) return
+        // אפליקציה שבחרת שבה קיצורים כבוי
+        if (offHere()) return
 
         val d = s.resources.displayMetrics.density
         val g = geom(s)

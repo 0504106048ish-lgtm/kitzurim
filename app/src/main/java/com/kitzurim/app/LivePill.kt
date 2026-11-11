@@ -32,7 +32,6 @@ object LivePill {
     private var window: FrameLayout? = null
     private var pill: LinearLayout? = null
     private var bg: View? = null
-    private var strip: View? = null
     private var kind: String? = null
     private var timerText: TextView? = null
     private var collapsedW = 0
@@ -161,6 +160,8 @@ object LivePill {
     ) {
         val s = NotchOverlay.service ?: return
         val wm = NotchOverlay.wm ?: return
+        // באפליקציה שבה קיצורים כבוי: רק שיחה עוברת
+        if (newKind != "call" && newKind != "incall" && NotchOverlay.offHere()) return
         main.removeCallbacks(autoClose)
         removeNow()
         timerText = null
@@ -172,8 +173,8 @@ object LivePill {
         val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
         val hole = max(c.width(), c.height())
         val h = (max(hole.toFloat(), 22 * d) + 18 * d).toInt()
-        // בצדדים נשאר מקום לשעה ולסוללה, שזזות לקצוות בזמן שהגלולה פתוחה
-        val maxW = min(widthDp * d, screenW - 2 * 58 * d).toInt()
+        // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
+        val maxW = (screenW - 2 * 58 * d).toInt()
         val gapW = hole + (14 * d).toInt()
         val padW = (12 * d).toInt()
         collapsedW = h
@@ -217,6 +218,8 @@ object LivePill {
         // רוחב לפי התוכן: כמה שצריך, עם מרווח נוח (לא צמוד), ולא יותר מהמקסימום.
         // שני הצדדים באותו רוחב, כדי שהחור יישאר בדיוק באמצע
         val maxSide = ((maxW - gapW - 2 * padW) / 2).coerceAtLeast(0)
+        fit(left, maxSide)
+        fit(right, maxSide)
         val wSpec = View.MeasureSpec.makeMeasureSpec(maxSide, View.MeasureSpec.AT_MOST)
         val hSpec = View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.AT_MOST)
         left.measure(wSpec, hSpec)
@@ -227,36 +230,10 @@ object LivePill {
         p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
         p.addView(right, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
 
-        // החלון ברוחב כל המסך, בשורה העליונה. לא לחרוג מלמעלה: אם החור קרוב לקצה, הגלולה יורדת קצת
+        // החלון רק קצת רחב מהגלולה (מקום לקפיצה של המתיחה), ושקוף: רואים מה שמתחת.
+        // לא לחרוג מלמעלה: אם החור קרוב לקצה, הגלולה יורדת קצת
         val pillTop = max(0, (cy - h / 2f).toInt())
-        val barId = s.resources.getIdentifier("status_bar_height", "dimen", "android")
-        val barH = if (barId != 0) s.resources.getDimensionPixelSize(barId) else 0
-        val stripH = if (barH > 0) barH else pillTop + h
-        val winH = max(stripH, pillTop + h)
-
-        // פס שחור מעל שורת המצב, עם השעה והסוללה דחופות לקצוות (אנדרואיד לא נותן להזיז את המקוריות)
-        val strip = FrameLayout(s).apply {
-            setBackgroundColor(Color.BLACK)
-            alpha = 0f
-            setOnClickListener { hide() }
-        }
-        val edge = (8 * d).toInt()
-        strip.addView(
-            label(s, android.text.format.DateFormat.getTimeFormat(s).format(java.util.Date()), 12f, Color.WHITE, bold = true),
-            FrameLayout.LayoutParams(-2, -2, Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin = edge },
-        )
-        val bat = Battery.read(s, null)
-        strip.addView(
-            label(s, (if (bat.charging) "⚡" else "") + "${bat.percent}%", 12f, Color.WHITE, bold = true),
-            FrameLayout.LayoutParams(-2, -2, Gravity.RIGHT or Gravity.CENTER_VERTICAL).apply { rightMargin = edge },
-        )
-        // בזמן שיחה הגלולה קטנה ולא מגיעה לשעה, ולא מכסים את שורת המצב לאורך כל השיחה
-        if (newKind != "incall") root.addView(strip, FrameLayout.LayoutParams(-1, stripH, Gravity.TOP))
-
-        // הגלולה ממורכזת על החור (גם אם הזזת את המיקום בהגדרות)
-        val shift = cx - screenW / 2f
-        b.translationX = shift
-        p.translationX = shift
+        val winW = min((targetW * 1.12f).toInt(), screenW)
         root.addView(
             b,
             FrameLayout.LayoutParams(collapsedW, h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
@@ -267,11 +244,12 @@ object LivePill {
         )
 
         runCatching {
-            wm.addView(root, NotchOverlay.params(screenW, winH, 0, 0, touchable = newKind != "incall"))
+            wm.addView(
+                root,
+                NotchOverlay.params(winW, pillTop + h + (4 * d).toInt(), (cx - winW / 2f).toInt(), 0, touchable = newKind != "incall"),
+            )
         }.onFailure { return }
-        strip.animate().alpha(1f).setDuration(160).start()
         window = root
-        this.strip = strip
         pill = p
         bg = b
         kind = newKind
@@ -300,7 +278,6 @@ object LivePill {
         val b = bg ?: return removeNow()
         kind = null
         p.animate().alpha(0f).setDuration(120).start()
-        strip?.animate()?.alpha(0f)?.setStartDelay(100)?.setDuration(160)?.start()
         ValueAnimator.ofInt(b.width.coerceAtLeast(collapsedW), collapsedW).apply {
             duration = 240
             interpolator = AccelerateInterpolator()
@@ -319,8 +296,73 @@ object LivePill {
         window = null
         pill = null
         bg = null
-        strip = null
         kind = null
+    }
+
+    /**
+     * צד שלא נכנס: קודם מקטינים קצת את הכתב, ואם עדיין ארוך מקצרים רק את הטקסט,
+     * כך שהעיגולים והכפתורים תמיד נשארים שלמים
+     */
+    private fun fit(side: LinearLayout, maxSide: Int) {
+        val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        side.measure(free, free)
+        val need = side.measuredWidth
+        if (need <= maxSide || need == 0) return
+        val texts = (0 until side.childCount).map { side.getChildAt(it) }
+            .filter { it is TextView && (it.layoutParams == null || it.layoutParams.width == LinearLayout.LayoutParams.WRAP_CONTENT) }
+            .map { it as TextView }
+        if (texts.isEmpty()) return
+        val scale = max(0.8f, maxSide.toFloat() / need)
+        texts.forEach { it.setTextSize(TypedValue.COMPLEX_UNIT_PX, it.textSize * scale) }
+        side.measure(free, free)
+        if (side.measuredWidth <= maxSide) return
+        var fixed = 0
+        for (i in 0 until side.childCount) {
+            val v = side.getChildAt(i)
+            if (v !in texts) {
+                val lp = v.layoutParams as? LinearLayout.LayoutParams
+                fixed += v.measuredWidth + (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
+            }
+        }
+        val each = ((maxSide - fixed) / texts.size).coerceAtLeast(0)
+        texts.forEach { it.maxWidth = each }
+    }
+
+    /** כפתור "דוגמא" במסך הבית: מראה איך תיראה הגלולה, גם כשהמתגים כבויים */
+    fun demo(type: String): Boolean {
+        val s = NotchOverlay.service ?: return false
+        if (kind == "call" || kind == "incall") return true
+        when (type) {
+            "msg" -> {
+                val green = Color.rgb(37, 211, 102)
+                show("msg", 300, green, 3500, onTap = null) { ctx, left, right ->
+                    right.addView(label(ctx, "דני", 14.5f, Color.WHITE, bold = true))
+                    right.addView(letter(ctx, "דני", green))
+                    left.addView(label(ctx, "מה קורה? מגיע היום?", 13.5f, Color.rgb(210, 216, 228)))
+                }
+            }
+            "charge" -> {
+                val green = Color.rgb(62, 209, 140)
+                val b = Battery.read(s, null)
+                show("charge", 240, green, 3000, onTap = null) { ctx, left, right ->
+                    left.addView(label(ctx, "⚡ ${b.percent}%", 14.5f, green, bold = true))
+                    right.addView(label(ctx, "מלאה בעוד 1:10 שע׳", 13.5f, Color.WHITE))
+                }
+            }
+            "music" -> {
+                val purple = Color.rgb(179, 136, 255)
+                show("music", 240, purple, 3500, onTap = null) { ctx, left, right ->
+                    left.addView(label(ctx, "♪", 14f, purple, bold = true))
+                    right.addView(label(ctx, "שיר לדוגמא", 13.5f, Color.WHITE))
+                }
+            }
+        }
+        return true
+    }
+
+    /** נכנסו לאפליקציה שבה קיצורים כבוי: סוגרים, חוץ משיחה */
+    fun hideUnlessCall() {
+        if (kind != null && kind != "call" && kind != "incall") hide()
     }
 
     // ---------- רכיבים קטנים ----------

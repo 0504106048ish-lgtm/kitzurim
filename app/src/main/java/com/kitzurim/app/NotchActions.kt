@@ -340,6 +340,28 @@ object NotchPrefs {
     fun hideFullscreen(c: Context) = sp(c).getBoolean("hide_full", false)
     fun setHideFullscreen(c: Context, v: Boolean) = sp(c).edit().putBoolean("hide_full", v).apply()
 
+    // ---------- אפליקציות שבהן קיצורים כבוי ----------
+    private fun offJson(c: Context): JSONObject =
+        try { JSONObject(sp(c).getString("off_apps", "{}") ?: "{}") } catch (_: Exception) { JSONObject() }
+
+    /** אפליקציות שבהן אין טבעת, אין נגיעות ואין גלולה: חבילה ← שם */
+    fun offApps(c: Context): List<Pair<String, String>> {
+        val o = offJson(c)
+        return o.keys().asSequence().map { it to o.getString(it) }.sortedBy { it.second }.toList()
+    }
+
+    fun isOffIn(c: Context, pkg: String?) = pkg != null && offJson(c).has(pkg)
+
+    fun addOffApp(c: Context, pkg: String, name: String) {
+        sp(c).edit().putString("off_apps", offJson(c).put(pkg, name).toString()).apply()
+    }
+
+    fun removeOffApp(c: Context, pkg: String) {
+        val o = offJson(c)
+        o.remove(pkg)
+        sp(c).edit().putString("off_apps", o.toString()).apply()
+    }
+
     // ---------- תנועות לפי אפליקציה ----------
     private fun appsJson(c: Context): JSONObject =
         try { JSONObject(sp(c).getString("apps", "{}") ?: "{}") } catch (_: Exception) { JSONObject() }
