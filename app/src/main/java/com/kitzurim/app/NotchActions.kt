@@ -276,6 +276,14 @@ object NotchPrefs {
     fun offsetY(c: Context) = sp(c).getFloat("dy", 0f)
     fun setOffsetY(c: Context, v: Float) = sp(c).edit().putFloat("dy", v).apply()
 
+    /** כמה גדול אזור הנגיעה מסביב לחור (dp) */
+    fun zoneExtra(c: Context) = sp(c).getFloat("zone_extra", 14f)
+    fun setZoneExtra(c: Context, v: Float) = sp(c).edit().putFloat("zone_extra", v).apply()
+
+    /** מחזיר את המיקום, הגודל והעובי להתחלה */
+    fun resetPosition(c: Context) = sp(c).edit()
+        .remove("size").remove("dx").remove("dy").remove("thick").remove("zone_extra").apply()
+
     /** להראות את אזור הנגיעה (כדי לכוון) */
     fun showZone(c: Context) = sp(c).getBoolean("show_zone", false)
     fun setShowZone(c: Context, v: Boolean) = sp(c).edit().putBoolean("show_zone", v).apply()

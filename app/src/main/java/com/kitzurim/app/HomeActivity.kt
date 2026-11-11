@@ -206,16 +206,22 @@ fun HomeScreen(resumes: Int) {
                 // ---------- הטבעת ----------
                 Card {
                     Text("הטבעת סביב המצלמה", style = MaterialTheme.typography.titleMedium)
-                    SwitchLine("להראות טבעת", NotchPrefs.ringOn(ctx)) {
+                    SwitchLine("🔋 טבעת סוללה (מראה כמה סוללה נשארה)", NotchPrefs.ringOn(ctx)) {
                         NotchPrefs.setRingOn(ctx, it); NotchOverlay.refresh(); refresh++
                     }
-                    SwitchLine("רק בזמן טעינה", NotchPrefs.onlyCharging(ctx)) {
-                        NotchPrefs.setOnlyCharging(ctx, it); NotchOverlay.refresh(); refresh++
+                    // האפשרויות של הטבעת מופיעות רק כשהיא דלוקה
+                    if (NotchPrefs.ringOn(ctx)) {
+                        Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            SwitchLine("להראות רק בזמן טעינה", NotchPrefs.onlyCharging(ctx)) {
+                                NotchPrefs.setOnlyCharging(ctx, it); NotchOverlay.refresh(); refresh++
+                            }
+                            SwitchLine("נקודה מסתובבת בזמן טעינה", NotchPrefs.chargeAnim(ctx)) {
+                                NotchPrefs.setChargeAnim(ctx, it); NotchOverlay.refresh(); refresh++
+                            }
+                        }
                     }
-                    SwitchLine("נקודה מסתובבת בטעינה", NotchPrefs.chargeAnim(ctx)) {
-                        NotchPrefs.setChargeAnim(ctx, it); NotchOverlay.refresh(); refresh++
-                    }
-                    SwitchLine("נורת התראות (מהבהבת בצבע של האפליקציה)", NotchPrefs.notifyLight(ctx)) {
+                    HorizontalDivider()
+                    SwitchLine("💬 נורת התראות (מהבהבת בצבע של האפליקציה)", NotchPrefs.notifyLight(ctx)) {
                         NotchPrefs.setNotifyLight(ctx, it); NotchOverlay.refresh(); refresh++
                     }
                     if (NotchPrefs.notifyLight(ctx) && !Driving.listenerAllowed(ctx)) {
@@ -223,23 +229,30 @@ fun HomeScreen(resumes: Int) {
                             Text("לנורת ההתראות צריך גישה להתראות ←")
                         }
                     }
-                    PrefSlider("עובי", NotchPrefs.thickness(ctx), 0.8f..4f) { NotchPrefs.setThickness(ctx, it) }
                 }
 
                 // ---------- כיוון ----------
                 Card {
-                    Text("כיוון", style = MaterialTheme.typography.titleMedium)
+                    Text("גודל ומיקום", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "אם הטבעת לא יושבת בדיוק על החור, מזיזים כאן. השינוי נראה מיד.",
+                        "העיגול הוורוד מראה איפה הטבעת יושבת. מזיזים, והשינוי נראה תוך כדי.",
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant,
                     )
-                    PrefSlider("גודל", NotchPrefs.size(ctx), -6f..14f) { NotchPrefs.setSize(ctx, it) }
+                    PrefSlider("גודל הטבעת", NotchPrefs.size(ctx), -6f..14f) { NotchPrefs.setSize(ctx, it) }
+                    PrefSlider("עובי", NotchPrefs.thickness(ctx), 0.8f..4f) { NotchPrefs.setThickness(ctx, it) }
                     PrefSlider("ימינה / שמאלה", NotchPrefs.offsetX(ctx), -40f..40f) { NotchPrefs.setOffsetX(ctx, it) }
                     PrefSlider("למעלה / למטה", NotchPrefs.offsetY(ctx), -30f..30f) { NotchPrefs.setOffsetY(ctx, it) }
+                    PrefSlider("גודל אזור הנגיעה", NotchPrefs.zoneExtra(ctx), 0f..40f) { NotchPrefs.setZoneExtra(ctx, it) }
                     SwitchLine("להראות את אזור הנגיעה", NotchPrefs.showZone(ctx)) {
                         NotchPrefs.setShowZone(ctx, it); NotchOverlay.refresh(); refresh++
                     }
+                    TextButton(onClick = {
+                        NotchPrefs.resetPosition(ctx)
+                        NotchOverlay.refresh()
+                        Actions.toast(ctx, "המיקום והגודל חזרו להתחלה")
+                        refresh++
+                    }) { Text("↺ איפוס מיקום וגודל") }
                 }
 
                 // ---------- עוד ----------

@@ -107,7 +107,7 @@ object NotchOverlay {
         ring?.update(
             level, charging,
             if (NotchPrefs.notifyLight(s)) pulses.values.lastOrNull() else null,
-            NotchPrefs.onlyCharging(s), NotchPrefs.chargeAnim(s),
+            NotchPrefs.onlyCharging(s), NotchPrefs.chargeAnim(s), NotchPrefs.ringOn(s),
         )
     }
 
@@ -163,7 +163,7 @@ object NotchOverlay {
         val thick = NotchPrefs.thickness(s) * d
         // חלון הטבעת בגודל קבוע לפי הגדלים המקסימליים, כדי שאפשר יהיה לשנות בלי לבנות מחדש
         val ringSize = ((radius + 4f * d * 4 + 6 * d) * 2).toInt()
-        val zoneSize = ((radius + 14 * d) * 2).toInt()
+        val zoneSize = ((radius + NotchPrefs.zoneExtra(s) * d) * 2).toInt()
         return Geom(cx, cy, radius, thick, ringSize, zoneSize)
     }
 
@@ -210,7 +210,8 @@ object NotchOverlay {
         val radius = g.radius
         val thick = g.thick
 
-        if (NotchPrefs.ringOn(s) || preview) {
+        // חלון הטבעת: לטבעת הסוללה, לנורת ההתראות, או לעיגול הוורוד כשקיצורים פתוחה
+        if (NotchPrefs.ringOn(s) || NotchPrefs.notifyLight(s) || preview) {
             val size = g.ringSize
             val v = RingView(s, radius, thick, preview)
             runCatching {
@@ -266,19 +267,44 @@ object NotchOverlay {
                 val a = NotchPrefs.action(s, Gesture.LONG)
                 if (a.type != ActionType.NONE) NotchActions.perform(s, a)
             }
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                val start = e1 ?: return false
-                val dx = e2.rawX - start.rawX
-                val dy = e2.rawY - start.rawY
-                when {
-                    abs(dy) > abs(dx) && dy > 0 -> run(Gesture.DOWN)
-                    abs(dx) > abs(dy) && dx > 0 -> run(Gesture.RIGHT)
-                    abs(dx) > abs(dy) && dx < 0 -> run(Gesture.LEFT)
-                }
-                return true
-            }
         })
-        v.setOnTouchListener { _, e -> detector.onTouchEvent(e) }
+        // החלקה: מזהים לפי המרחק שהאצבע עברה (לא לפי המהירות), וברגע שעברה מספיק,
+        // בלי לחכות שתרים את האצבע. כך גם החלקה איטית עובדת, ולפני שהמערכת "חוטפת"
+        // את ההחלקה למטה לפתיחת שורת ההתראות
+        val d = s.resources.displayMetrics.density
+        val threshold = 18 * d
+        var downX = 0f
+        var downY = 0f
+        var swiped = false
+        v.setOnTouchListener { _, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = e.rawX
+                    downY = e.rawY
+                    swiped = false
+                }
+                MotionEvent.ACTION_MOVE -> if (!swiped) {
+                    val dx = e.rawX - downX
+                    val dy = e.rawY - downY
+                    val g = when {
+                        dy > threshold && abs(dy) > abs(dx) -> Gesture.DOWN
+                        dx > threshold && abs(dx) > abs(dy) -> Gesture.RIGHT
+                        dx < -threshold && abs(dx) > abs(dy) -> Gesture.LEFT
+                        else -> null
+                    }
+                    if (g != null) {
+                        swiped = true
+                        // שלא ייחשב גם כהקשה או לחיצה ארוכה
+                        val cancel = MotionEvent.obtain(e).apply { action = MotionEvent.ACTION_CANCEL }
+                        detector.onTouchEvent(cancel)
+                        cancel.recycle()
+                        run(g)
+                    }
+                }
+            }
+            if (!swiped) detector.onTouchEvent(e)
+            true
+        }
     }
 }
 
@@ -295,6 +321,7 @@ class RingView(
     private var pulse: Int? = null
     private var onlyCharging = false
     private var chargeAnim = true
+    private var battery = true
     private var phase = 0f
 
     private val track = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -333,13 +360,14 @@ class RingView(
         invalidate()
     }
 
-    fun update(level: Int, charging: Boolean, pulse: Int?, onlyCharging: Boolean, chargeAnim: Boolean) {
+    fun update(level: Int, charging: Boolean, pulse: Int?, onlyCharging: Boolean, chargeAnim: Boolean, battery: Boolean) {
+        this.battery = battery
         this.level = level
         this.charging = charging
         this.pulse = pulse
         this.onlyCharging = onlyCharging
         this.chargeAnim = chargeAnim
-        val moving = pulse != null || (charging && chargeAnim)
+        val moving = pulse != null || (battery && charging && chargeAnim)
         if (moving && !anim.isStarted) anim.start()
         if (!moving && anim.isStarted) anim.cancel()
         invalidate()
@@ -378,6 +406,8 @@ class RingView(
             return
         }
 
+        // טבעת הסוללה כבויה (רק נורת התראות), או "רק בזמן טעינה" ולא בטעינה
+        if (!battery) return
         if (onlyCharging && !charging) return
 
         val col = when {
