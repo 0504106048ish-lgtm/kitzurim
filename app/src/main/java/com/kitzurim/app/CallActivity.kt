@@ -74,6 +74,7 @@ import kotlin.math.roundToInt
 @Suppress("DEPRECATION")
 class CallActivity : ComponentActivity() {
     private var proximity: PowerManager.WakeLock? = null
+    private var preview = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -88,6 +89,19 @@ class CallActivity : ComponentActivity() {
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         neonBars()
+        // תצוגה מקדימה מההגדרות: שיחה לדוגמא, ואז "להפעיל" או "לא עכשיו"
+        if (intent?.getBooleanExtra(PREVIEW, false) == true) {
+            preview = true
+            setContent {
+                KitzurimTheme {
+                    PreviewScreen(
+                        onEnable = { Calls.requestDefault(this) },
+                        onClose = { finish() },
+                    )
+                }
+            }
+            return
+        }
         setContent {
             KitzurimTheme {
                 val v = Calls.version
@@ -104,8 +118,19 @@ class CallActivity : ComponentActivity() {
         }
     }
 
+    /** חזרנו מהשאלה של הטלפון "להפוך לאפליקציית הטלפון?": סוגרים את התצוגה המקדימה */
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (preview) {
+            if (Calls.isDefault(this)) Actions.toast(this, "📞 מעכשיו השיחות במסך הניאון של קיצורים")
+            finish()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        if (preview) return
         visible = true
         LivePill.callEnded() // בזמן שהמסך הזה פתוח לא צריך את הגלולה
         updateProximity()
@@ -136,6 +161,8 @@ class CallActivity : ComponentActivity() {
     }
 
     companion object {
+        const val PREVIEW = "preview"
+
         /** מסך השיחה פתוח עכשיו (אז הגלולה ליד המצלמה לא מופיעה) */
         @Volatile
         var visible = false
@@ -146,10 +173,35 @@ private val Green = Color(0xFF2AD49A)
 private val Red = Color(0xFFFF4D5E)
 private val Soft = Color(0xFFA8B0C0)
 
-@Suppress("DEPRECATION")
+/** מה שמוצג במסך השיחה (משיחה אמיתית או מהתצוגה המקדימה) */
+private class CallView(
+    val name: String,
+    val number: String?,
+    val photo: android.graphics.Bitmap?,
+    val ringing: Boolean,
+    val topText: String,
+    val status: String,
+    val statusGreen: Boolean,
+    val muted: Boolean,
+    val speaker: Boolean,
+    val holding: Boolean,
+    val canSwap: Boolean,
+)
+
+/** מה קורה כשלוחצים על הכפתורים */
+private class CallAct(
+    val answer: () -> Unit,
+    val reject: () -> Unit,
+    val hangup: () -> Unit,
+    val mute: () -> Unit,
+    val speaker: () -> Unit,
+    val hold: () -> Unit,
+    val swap: () -> Unit,
+    val dtmf: (Char) -> Unit,
+)
+
 @Composable
-private fun CallScreenUi(c: Call?, version: Int) {
-    val ctx = LocalContext.current
+private fun NeonBg(content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
@@ -160,79 +212,194 @@ private fun CallScreenUi(c: Call?, version: Int) {
                     center = androidx.compose.ui.geometry.Offset(540f, 500f),
                 )
             ),
-    ) {
-        if (c == null) {
-            Text(
-                "השיחה הסתיימה",
-                Modifier.align(Alignment.Center),
-                color = Soft,
-                fontSize = 18.sp,
-            )
-            return@Box
-        }
-        val st = Calls.state(c)
-        val name = remember(c, version) { Calls.name(ctx, c) }
-        val number = remember(c) { Calls.number(c) }
-        val photo = remember(c) { Calls.photo(ctx, c) }
-        val ringing = st == Call.STATE_RINGING
-        var keypad by remember { mutableStateOf(false) }
+        content = content,
+    )
+}
 
-        // שעון: מתעדכן כל שנייה
-        var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-        LaunchedEffect(Unit) {
-            while (true) {
-                now = System.currentTimeMillis()
-                delay(500)
+/** שיחה אמיתית */
+@Suppress("DEPRECATION")
+@Composable
+private fun CallScreenUi(c: Call?, version: Int) {
+    val ctx = LocalContext.current
+    if (c == null) {
+        NeonBg { Text("השיחה הסתיימה", Modifier.align(Alignment.Center), color = Soft, fontSize = 18.sp) }
+        return
+    }
+    val st = Calls.state(c)
+    val name = remember(c, version) { Calls.name(ctx, c) }
+    val number = remember(c) { Calls.number(c) }
+    val photo = remember(c) { Calls.photo(ctx, c) }
+    val ringing = st == Call.STATE_RINGING
+    // שעון: מתעדכן כל חצי שנייה
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(500)
+        }
+    }
+    val at = Calls.answeredAt[c]
+    val status = when {
+        st == Call.STATE_DIALING || st == Call.STATE_CONNECTING -> "מחייג…"
+        st == Call.STATE_HOLDING -> "בהמתנה"
+        st == Call.STATE_DISCONNECTING || st == Call.STATE_DISCONNECTED -> "השיחה הסתיימה"
+        at != null -> clock((now - at) / 1000)
+        else -> "מתחבר…"
+    }
+    val view = CallView(
+        name = name,
+        number = number,
+        photo = photo,
+        ringing = ringing,
+        topText = if (Calls.list.size > 1) "שיחה ממתינה" else "שיחה נכנסת",
+        status = status,
+        statusGreen = at != null && st == Call.STATE_ACTIVE,
+        muted = Calls.muted,
+        speaker = Calls.route == CallAudioState.ROUTE_SPEAKER,
+        holding = st == Call.STATE_HOLDING,
+        canSwap = st == Call.STATE_ACTIVE && Calls.list.any { Calls.state(it) == Call.STATE_HOLDING },
+    )
+    val act = remember(c) {
+        CallAct(
+            answer = { Calls.answer(c) },
+            reject = { Calls.reject(c) },
+            hangup = { Calls.hangup(c) },
+            mute = { Calls.toggleMute() },
+            speaker = { Calls.toggleSpeaker() },
+            hold = { Calls.toggleHold(c) },
+            swap = { Calls.swap() },
+            dtmf = { ch -> Calls.dtmf(c, ch) },
+        )
+    }
+    CallFace(view, act)
+}
+
+/** תצוגה מקדימה: שיחה לדוגמא, כדי לראות איך זה ייראה לפני שמפעילים */
+@Composable
+private fun PreviewScreen(onEnable: () -> Unit, onClose: () -> Unit) {
+    var active by remember { mutableStateOf(false) }
+    var muted by remember { mutableStateOf(false) }
+    var speaker by remember { mutableStateOf(false) }
+    var holding by remember { mutableStateOf(false) }
+    var start by remember { mutableLongStateOf(0L) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(500)
+        }
+    }
+    val view = CallView(
+        name = "אמא",
+        number = "050-1234567",
+        photo = null,
+        ringing = !active,
+        topText = "שיחה נכנסת",
+        status = if (holding) "בהמתנה" else clock((now - start) / 1000),
+        statusGreen = !holding,
+        muted = muted,
+        speaker = speaker,
+        holding = holding,
+        canSwap = false,
+    )
+    val act = CallAct(
+        answer = {
+            active = true
+            start = System.currentTimeMillis()
+        },
+        reject = { active = false },
+        hangup = {
+            active = false
+            muted = false
+            speaker = false
+            holding = false
+        },
+        mute = { muted = !muted },
+        speaker = { speaker = !speaker },
+        hold = { holding = !holding },
+        swap = {},
+        dtmf = {},
+    )
+    Box(Modifier.fillMaxSize()) {
+        CallFace(view, act)
+        // למעלה: הסבר וכפתורים
+        Column(
+            Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 34.dp, start = 16.dp, end = 16.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color(0xFF1A2030))
+                .border(1.dp, Color(0xFF2A3346), RoundedCornerShape(18.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("👀 תצוגה מקדימה", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(
+                if (active) "ככה נראית שיחה. לחץ על הכפתור האדום כדי לחזור לשיחה נכנסת" else "ככה תיראה שיחה נכנסת. נסה להחליק ימינה",
+                color = Soft,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Green)
+                        .clickable { onEnable() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) { Text("להפעיל", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .clickable { onClose() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) { Text("לא עכשיו", color = Color.White, fontSize = 14.sp) }
             }
         }
-        val at = Calls.answeredAt[c]
-        val status = when {
-            ringing -> if (Calls.list.size > 1) "שיחה ממתינה" else "שיחה נכנסת"
-            st == Call.STATE_DIALING || st == Call.STATE_CONNECTING -> "מחייג…"
-            st == Call.STATE_HOLDING -> "בהמתנה"
-            st == Call.STATE_DISCONNECTING || st == Call.STATE_DISCONNECTED -> "השיחה הסתיימה"
-            at != null -> clock((now - at) / 1000)
-            else -> "מתחבר…"
-        }
+    }
+}
 
+/** המסך עצמה: אותו עיצוב לשיחה אמיתית ולתצוגה המקדימה */
+@Composable
+private fun CallFace(v: CallView, act: CallAct) {
+    var keypad by remember { mutableStateOf(false) }
+    NeonBg {
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(if (ringing) 90.dp else 70.dp))
-            Text(
-                if (ringing) status else "",
-                color = Green,
-                fontSize = 15.sp,
-            )
-            Spacer(Modifier.height(if (ringing) 36.dp else 8.dp))
-            Avatar(name, photo, if (ringing) 118 else 92, breathing = ringing)
-            Spacer(Modifier.height(if (ringing) 36.dp else 22.dp))
-            Text(name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
-            if (number != null && number != name) {
-                Text(number, color = Soft, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(if (v.ringing) 150.dp else 140.dp))
+            if (v.ringing) Text(v.topText, color = Green, fontSize = 15.sp)
+            Spacer(Modifier.height(if (v.ringing) 30.dp else 0.dp))
+            Avatar(v.name, v.photo, if (v.ringing) 118 else 92, breathing = v.ringing)
+            Spacer(Modifier.height(if (v.ringing) 30.dp else 20.dp))
+            Text(v.name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
+            if (v.number != null && v.number != v.name) {
+                Text(v.number, color = Soft, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
             }
-            if (!ringing) {
+            if (!v.ringing) {
                 Text(
-                    status,
-                    color = if (at != null && st == Call.STATE_ACTIVE) Green else Soft,
+                    v.status,
+                    color = if (v.statusGreen) Green else Soft,
                     fontSize = 16.sp,
                     modifier = Modifier.padding(top = 10.dp),
                 )
             }
             Spacer(Modifier.weight(1f))
 
-            if (ringing) {
-                SlideToAnswer { Calls.answer(c) }
+            if (v.ringing) {
+                SlideToAnswer { act.answer() }
                 Spacer(Modifier.height(26.dp))
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(24.dp))
                         .background(Red.copy(alpha = 0.15f))
                         .border(1.5.dp, Red, RoundedCornerShape(24.dp))
-                        .clickable { Calls.reject(c) }
+                        .clickable { act.reject() }
                         .padding(horizontal = 28.dp, vertical = 12.dp),
                 ) {
                     Text("✕  דחה", color = Red, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -240,20 +407,18 @@ private fun CallScreenUi(c: Call?, version: Int) {
                 Spacer(Modifier.height(46.dp))
             } else {
                 if (keypad) {
-                    Keypad { ch -> Calls.dtmf(c, ch) }
+                    Keypad { ch -> act.dtmf(ch) }
                 } else {
                     // השתקה, מקלדת, רמקול, המתנה
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        RoundBtn("🎙︎", if (Calls.muted) "בטל השתקה" else "השתק", Calls.muted) { Calls.toggleMute() }
+                        RoundBtn("🎙︎", if (v.muted) "בטל השתקה" else "השתק", v.muted) { act.mute() }
                         RoundBtn("⌨︎", "מקלדת", false) { keypad = true }
-                        RoundBtn("🔊︎", "רמקול", Calls.route == CallAudioState.ROUTE_SPEAKER) { Calls.toggleSpeaker() }
+                        RoundBtn("🔊︎", "רמקול", v.speaker) { act.speaker() }
                     }
                     Spacer(Modifier.height(18.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        RoundBtn("⏸︎", if (st == Call.STATE_HOLDING) "המשך" else "המתנה", st == Call.STATE_HOLDING) { Calls.toggleHold(c) }
-                        if (Calls.list.count { Calls.state(it) == Call.STATE_HOLDING } > 0 && st == Call.STATE_ACTIVE) {
-                            RoundBtn("⇄", "החלף", false) { Calls.swap() }
-                        }
+                        RoundBtn("⏸︎", if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
+                        if (v.canSwap) RoundBtn("⇄", "החלף", false) { act.swap() }
                     }
                 }
                 Spacer(Modifier.height(26.dp))
@@ -273,7 +438,7 @@ private fun CallScreenUi(c: Call?, version: Int) {
                             .size(width = 76.dp, height = 64.dp)
                             .clip(RoundedCornerShape(32.dp))
                             .background(Red)
-                            .clickable { Calls.hangup(c) },
+                            .clickable { act.hangup() },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text("✆︎", color = Color.White, fontSize = 26.sp)

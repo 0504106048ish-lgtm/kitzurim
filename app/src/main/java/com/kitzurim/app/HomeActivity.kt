@@ -382,7 +382,8 @@ fun HomeScreen(resumes: Int) {
                     // קיצורים כאפליקציית הטלפון: כל השיחות במסך הניאון. כבוי כברירת מחדל
                     SwitchLine("📞 מסך שיחה בניאון (קיצורים כאפליקציית הטלפון)", Calls.isDefault(ctx)) { on ->
                         if (on) {
-                            (ctx as? android.app.Activity)?.let { Calls.requestDefault(it) }
+                            // קודם תצוגה מקדימה של מסך השיחה, ומשם "להפעיל"
+                            ctx.startActivity(Intent(ctx, CallActivity::class.java).putExtra(CallActivity.PREVIEW, true))
                         } else {
                             Actions.toast(ctx, "בחר שוב את \"טלפון\" של סמסונג באפליקציית השיחות")
                             Calls.openDefaultApps(ctx)
