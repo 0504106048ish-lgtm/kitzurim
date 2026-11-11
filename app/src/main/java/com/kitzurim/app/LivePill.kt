@@ -373,6 +373,8 @@ object LivePill {
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
         maxLines = 1
         ellipsize = TextUtils.TruncateAt.END
+        // טקסט בעברית נכתב מימין לשמאל: סימן שאלה ושלוש נקודות בסוף המשפט, לא בתחילתו
+        textDirection = View.TEXT_DIRECTION_ANY_RTL
         if (bold) typeface = Typeface.DEFAULT_BOLD
         val d = ctx.resources.displayMetrics.density
         setPadding((4 * d).toInt(), 0, (4 * d).toInt(), 0)

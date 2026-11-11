@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>טקסט בגלולה</title>
+<style>
+  :root { --bg:#0b0d12; --card:#151922; --text:#e9edf5; --muted:#8b94a7; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui, "Segoe UI", Arial, sans-serif; padding:16px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 16px; font-size:14px; max-width:760px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(330px, 1fr)); gap:14px; max-width:1100px; }
+  .card { background:var(--card); border-radius:18px; padding:14px; }
+  .card h2 { font-size:16px; margin:0 0 4px; }
+  .why { color:var(--muted); font-size:13px; margin:0 0 10px; min-height:54px; }
+  .tag { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; margin-bottom:6px; }
+  .now { background:#3a1518; color:#ff8a8f; } .rec { background:#2a2440; color:#c9b6ff; } .alt { background:#10301f; color:#5be39b; }
+  /* טלפון ברוחב אמיתי בערך */
+  .phone { position:relative; width:330px; max-width:100%; height:190px; margin:0 auto; border-radius:18px; overflow:hidden; background:linear-gradient(180deg,#e8eef7,#d6e0ee); direction:ltr; }
+  .status { position:absolute; top:9px; left:14px; right:14px; display:flex; justify-content:space-between; font-size:12.5px; font-weight:600; color:#111; }
+  .fake { position:absolute; top:60px; left:14px; right:14px; }
+  .fake div { height:12px; border-radius:6px; background:rgba(0,0,0,.12); margin-bottom:10px; }
+  .hole { position:absolute; top:10px; left:50%; width:16px; height:16px; margin-left:-8px; border-radius:50%; background:#0a0a0a; z-index:9; }
+  .island { position:absolute; top:1px; left:50%; transform:translateX(-50%); width:34px; height:34px; border-radius:17px; background:#000; border:1.5px solid var(--c); box-sizing:border-box; opacity:0; z-index:2; overflow:hidden; }
+  .in { position:absolute; inset:0; opacity:0; z-index:3; color:#fff; font-size:13px; }
+  .rtl { direction:rtl; unicode-bidi:plaintext; }
+  .dot { width:20px; height:20px; border-radius:50%; color:#000; font-weight:bold; font-size:11px; display:flex; align-items:center; justify-content:center; flex:none; }
+  .ell { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .marquee { white-space:nowrap; overflow:hidden; }
+  .marquee span { display:inline-block; }
+  button { margin-top:8px; width:48%; padding:10px; border:0; border-radius:12px; background:#232a38; color:var(--text); font-size:14px; cursor:pointer; }
+  .btns { display:flex; justify-content:space-between; }
+  .note { max-width:1100px; margin-top:16px; background:var(--card); border-radius:18px; padding:14px; font-size:14px; color:var(--muted); line-height:1.6; }
+</style>
+</head>
+<body>
+<h1>איך שהטקסט ייראה טוב</h1>
+<p class="sub">הבעיה: בין השעה לסוללה יש רק מקום קטן, וכל צד של המצלמה מקבל בערך 100 פיקסלים, אז הטקסט נחתך. בנוסף, סימן השאלה והנקודות היו בצד הלא נכון. בכל האפשרויות למטה זה כבר מתוקן: הכיתוב מימין לשמאל כמו שצריך.</p>
+
+<div class="grid">
+  <div class="card">
+    <span class="tag now">ככה זה עכשיו</span>
+    <h2>שורה אחת, חתוכה</h2>
+    <p class="why">הכול באותה שורה עם המצלמה. הודעה ארוכה נחתכת, וגם "מלאה בעוד" לא נכנס.</p>
+    <div class="phone" id="p0"><div class="status"><span>13:25</span><span>81% ▮</span></div><div class="fake"><div style="width:70%"></div><div></div><div style="width:85%"></div></div><div class="hole"></div><div class="island"></div><div class="in"></div></div>
+    <div class="btns"><button onclick="play('p0','now','msg')">💬 הודעה</button><button onclick="play('p0','now','charge')">⚡ מטען</button></div>
+  </div>
+
+  <div class="card">
+    <span class="tag rec">א · אני ממליץ</span>
+    <h2>נפתחת למטה לכרטיס קטן</h2>
+    <p class="why">שורה עליונה ליד המצלמה: מי שלח / אחוזי סוללה. מתחתיה שורה רחבה לכל אורך הכרטיס: ההודעה (עד 2 שורות) / כמה זמן עד מלאה. נראה כמו האי של אייפון.</p>
+    <div class="phone" id="pA"><div class="status"><span>13:25</span><span>81% ▮</span></div><div class="fake"><div style="width:70%"></div><div></div><div style="width:85%"></div></div><div class="hole"></div><div class="island"></div><div class="in"></div></div>
+    <div class="btns"><button onclick="play('pA','A','msg')">💬 הודעה</button><button onclick="play('pA','A','charge')">⚡ מטען</button></div>
+  </div>
+
+  <div class="card">
+    <span class="tag alt">ב</span>
+    <h2>שורה אחת, הטקסט רץ</h2>
+    <p class="why">נשאר דק ובשורה של המצלמה, וטקסט ארוך גולל לאט מימין לשמאל עד שרואים את כולו.</p>
+    <div class="phone" id="pB"><div class="status"><span>13:25</span><span>81% ▮</span></div><div class="fake"><div style="width:70%"></div><div></div><div style="width:85%"></div></div><div class="hole"></div><div class="island"></div><div class="in"></div></div>
+    <div class="btns"><button onclick="play('pB','B','msg')">💬 הודעה</button><button onclick="play('pB','B','charge')">⚡ מטען</button></div>
+  </div>
+</div>
+
+<div class="note">למה ממליץ על א: רואים את כל ההודעה בבת אחת בלי לחכות שתרוץ, השעה והסוללה נשארות גלויות, והכרטיס נסגר חזרה לעיגול אחרי כמה שניות. ב שומר על גלולה דקה, אבל צריך לחכות כדי לקרוא הודעה ארוכה.</div>
+
+<script>
+const wait = ms => new Promise(r => setTimeout(r, ms));
+function anim(el, f, ms, e) { return el.animate(f, { duration: ms, easing: e || 'ease-out', fill: 'forwards' }).finished; }
+const MSG = 'אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר?';
+const busy = {};
+async function play(id, mode, type) {
+  if (busy[id]) return; busy[id] = true;
+  const ph = document.getElementById(id), isl = ph.querySelector('.island'), inn = ph.querySelector('.in');
+  const W = ph.clientWidth, GAP = 30;
+  const c = type === 'msg' ? '#25D366' : '#3ed18c';
+  isl.style.setProperty('--c', c);
+  let w, h = 34;
+  if (mode === 'A') {
+    // רוחב רק עד השעה והסוללה, כדי שלא יכסה אותן; גדל לגובה במקום לרוחב
+    w = W - 2 * 60; h = type === 'msg' ? 100 : 72;
+    const top = type === 'msg'
+      ? '<div style="position:absolute;top:0;height:34px;left:0;right:0;display:flex;align-items:center;justify-content:flex-end;padding:0 12px;gap:6px"><b class="rtl">דני</b><div class="dot" style="background:' + c + '">ד</div></div>'
+      : '<div style="position:absolute;top:0;height:34px;left:0;right:0;display:flex;align-items:center;justify-content:flex-end;padding:0 12px"><b style="color:' + c + '">81% ⚡</b></div>';
+    const body = type === 'msg'
+      ? '<div class="rtl" style="position:absolute;top:34px;left:14px;right:14px;font-size:13px;line-height:1.35;color:#d2d8e4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-align:right">' + MSG + '</div>'
+      : '<div class="rtl" style="position:absolute;top:34px;left:14px;right:14px;font-size:13px;color:#fff;text-align:right">מלאה בעוד<br>שעה ו-10 דק׳</div>';
+    inn.innerHTML = top + body;
+  } else {
+    const side = Math.floor((W - 2 * 62 - GAP - 20) / 2);
+    w = 2 * side + GAP + 20;
+    const L = type === 'msg' ? MSG : 'מלאה בעוד שעה ו-10 דק׳';
+    const R = type === 'msg' ? '<b class="rtl">דני</b><div class="dot" style="background:' + c + '">ד</div>' : '<b style="color:' + c + '">81% ⚡</b>';
+    const left = mode === 'B'
+      ? '<div class="marquee rtl" style="width:' + side + 'px;color:#d2d8e4"><span id="mq' + id + '">' + L + '</span></div>'
+      : '<div class="ell rtl" style="width:' + side + 'px;color:#d2d8e4;text-align:right">' + L + '</div>';
+    inn.innerHTML = '<div style="position:absolute;top:0;height:34px;left:10px;right:10px;display:flex;align-items:center">' + left +
+      '<div style="width:' + GAP + 'px;flex:none"></div><div style="width:' + side + 'px;display:flex;align-items:center;gap:5px;justify-content:flex-start;overflow:hidden">' + R + '</div></div>';
+  }
+  isl.style.opacity = 1;
+  const r = h > 34 ? 22 : 17;
+  await anim(isl, [{ width: '34px', height: '34px', borderRadius: '17px' }, { width: w + 'px', height: '34px', borderRadius: '17px', offset: .45 }, { width: w + 'px', height: h + 4 + 'px', borderRadius: r + 'px', offset: .8 }, { width: w + 'px', height: h + 'px', borderRadius: r + 'px' }], h > 34 ? 520 : 400);
+  inn.style.left = (W - w) / 2 + 'px'; inn.style.width = w + 'px'; inn.style.right = 'auto'; inn.style.top = '1px'; inn.style.height = h + 'px';
+  await anim(inn, [{ opacity: 0 }, { opacity: 1 }], 180);
+  let hold = 2600;
+  const mq = document.getElementById('mq' + id);
+  if (mq) {
+    // הטקסט רץ מימין לשמאל עד הסוף
+    // מתחילים מתחילת המשפט (ימין), ומזיזים ימינה עד שרואים את הסוף
+    const dist = Math.max(0, mq.scrollWidth - mq.parentElement.clientWidth);
+    hold = 1200 + dist * 22 + 1200;
+    mq.animate([{ transform: 'translateX(0px)' }, { transform: 'translateX(0px)', offset: 1200 / hold }, { transform: 'translateX(' + dist + 'px)', offset: 1 - 1200 / hold }, { transform: 'translateX(' + dist + 'px)' }], { duration: hold, easing: 'linear', fill: 'forwards' });
+  }
+  await wait(hold);
+  await anim(inn, [{ opacity: 1 }, { opacity: 0 }], 120);
+  await anim(isl, [{ width: w + 'px', height: h + 'px', borderRadius: r + 'px' }, { width: '34px', height: '34px', borderRadius: '17px' }], 260, 'ease-in');
+  isl.style.opacity = 0; isl.getAnimations().forEach(a => a.cancel()); inn.getAnimations().forEach(a => a.cancel());
+  busy[id] = false;
+}
+</script>
+</body>
+</html>
