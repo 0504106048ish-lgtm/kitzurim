@@ -208,11 +208,11 @@ fun PermissionsScreen(resumes: Int, onDone: () -> Unit) {
             openSafely(ctx, Perms.listenerIntent(ctx), Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         },
         PermStep(
-            "accessibility", "שליחה אוטומטית בוואטסאפ",
-            "בשביל \"שלח לאמא ש...\" בקול. להפעיל את המתג, לאשר ולחזור.",
+            "accessibility", "החור של המצלמה",
+            "הטבעת, הנגיעות בחור, ושליחה אוטומטית בוואטסאפ. להפעיל את המתג, לאשר ולחזור.",
             { Perms.accessibilityMissing(ctx) },
         ) {
-            Actions.toast(ctx, "להפעיל את \"קיצורים: שליחה אוטומטית\" ולחזור")
+            Actions.toast(ctx, "להפעיל את \"קיצורים: החור של המצלמה\" ולחזור")
             openSafely(ctx, Perms.accessibilityIntent(ctx), Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         },
     )

@@ -46,4 +46,26 @@ class AutoSendService : AccessibilityService() {
     }
 
     override fun onInterrupt() {}
+
+    // החור של המצלמה: הטבעת ואזור הנגיעה רצים כל עוד השירות פעיל
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        NotchOverlay.attach(this)
+    }
+
+    override fun onUnbind(intent: android.content.Intent?): Boolean {
+        NotchOverlay.detach()
+        return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        NotchOverlay.detach()
+        super.onDestroy()
+    }
+
+    // סיבוב מסך: לבנות מחדש (במסך שוכב הטבעת מוסתרת)
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        NotchOverlay.refresh()
+    }
 }

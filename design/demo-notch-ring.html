@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>טבעת המצלמה</title>
+<style>
+:root{--bg:#f3f2ee;--text:#1f1f1d;--muted:#6b6a65;--border:rgba(0,0,0,.12);--accent:#185FA5;--accentBg:#E6F1FB;--card:#fff;--frame:#1f1f1d}
+@media (prefers-color-scheme: dark){:root{--bg:#1a1a19;--text:#f1efe8;--muted:#b4b2a9;--border:rgba(255,255,255,.14);--accent:#85B7EB;--accentBg:#0C447C;--card:#262624;--frame:#d3d1c7}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;padding:16px}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:20px;font-weight:500;margin:4px 0;text-align:center}
+.sub{font-size:14px;color:var(--muted);text-align:center;margin:0 0 16px;line-height:1.6}
+.layout{display:flex;flex-wrap:wrap;gap:28px;justify-content:center;align-items:flex-start}
+.ph{position:relative;width:290px;height:600px;border:6px solid var(--frame);border-radius:42px;overflow:hidden;background:linear-gradient(170deg,#2c3e63,#121a2c);user-select:none;touch-action:none}
+.status{position:absolute;top:10px;left:22px;right:22px;display:flex;justify-content:space-between;color:#fff;font-size:12px;opacity:.85}
+.hole{position:absolute;top:14px;left:50%;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#050505;box-shadow:inset 0 0 3px #333;z-index:3}
+svg.ring{position:absolute;top:2px;left:50%;margin-left:-20px;width:40px;height:40px;z-index:2;overflow:visible}
+.zone{position:absolute;top:0;left:50%;width:90px;height:56px;margin-left:-45px;z-index:4;cursor:pointer;border-radius:0 0 30px 30px}
+.zone.show{background:rgba(255,255,255,.08);outline:1px dashed rgba(255,255,255,.4)}
+.home{position:absolute;inset:70px 18px auto;display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.home div{width:46px;height:46px;border-radius:14px;background:rgba(255,255,255,.14)}
+.clock{position:absolute;top:250px;width:100%;text-align:center;color:#fff;font-size:52px;font-weight:300}
+.toast{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);background:rgba(20,20,20,.88);color:#fff;font-size:13px;padding:8px 14px;border-radius:16px;opacity:0;transition:opacity .25s;white-space:nowrap;z-index:6}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5;transition:opacity .15s}
+.panel{width:360px;max-width:100%;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px}
+.card h3{margin:0 0 10px;font-size:15px;font-weight:500}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:7px 12px;border-radius:10px;font-size:13px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text)}
+.chip.on{background:var(--accentBg);color:var(--accent);border-color:var(--accent)}
+.rec{font-size:11px;background:#E1F5EE;color:#085041;padding:2px 7px;border-radius:7px;margin-right:4px}
+.row{display:flex;align-items:center;gap:10px;font-size:13px;margin:6px 0}
+.row input[type=range]{flex:1}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:6px 2px;border-bottom:1px solid var(--border)}
+td:first-child{color:var(--muted);width:45%}
+.btn{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-size:13px}
+.note{font-size:12px;color:var(--muted);line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>החור של המצלמה: כפתור וטבעת</h1>
+<p class="sub">נסה על הטלפון: הקשה, הקשה כפולה, לחיצה ארוכה, או החלקה (גוררים מהחור).<br>מימין בוחרים סגנון טבעת ומדמים טעינה, הודעה וטיימר.</p>
+<div class="layout">
+<div class="ph" id="ph">
+<div class="status"><span>10:24</span><span id="sb">87%</span></div>
+<svg class="ring" id="ring" viewBox="0 0 40 40"></svg>
+<div class="hole"></div>
+<div class="zone" id="zone"></div>
+<div class="clock">10:24</div>
+<div class="home"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+<div class="flash" id="flash"></div>
+<div class="toast" id="toast"></div>
+</div>
+
+<div class="panel">
+<div class="card"><h3>סגנון הטבעת</h3>
+<div class="chips" id="styles">
+<span class="chip on" data-s="glow"><span class="rec">מומלץ</span>זוהרת</span>
+<span class="chip" data-s="thin">דקה</span>
+<span class="chip" data-s="dots">נקודות</span>
+</div></div>
+
+<div class="card"><h3>מה הטבעת מראה</h3>
+<div class="row">🔋 סוללה <input type="range" min="1" max="100" value="87" id="lvl"><b id="lvlv">87%</b></div>
+<div class="chips">
+<span class="chip" id="chg">⚡ לחבר מטען</span>
+<span class="chip" id="msg">💬 הודעה מוואטסאפ</span>
+<span class="chip" id="tmr">⏱️ טיימר 10 שניות</span>
+</div></div>
+
+<div class="card"><h3>מה כל תנועה עושה</h3>
+<table>
+<tr><td>הקשה</td><td>📸 צילום מסך</td></tr>
+<tr><td>הקשה כפולה</td><td>🔦 פנס</td></tr>
+<tr><td>לחיצה ארוכה</td><td>🎙️ פקודה קולית</td></tr>
+<tr><td>החלקה למטה</td><td>🔔 התראות</td></tr>
+<tr><td>החלקה ימינה / שמאלה</td><td>⏭️ שיר הבא / ⏮️ קודם</td></tr>
+</table>
+<p class="note">באפליקציה בוחרים בעצמך מה כל תנועה עושה.</p>
+<button class="btn" id="showz">להראות את אזור הנגיעה</button>
+</div>
+</div>
+</div>
+</div>
+
+<script>
+const ring=document.getElementById('ring'),toastEl=document.getElementById('toast');
+let style='glow',level=87,charging=false,mode='battery',timerStart=0,notifUntil=0,spin=0;
+function colorFor(l){return l<=15?'#E24B4A':l<=40?'#EF9F27':'#3ED18C'}
+function toast(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(toastEl._t);toastEl._t=setTimeout(()=>toastEl.style.opacity=0,1400)}
+function arc(p,r){const a=Math.min(p,.9999)*2*Math.PI,x=20+r*Math.sin(a),y=20-r*Math.cos(a);return `M20 ${20-r} A${r} ${r} 0 ${a>Math.PI?1:0} 1 ${x} ${y}`}
+function draw(now){
+ let p=level/100,c=colorFor(level),label='';
+ if(mode==='timer'){const t=(now-timerStart)/10000;if(t>=1){mode='battery';toast('⏱️ הזמן נגמר');}else{p=1-t;c='#7F77DD';}}
+ const notif=now<notifUntil;
+ let s='';
+ const r=style==='thin'?11:12;
+ if(notif){const pulse=.5+.5*Math.sin(now/120);
+  s+=`<circle cx="20" cy="20" r="13" fill="none" stroke="#25D366" stroke-width="${3+pulse*2}" opacity="${.4+pulse*.6}"/>`;
+  s+=`<circle cx="20" cy="20" r="${15+pulse*3}" fill="none" stroke="#25D366" stroke-width="1" opacity="${.5-pulse*.4}"/>`;
+ } else if(style==='dots'){
+  const n=20;for(let i=0;i<n;i++){const a=i/n*2*Math.PI;const on=i/n<p;let op=on?1:.18;
+   if(charging&&mode==='battery'){const head=(spin/60)%n;const d=(i-head+n)%n;if(d<4)op=Math.max(op,1-d*.2);}
+   s+=`<circle cx="${20+12.5*Math.sin(a)}" cy="${20-12.5*Math.cos(a)}" r="1.4" fill="${on?c:'#fff'}" opacity="${op}"/>`;}
+ } else {
+  const w=style==='thin'?1.6:3;
+  s+=`<circle cx="20" cy="20" r="${r}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="${w}"/>`;
+  if(style==='glow')s+=`<path d="${arc(p,r)}" fill="none" stroke="${c}" stroke-width="${w+4}" stroke-linecap="round" opacity=".28"/>`;
+  s+=`<path d="${arc(p,r)}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`;
+  if(charging&&mode==='battery'){const a=(spin/40)%(2*Math.PI);s+=`<circle cx="${20+r*Math.sin(a)}" cy="${20-r*Math.cos(a)}" r="${w*.9}" fill="#fff"/>`;}
+ }
+ ring.innerHTML=s;spin+=16;requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// סגנון
+document.querySelectorAll('#styles .chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('#styles .chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');style=c.dataset.s});
+const lvl=document.getElementById('lvl');lvl.oninput=()=>{level=+lvl.value;document.getElementById('lvlv').textContent=level+'%';document.getElementById('sb').textContent=level+'%'};
+document.getElementById('chg').onclick=e=>{charging=!charging;e.target.classList.toggle('on',charging);e.target.textContent=charging?'⚡ בטעינה (לנתק)':'⚡ לחבר מטען';toast(charging?'⚡ בטעינה':'המטען נותק')};
+document.getElementById('msg').onclick=()=>{notifUntil=performance.now()+5000;toast('💬 הודעה חדשה מוואטסאפ')};
+document.getElementById('tmr').onclick=()=>{mode='timer';timerStart=performance.now();toast('⏱️ טיימר התחיל')};
+document.getElementById('showz').onclick=()=>document.getElementById('zone').classList.toggle('show');
+
+// תנועות על החור
+const zone=document.getElementById('zone'),flash=document.getElementById('flash');
+let down=null,lastTap=0,longT=null,tapT=null,torch=false;
+function act(name){
+ if(name==='tap'){flash.style.opacity=.85;setTimeout(()=>flash.style.opacity=0,120);toast('📸 צילום מסך נשמר')}
+ if(name==='double'){torch=!torch;toast(torch?'🔦 הפנס נדלק':'🔦 הפנס כבה')}
+ if(name==='long')toast('🎙️ מה לעשות? (פקודה קולית)');
+ if(name==='down')toast('🔔 נפתחו ההתראות');
+ if(name==='right')toast('⏭️ השיר הבא');
+ if(name==='left')toast('⏮️ השיר הקודם');
+}
+zone.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,t:Date.now(),moved:false};zone.setPointerCapture(e.pointerId);longT=setTimeout(()=>{if(down&&!down.moved){act('long');down.done=true}},550)});
+zone.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-down.x,dy=e.clientY-down.y;if(Math.hypot(dx,dy)>12)down.moved=true});
+zone.addEventListener('pointerup',e=>{clearTimeout(longT);if(!down)return;const d=down;down=null;if(d.done)return;
+ const dx=e.clientX-d.x,dy=e.clientY-d.y;
+ if(d.moved){if(Math.abs(dy)>Math.abs(dx)&&dy>0)act('down');else if(Math.abs(dx)>Math.abs(dy))act(dx>0?'right':'left');return}
+ const now=Date.now();if(now-lastTap<300){clearTimeout(tapT);lastTap=0;act('double')}else{lastTap=now;tapT=setTimeout(()=>act('tap'),300)}
+});
+</script>
+</body>
+</html>

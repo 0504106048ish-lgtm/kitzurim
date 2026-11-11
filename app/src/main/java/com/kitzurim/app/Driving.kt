@@ -46,7 +46,33 @@ class CarReceiver : BroadcastReceiver() {
  * שומר כל הודעה לסיכום שמופיע בסוף הנסיעה, ועונה פעם אחת לכל צ'אט פרטי.
  */
 class ReplyListener : NotificationListenerService() {
+    // נורת התראות בטבעת: הודעה חדשה מאפליקציית הודעות ← הטבעת מהבהבת בצבע שלה עד שקוראים
+    private val lightColors = mapOf(
+        "com.whatsapp" to 0xFF25D366.toInt(),
+        "com.whatsapp.w4b" to 0xFF25D366.toInt(),
+        "org.telegram.messenger" to 0xFF2AABEE.toInt(),
+        "com.google.android.apps.messaging" to 0xFF4C8DF6.toInt(),
+        "com.samsung.android.messaging" to 0xFF4C8DF6.toInt(),
+        "com.google.android.gm" to 0xFFEA4335.toInt(),
+        "com.facebook.orca" to 0xFF0A7CFF.toInt(),
+        "com.instagram.android" to 0xFFE1306C.toInt(),
+    )
+
+    private fun lightFor(sbn: StatusBarNotification) {
+        val n = sbn.notification
+        if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+        if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) return
+        val color = lightColors[sbn.packageName]
+            ?: if (n.category == Notification.CATEGORY_MESSAGE && n.color != 0) n.color else return
+        NotchOverlay.notificationPosted(sbn.key, color)
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        NotchOverlay.notificationRemoved(sbn.key)
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        lightFor(sbn)
         if (!AutoPrefs.drivingActive(this)) return
         if (sbn.packageName != "com.whatsapp" && sbn.packageName != "com.whatsapp.w4b") return
         val n = sbn.notification
