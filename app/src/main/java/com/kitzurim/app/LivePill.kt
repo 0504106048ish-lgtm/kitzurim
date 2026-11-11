@@ -550,7 +550,9 @@ object LivePill {
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
         val maxW = (screenW - 2 * 58 * d).toInt()
         val gapW = hole + (14 * d).toInt()
-        val padW = (12 * d).toInt()
+        // גלולת השיחה הקטנה: צמודה ככל האפשר (רק שניות וסמל)
+        val compact = newKind == "incall"
+        val padW = ((if (compact) 7 else 12) * d).toInt()
         collapsedW = h
 
         val root = FrameLayout(s)
@@ -611,7 +613,7 @@ object LivePill {
         val hSpec = View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.AT_MOST)
         left.measure(wSpec, hSpec)
         right.measure(wSpec, hSpec)
-        var side = min(max(left.measuredWidth, right.measuredWidth) + (6 * d).toInt(), maxSide)
+        var side = min(max(left.measuredWidth, right.measuredWidth) + ((if (compact) 1 else 6) * d).toInt(), maxSide)
         // נגן: תמיד ברוחב המלא (בין השעה לסוללה)
         if (extra != null) side = maxSide
 
