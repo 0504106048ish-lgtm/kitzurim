@@ -286,6 +286,10 @@ object NotchPrefs {
     fun pulseSeconds(c: Context) = sp(c).getInt("pulse_secs", 30)
     fun setPulseSeconds(c: Context, v: Int) = sp(c).edit().putInt("pulse_secs", v).apply()
 
+    /** הקשה על העיגול כשהוא דלוק מראה את ההודעה (כבוי כברירת מחדל) */
+    fun ringTapMsg(c: Context) = sp(c).getBoolean("ring_tap_msg", false)
+    fun setRingTapMsg(c: Context, v: Boolean) = sp(c).edit().putBoolean("ring_tap_msg", v).apply()
+
     // ---------- צבעים: לכל סוג התראה אפשר לבחור צבע מכל הקשת (0 = הצבע הרגיל) ----------
     fun customColor(c: Context, type: String): Int? = sp(c).getInt("color_$type", 0).takeIf { it != 0 }
     fun setCustomColor(c: Context, type: String, v: Int) = sp(c).edit().putInt("color_$type", v).apply()

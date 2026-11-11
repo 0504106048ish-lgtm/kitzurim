@@ -360,7 +360,7 @@ object NotchOverlay {
         val s = service ?: return false
         if (NotchPrefs.anyGesture(s) || NotchPrefs.showZone(s)) return false
         val music = NotchPrefs.musicTap(s) && (LivePill.isPlayerOpen() || playingController(s) != null)
-        val want = music || litMessage() != null
+        val want = music || (NotchPrefs.ringTapMsg(s) && litMessage() != null)
         if (want == musicZone) return false
         musicZone = want
         refresh()
@@ -652,7 +652,7 @@ object NotchOverlay {
 
         fun fire(g: Gesture) {
             // העיגול דלוק בגלל הודעה (ולא מראה עכשיו שיר): הקשה מראה שוב את ההודעה
-            if (g == Gesture.TAP && music == null && !LivePill.isPlayerOpen()) {
+            if (g == Gesture.TAP && NotchPrefs.ringTapMsg(s) && music == null && !LivePill.isPlayerOpen()) {
                 litMessage()?.let { m ->
                     if (NotchPrefs.haptic(s)) {
                         v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)

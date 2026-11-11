@@ -281,6 +281,9 @@ fun HomeScreen(resumes: Int) {
                                 }
                             }
                         }
+                        SwitchLine("👆 הקשה על העיגול הדלוק מראה את ההודעה", NotchPrefs.ringTapMsg(ctx)) {
+                            NotchPrefs.setRingTapMsg(ctx, it); NotchOverlay.refresh(); refresh++
+                        }
                     }
                     HorizontalDivider(color = Neon.Line)
                     SwitchLine("🔊 עוצמת קול (הטבעת מתמלאת כשמשנים ווליום)", NotchPrefs.volumeRing(ctx)) {
