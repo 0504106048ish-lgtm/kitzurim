@@ -44,9 +44,12 @@ enum class ActionType(val emoji: String, val label: String, val arg: ArgKind = A
     LOCK("🔒", "נעילת מסך"),
     POWER("⏻", "תפריט כיבוי"),
     SPLIT("◫", "מסך מפוצל"),
-    PLAY_PAUSE("⏯️", "הפעלה / השהיה של מוזיקה"),
-    NEXT("⏭️", "השיר הבא"),
-    PREV("⏮️", "השיר הקודם"),
+    PLAY_PAUSE("⏯️", "מוזיקה: הפעלה / השהיה (מתחלף)"),
+    PLAY("▶️", "מוזיקה: הפעלה"),
+    PAUSE("⏸️", "מוזיקה: השהיה"),
+    STOP("⏹️", "מוזיקה: עצירה"),
+    NEXT("⏭️", "מוזיקה: השיר הבא"),
+    PREV("⏮️", "מוזיקה: השיר הקודם"),
     VOLUME("🔊", "עוצמת קול"),
     RINGER("🔕", "צלצול ← רטט ← שקט"),
     CAMERA("📷", "מצלמה"),
@@ -163,6 +166,9 @@ object NotchActions {
             ActionType.POWER -> s.performGlobalAction(AccessibilityService.GLOBAL_ACTION_POWER_DIALOG)
             ActionType.SPLIT -> s.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)
             ActionType.PLAY_PAUSE -> media(s, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+            ActionType.PLAY -> media(s, KeyEvent.KEYCODE_MEDIA_PLAY)
+            ActionType.PAUSE -> media(s, KeyEvent.KEYCODE_MEDIA_PAUSE)
+            ActionType.STOP -> media(s, KeyEvent.KEYCODE_MEDIA_STOP)
             ActionType.NEXT -> media(s, KeyEvent.KEYCODE_MEDIA_NEXT)
             ActionType.PREV -> media(s, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
             ActionType.VOLUME -> s.getSystemService(AudioManager::class.java)
@@ -234,35 +240,28 @@ object NotchActions {
 object NotchPrefs {
     private fun sp(c: Context) = c.getSharedPreferences("kitzurim_notch", Context.MODE_PRIVATE)
 
-    private val DEFAULTS = mapOf(
-        Gesture.TAP to ActionType.SCREENSHOT,
-        Gesture.DOUBLE to ActionType.TORCH,
-        Gesture.LONG to ActionType.VOICE,
-        Gesture.DOWN to ActionType.NOTIFICATIONS,
-        Gesture.RIGHT to ActionType.NEXT,
-        Gesture.LEFT to ActionType.PREV,
-    )
 
     fun action(c: Context, g: Gesture): NotchAction =
-        NotchAction.fromJson(sp(c).getString("g_" + g.name, null)) ?: NotchAction(DEFAULTS[g] ?: ActionType.NONE)
+        // ברירת מחדל: כל התנועות כבויות, עד שבוחרים פעולה
+        NotchAction.fromJson(sp(c).getString("g_" + g.name, null)) ?: NotchAction(ActionType.NONE)
 
     fun setAction(c: Context, g: Gesture, a: NotchAction) = sp(c).edit().putString("g_" + g.name, a.toJson()).apply()
 
     fun enabled(c: Context) = sp(c).getBoolean("enabled", true)
     fun setEnabled(c: Context, v: Boolean) = sp(c).edit().putBoolean("enabled", v).apply()
 
-    fun ringOn(c: Context) = sp(c).getBoolean("ring", true)
+    fun ringOn(c: Context) = sp(c).getBoolean("ring", false)
     fun setRingOn(c: Context, v: Boolean) = sp(c).edit().putBoolean("ring", v).apply()
 
     /** הטבעת מופיעה רק בזמן טעינה */
     fun onlyCharging(c: Context) = sp(c).getBoolean("only_charging", false)
     fun setOnlyCharging(c: Context, v: Boolean) = sp(c).edit().putBoolean("only_charging", v).apply()
 
-    fun chargeAnim(c: Context) = sp(c).getBoolean("charge_anim", true)
+    fun chargeAnim(c: Context) = sp(c).getBoolean("charge_anim", false)
     fun setChargeAnim(c: Context, v: Boolean) = sp(c).edit().putBoolean("charge_anim", v).apply()
 
     /** נורת התראות: הטבעת מהבהבת בצבע של האפליקציה כשיש הודעה שלא ראית */
-    fun notifyLight(c: Context) = sp(c).getBoolean("notify_light", true)
+    fun notifyLight(c: Context) = sp(c).getBoolean("notify_light", false)
     fun setNotifyLight(c: Context, v: Boolean) = sp(c).edit().putBoolean("notify_light", v).apply()
 
     /** עובי הטבעת בנקודות (dp) */

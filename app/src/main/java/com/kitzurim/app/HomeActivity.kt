@@ -97,6 +97,7 @@ fun HomeScreen(resumes: Int) {
 
     fun save(g: Gesture, a: NotchAction) {
         NotchPrefs.setAction(ctx, g, a)
+        NotchOverlay.refresh()
         Actions.toast(ctx, "${g.label}: ${a.title()}")
         refresh++
     }

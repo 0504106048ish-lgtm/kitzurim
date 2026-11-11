@@ -166,6 +166,10 @@ object NotchOverlay {
             updateRing()
         }
 
+        // אין אף תנועה עם פעולה: לא שמים אזור נגיעה, כדי לא לחסום את שורת המצב
+        val anyGesture = Gesture.entries.any { NotchPrefs.action(s, it).type != ActionType.NONE }
+        if (!anyGesture && !NotchPrefs.showZone(s)) return
+
         // אזור הנגיעה: קצת יותר גדול מהחור, כדי שיהיה נוח לפגוע
         val zs = ((radius + 14 * d) * 2).toInt()
         val z = View(s)
