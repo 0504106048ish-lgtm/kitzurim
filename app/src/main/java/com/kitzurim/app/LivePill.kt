@@ -556,6 +556,126 @@ object LivePill {
         return "%d:%02d".format(sec / 60, sec % 60)
     }
 
+    // ---------- ניווט, אוזניות, הורדה ----------
+
+    private var navKey: String? = null
+    private var navStep: String? = null
+    private var navIcon: ImageView? = null
+    private val navSmall = Runnable { navCompact() }
+    private var navDist = ""
+    private var navOpen: PendingIntent? = null
+    private var navArrow: android.graphics.drawable.Drawable? = null
+
+    /**
+     * ניווט (וויז / גוגל מפות): כשיש פנייה חדשה, גלולה גדולה עם ההוראה לכמה שניות,
+     * ואחר כך גלולה קטנה עם החץ והמרחק, שמתעדכנת כל הזמן. הקשה פותחת את אפליקציית הניווט.
+     */
+    fun showNav(key: String, distance: String, step: String, arrow: android.graphics.drawable.Drawable?, open: PendingIntent?) {
+        val s = NotchOverlay.service ?: return
+        if (!NotchPrefs.pill(s) || !NotchPrefs.pillNav(s)) return
+        if (inCallPill() || kind == "player" || kind == "msg") return
+        navKey = key
+        navDist = distance
+        navOpen = open
+        navArrow = arrow
+        val newStep = step.isNotBlank() && step != navStep
+        navStep = step
+        val blue = Color.rgb(79, 179, 255)
+        when {
+            newStep -> {
+                main.removeCallbacks(navSmall)
+                show("navbig", 300, blue, null, onTap = { launch(open) }, long = navLine(distance, step)) { ctx, _, right ->
+                    right.addView(navArrowView(ctx, arrow, blue))
+                }
+                main.postDelayed(navSmall, 4500)
+            }
+            kind == "navbig" -> body?.text = navLine(distance, step)
+            kind == "nav" -> {
+                timerText?.text = distance
+                if (arrow != null) navIcon?.setImageDrawable(arrow)
+            }
+            kind == null -> navCompact()
+        }
+    }
+
+    private fun navCompact() {
+        val s = NotchOverlay.service ?: return
+        if (navKey == null || inCallPill() || kind == "player" || kind == "msg") return
+        if (!NotchPrefs.pill(s) || !NotchPrefs.pillNav(s)) return
+        val blue = Color.rgb(79, 179, 255)
+        val open = navOpen
+        show("nav", 150, blue, null, onTap = { launch(open) }) { ctx, left, right ->
+            val t = label(ctx, navDist, 13.5f, Color.WHITE, bold = true)
+            timerText = t
+            left.addView(t)
+            right.addView(navArrowView(ctx, navArrow, blue))
+        }
+    }
+
+    /** הניווט הסתיים (ההתראה נעלמה) */
+    fun navEnded(key: String) {
+        if (key != navKey) return
+        navKey = null
+        navStep = null
+        main.removeCallbacks(navSmall)
+        if (kind == "nav" || kind == "navbig") hide()
+    }
+
+    private fun navLine(distance: String, step: String): CharSequence =
+        android.text.SpannableStringBuilder().apply {
+            append(distance.trim())
+            setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.ForegroundColorSpan(Color.WHITE), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (step.isNotBlank()) {
+                append("\n")
+                append(step.trim())
+            }
+        }
+
+    private fun navArrowView(ctx: Context, arrow: android.graphics.drawable.Drawable?, color: Int): View {
+        val d = ctx.resources.displayMetrics.density
+        if (arrow == null) return label(ctx, "➤", 15f, color, bold = true)
+        return ImageView(ctx).apply {
+            setImageDrawable(arrow)
+            setColorFilter(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams((22 * d).toInt(), (22 * d).toInt())
+            navIcon = this
+        }
+    }
+
+    /** אוזניות התחברו: השם והסוללה */
+    fun showEarbuds(name: String, battery: Int?) {
+        val s = NotchOverlay.service ?: return
+        if (!NotchPrefs.pill(s) || !NotchPrefs.pillEarbuds(s)) return
+        if (inCallPill() || kind == "player") return
+        val c = Color.rgb(160, 168, 255)
+        val text = if (battery != null) "$name · $battery%" else name
+        if (kind == "buds") {
+            body?.text = text
+            return
+        }
+        show("buds", 260, c, 3500, onTap = null, long = text) { ctx, _, right ->
+            right.addView(label(ctx, "🎧︎", 15f, c, bold = true))
+        }
+    }
+
+    /** הורדה הסתיימה */
+    fun showDownloaded(name: String, open: PendingIntent?) {
+        val s = NotchOverlay.service ?: return
+        if (!NotchPrefs.pill(s) || !NotchPrefs.pillDownloads(s)) return
+        if (inCallPill() || kind == "player") return
+        val blue = Color.rgb(79, 179, 255)
+        val line = android.text.SpannableStringBuilder().apply {
+            append("הורד ✓")
+            setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.ForegroundColorSpan(Color.WHITE), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (name.isNotBlank()) append("  ").append(name.trim())
+        }
+        show("download", 280, blue, 3500, onTap = { launch(open) }, long = line) { ctx, _, right ->
+            right.addView(label(ctx, "⬇︎", 15f, blue, bold = true))
+        }
+    }
+
     fun showMusic(title: String) {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusic(s)) return
@@ -633,7 +753,7 @@ object LivePill {
         val maxW = (screenW - 2 * 58 * d).toInt()
         val gapW = hole + (14 * d).toInt()
         // גלולת השיחה הקטנה: צמודה ככל האפשר (רק שניות וסמל)
-        val compact = newKind == "incall"
+        val compact = newKind == "incall" || newKind == "nav"
         val padW = ((if (compact) 7 else 12) * d).toInt()
         collapsedW = h
 

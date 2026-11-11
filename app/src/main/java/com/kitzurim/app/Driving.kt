@@ -85,6 +85,37 @@ class ReplyListener : NotificationListenerService() {
             LivePill.ongoingCall(name, if (counting && n.`when` > 0) n.`when` else null, n.actions?.toList() ?: emptyList())
             return
         }
+
+        // ניווט (וויז / גוגל מפות): הפנייה הבאה והמרחק בגלולה
+        if (sbn.packageName in navApps) {
+            if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) {
+                val title = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+                val text = (n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+                    ?: n.extras.getCharSequence(Notification.EXTRA_TEXT))?.toString() ?: ""
+                val arrow = runCatching { n.getLargeIcon()?.loadDrawable(this) }.getOrNull()
+                if (title.isNotBlank() || text.isNotBlank()) {
+                    LivePill.showNav(sbn.key, title.ifBlank { text }, if (title.isBlank()) "" else text, arrow, n.contentIntent)
+                }
+            }
+            return
+        }
+
+        // הורדה: הטבעת מתמלאת לפי ההתקדמות, ובסוף "הורד ✓"
+        if (sbn.packageName in downloadApps) {
+            val max = n.extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
+            val prog = n.extras.getInt(Notification.EXTRA_PROGRESS, 0)
+            val title = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+            if (max > 0 && !n.extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false)) {
+                NotchOverlay.downloadProgress(sbn.key, prog.toFloat() / max)
+                downloadNames[sbn.key] = title
+            } else {
+                // אותה התראה עברה ל"הושלם"
+                val p = NotchOverlay.downloadEnded(sbn.key)
+                if (p != null) LivePill.showDownloaded(downloadNames.remove(sbn.key) ?: title, n.contentIntent)
+            }
+            return
+        }
+
         if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) return
         val color = lightColors[sbn.packageName]
             ?: if (n.category == Notification.CATEGORY_MESSAGE && n.color != 0) n.color else return
@@ -108,9 +139,24 @@ class ReplyListener : NotificationListenerService() {
 
     private val shown = HashMap<String, String>()
 
+    private val navApps = setOf("com.waze", "com.google.android.apps.maps")
+    private val downloadApps = setOf(
+        "com.android.providers.downloads",
+        "com.android.chrome",
+        "com.sec.android.app.sbrowser",
+        "org.mozilla.firefox",
+        "com.android.vending",
+    )
+    private val downloadNames = HashMap<String, String>()
+
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         NotchOverlay.notificationRemoved(sbn.key)
         LivePill.callNotificationRemoved(sbn.key)
+        LivePill.navEnded(sbn.key)
+        // הורדה שנעלמה כמעט בסוף: כנראה הסתיימה
+        val p = NotchOverlay.downloadEnded(sbn.key)
+        val name = downloadNames.remove(sbn.key)
+        if (p != null && p >= 0.9f) LivePill.showDownloaded(name ?: "", null)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {

@@ -348,6 +348,12 @@ object NotchPrefs {
     fun setPillMusic(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_music", v).apply()
     fun pillCharging(c: Context) = sp(c).getBoolean("pill_charge", true)
     fun setPillCharging(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_charge", v).apply()
+    fun pillNav(c: Context) = sp(c).getBoolean("pill_nav", true)
+    fun setPillNav(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_nav", v).apply()
+    fun pillEarbuds(c: Context) = sp(c).getBoolean("pill_earbuds", true)
+    fun setPillEarbuds(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_earbuds", v).apply()
+    fun pillDownloads(c: Context) = sp(c).getBoolean("pill_downloads", true)
+    fun setPillDownloads(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_downloads", v).apply()
 
     // ---------- התנהגות ----------
     /** רטט קטן בכל נגיעה בחור */

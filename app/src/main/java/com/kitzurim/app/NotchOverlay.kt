@@ -167,6 +167,21 @@ object NotchOverlay {
         }
         runCatching { s.registerReceiver(v, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) }
 
+        // אוזניות בלוטות' התחברו: גלולה עם השם והסוללה
+        val bt = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) = onBluetooth(i)
+        }
+        btReceiver = bt
+        runCatching {
+            s.registerReceiver(
+                bt,
+                IntentFilter().apply {
+                    addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+                    addAction("android.bluetooth.device.action.BATTERY_LEVEL_CHANGED")
+                },
+            )
+        }
+
         build()
         main.post(ticker)
     }
@@ -180,10 +195,12 @@ object NotchOverlay {
             batteryReceiver?.let { runCatching { s.unregisterReceiver(it) } }
             volumeReceiver?.let { runCatching { s.unregisterReceiver(it) } }
             lockReceiver?.let { runCatching { s.unregisterReceiver(it) } }
+            btReceiver?.let { runCatching { s.unregisterReceiver(it) } }
         }
         batteryReceiver = null
         volumeReceiver = null
         lockReceiver = null
+        btReceiver = null
         service = null
     }
 
@@ -220,6 +237,57 @@ object NotchOverlay {
     fun notificationRemoved(key: String) {
         pulseSeen.remove(key)
         if (pulses.remove(key) != null) updateRing()
+    }
+
+    // ---------- הורדות: הטבעת מתמלאת לפי ההתקדמות ----------
+    private val downloads = LinkedHashMap<String, Float>()
+
+    fun downloadProgress(key: String, p: Float) {
+        downloads[key] = p
+        updateRing()
+    }
+
+    /** ההורדה הסתיימה או נעלמה. מחזיר כמה היא הגיעה (או null אם לא הייתה) */
+    fun downloadEnded(key: String): Float? {
+        val p = downloads.remove(key) ?: return null
+        updateRing()
+        return p
+    }
+
+    // ---------- אוזניות בלוטות' ----------
+    private var btReceiver: BroadcastReceiver? = null
+    private val btShown = HashMap<String, Long>()
+
+    @SuppressLint("MissingPermission")
+    private fun onBluetooth(i: Intent) {
+        val s = service ?: return
+        if (!NotchPrefs.pillEarbuds(s)) return
+        val dev = androidx.core.content.IntentCompat.getParcelableExtra(
+            i, android.bluetooth.BluetoothDevice.EXTRA_DEVICE, android.bluetooth.BluetoothDevice::class.java,
+        ) ?: return
+        // רק אוזניות ורמקולים (לא שעון, לא רכב בלי שמע)
+        val major = runCatching { dev.bluetoothClass?.majorDeviceClass }.getOrNull()
+        if (major != android.bluetooth.BluetoothClass.Device.Major.AUDIO_VIDEO) return
+        val name = runCatching { dev.name }.getOrNull()?.takeIf { it.isNotBlank() } ?: "אוזניות"
+        val addr = runCatching { dev.address }.getOrNull() ?: name
+        fun battery(): Int? = (
+            i.getIntExtra("android.bluetooth.device.extra.BATTERY_LEVEL", -1).takeIf { it >= 0 }
+                ?: runCatching { dev.javaClass.getMethod("getBatteryLevel").invoke(dev) as Int }.getOrNull()
+            )?.takeIf { it in 0..100 }
+        when (i.action) {
+            android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                // הסוללה מגיעה רגע אחרי החיבור: מחכים קצת
+                main.postDelayed({
+                    btShown[addr] = SystemClock.elapsedRealtime()
+                    LivePill.showEarbuds(name, battery())
+                }, 1800)
+            }
+            "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED" -> {
+                // התחברו ממש עכשיו: מעדכנים את האחוזים בגלולה
+                val t = btShown[addr] ?: return
+                if (SystemClock.elapsedRealtime() - t < 6000) LivePill.showEarbuds(name, battery())
+            }
+        }
     }
 
     // ---------- עוצמת קול ----------
@@ -383,6 +451,7 @@ object NotchOverlay {
                 ringing = callRinging,
                 // בזמן שיחה הזמן מופיע בגלולה; הטבעת לא מתמלאת (רק מהבהבת כשמצלצלים)
                 callSeconds = null,
+                download = if (NotchPrefs.pillDownloads(s)) downloads.values.maxOrNull() else null,
             )
         )
     }
@@ -486,7 +555,7 @@ object NotchOverlay {
         val g = geom(s)
 
         val needRing = preview || NotchPrefs.ringOn(s) || NotchPrefs.notifyLight(s) ||
-            NotchPrefs.volumeRing(s) || NotchPrefs.musicRing(s) || NotchPrefs.callRing(s)
+            NotchPrefs.volumeRing(s) || NotchPrefs.musicRing(s) || NotchPrefs.callRing(s) || NotchPrefs.pillDownloads(s)
         if (needRing) {
             val v = RingView(s, g.radius, g.thick, preview)
             runCatching {
@@ -639,6 +708,8 @@ data class RingState(
     val music: Float?,
     val ringing: Boolean,
     val callSeconds: Int?,
+    /** הורדה: כמה כבר ירד (0 עד 1) */
+    val download: Float? = null,
 )
 
 /**
@@ -768,6 +839,13 @@ class RingView(
         }
 
         // שיר: סגול, מתמלא עד סוף השיר
+        // הורדה: הטבעת מתמלאת בכחול לפי ההתקדמות
+        st.download?.let { p ->
+            c.drawCircle(cx, cy, radius, track)
+            glowArc(c, rect, Color.rgb(79, 179, 255), 360f * p.coerceIn(0.02f, 1f))
+            return
+        }
+
         st.music?.let { m ->
             c.drawCircle(cx, cy, radius, track)
             glowArc(c, rect, Color.rgb(179, 136, 255), 360f * m)

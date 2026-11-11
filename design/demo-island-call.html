@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תפריט שיחה בגלולה</title>
+<style>
+  :root { --bg:#0b0d12; --card:#151922; --text:#e9edf5; --muted:#8b94a7; --g:#2ad49a; --r:#ff4d5e; --soft:#a8b0c0; --b:#4fb3ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui, "Segoe UI", Arial, sans-serif; padding:16px; }
+  h1 { font-size:21px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 16px; font-size:14px; max-width:780px; line-height:1.55; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(330px, 1fr)); gap:16px; max-width:1100px; }
+  .card { background:var(--card); border-radius:20px; padding:14px; }
+  .card h2 { font-size:16px; margin:0 0 4px; }
+  .why { color:var(--muted); font-size:13px; margin:0 0 12px; line-height:1.5; }
+  .phone { position:relative; width:310px; height:420px; margin:0 auto; border-radius:34px; overflow:hidden; border:7px solid #000; background:linear-gradient(160deg,#2b3550,#141a28); }
+  .apps { position:absolute; top:120px; left:22px; right:22px; display:grid; grid-template-columns:repeat(4,1fr); gap:22px; }
+  .apps i { width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,.13); display:block; margin:auto; }
+  .sb { position:absolute; top:9px; left:18px; right:18px; display:flex; justify-content:space-between; font-size:11px; font-weight:600; color:#fff; direction:ltr; }
+  .cam { position:absolute; top:11px; left:50%; width:12px; height:12px; margin-left:-6px; border-radius:50%; background:#000; z-index:50; }
+  .isl { position:absolute; top:3px; left:50%; transform:translateX(-50%); width:112px; height:30px; border-radius:15px; background:#000; border:1.5px solid var(--c, var(--g)); z-index:20; overflow:hidden; cursor:pointer; transition:width .42s cubic-bezier(.3,1.25,.5,1), height .42s cubic-bezier(.3,1.25,.5,1), border-radius .3s; }
+  .isl.big { width:286px; height:196px; border-radius:30px; cursor:default; }
+  .mini { position:absolute; top:0; left:0; right:0; height:27px; display:flex; align-items:center; justify-content:space-between; padding:0 10px; font-size:12px; font-weight:700; color:#fff; direction:ltr; transition:opacity .15s; }
+  .mini i { width:18px; height:18px; border-radius:50%; background:var(--g); color:#000; font-style:normal; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .full { position:absolute; inset:0; padding:30px 16px 14px; opacity:0; transition:opacity .2s .18s; pointer-events:none; }
+  .isl.big .full { opacity:1; pointer-events:auto; }
+  .isl.big .mini { opacity:0; }
+  .who { display:flex; align-items:center; gap:12px; direction:rtl; }
+  .av { width:46px; height:46px; border-radius:50%; background:linear-gradient(135deg,#3a7bd5,#6a4cff); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:19px; color:#fff; flex:none; }
+  .who b { display:block; font-size:17px; color:#fff; }
+  .who span { font-size:13px; color:var(--g); font-variant-numeric:tabular-nums; }
+  .wave { display:flex; gap:3px; align-items:center; margin-inline-start:auto; height:24px; }
+  .wave em { width:3px; border-radius:2px; background:var(--g); animation:eq 1s ease-in-out infinite; }
+  @keyframes eq { 0%,100% { height:5px } 50% { height:20px } }
+  .btns { display:flex; justify-content:space-between; margin-top:18px; direction:ltr; }
+  .btns .b { text-align:center; cursor:pointer; width:60px; }
+  .btns .b div { width:50px; height:50px; margin:auto; border-radius:50%; background:rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center; font-size:18px; color:#fff; transition:background .2s; }
+  .btns .b.on div { background:var(--g); color:#000; }
+  .btns .b span { display:block; font-size:10.5px; color:var(--soft); margin-top:4px; }
+  .btns .end div { background:var(--r); width:60px; border-radius:25px; }
+  .tip { text-align:center; color:var(--muted); font-size:12.5px; margin-top:10px; }
+
+  /* צילום מסך */
+  .flash { position:absolute; inset:0; background:#fff; opacity:0; z-index:15; pointer-events:none; }
+  .shot { position:absolute; top:3px; left:50%; transform:translateX(-50%); width:30px; height:30px; border-radius:15px; background:#000; border:1.5px solid var(--b); z-index:20; overflow:hidden; opacity:0; }
+  .shot .in { position:absolute; inset:0; display:flex; align-items:center; gap:10px; padding:0 10px; direction:rtl; opacity:0; }
+  .thumb { width:30px; height:44px; border-radius:6px; background:linear-gradient(160deg,#2b3550,#141a28); border:1px solid #3b4660; flex:none; position:relative; overflow:hidden; }
+  .thumb::after { content:''; position:absolute; inset:8px 5px auto; height:4px; background:rgba(255,255,255,.3); border-radius:2px; box-shadow:0 8px 0 rgba(255,255,255,.2), 0 16px 0 rgba(255,255,255,.2); }
+  .shot b { font-size:13px; color:#fff; display:block; }
+  .shot small { font-size:11px; color:var(--soft); }
+  .shot .acts { margin-inline-start:auto; display:flex; gap:6px; }
+  .shot .acts span { width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center; font-size:13px; }
+  .go { display:block; margin:12px auto 0; padding:9px 16px; border:0; border-radius:12px; background:#232a38; color:var(--text); font-size:14px; cursor:pointer; }
+</style>
+</head>
+<body>
+<h1>הגלולה בזמן שיחה, וצילום מסך</h1>
+<p class="sub">שני דברים לבדיקה. בראשון: לחץ על הגלולה הירוקה למעלה. בשני: לחץ "לצלם מסך".</p>
+
+<div class="grid">
+  <div class="card">
+    <h2>📞 הקשה על הגלולה בזמן שיחה</h2>
+    <p class="why">הגלולה נפתחת למטה לכרטיס עם השם, השניות וגל קטן שזז כשמדברים. יש בו כפתורים להשתקה, רמקול וניתוק, ו"מסך מלא" שפותח את מסך השיחה. הקשה למעלה או במסך מחוץ לכרטיס סוגרת אותו חזרה.</p>
+    <div class="phone" id="ph1" onclick="outside(event)">
+      <div class="sb"><span>14:32</span><span>72%</span></div>
+      <div class="apps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="cam"></div>
+      <div class="isl" id="isl" onclick="openIsl(event)">
+        <div class="mini"><span id="t1">1:04</span><i>✆&#xFE0E;</i></div>
+        <div class="full">
+          <div class="who"><div class="av">א</div><div><b>אמא</b><span id="t2">1:04</span></div>
+            <div class="wave"><em style="animation-delay:0s"></em><em style="animation-delay:.15s"></em><em style="animation-delay:.3s"></em><em style="animation-delay:.45s"></em><em style="animation-delay:.6s"></em></div></div>
+          <div class="btns">
+            <div class="b" onclick="tg(this,event)"><div>🎙&#xFE0E;</div><span>השתק</span></div>
+            <div class="b" onclick="tg(this,event)"><div>🔊&#xFE0E;</div><span>רמקול</span></div>
+            <div class="b" onclick="event.stopPropagation()"><div>⛶</div><span>מסך מלא</span></div>
+            <div class="b end" onclick="hang(event)"><div>✆&#xFE0E;</div><span>נתק</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tip" id="tip">לחץ על הגלולה הירוקה למעלה</div>
+  </div>
+
+  <div class="card">
+    <h2>📸 צילום מסך</h2>
+    <p class="why">עכשיו העיגול מגיב רק להודעות מאפליקציות הודעות, ולכן צילום מסך לא מופיע בו. הרעיון: הבזק קטן, ואז גלולה כחולה עם תמונה קטנה של הצילום, "נשמר", וכפתורים לשתף, לערוך או למחוק.</p>
+    <div class="phone" id="ph2">
+      <div class="sb"><span>14:32</span><span>72%</span></div>
+      <div class="apps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="cam"></div>
+      <div class="flash" id="flash"></div>
+      <div class="shot" id="shot"><div class="in" id="shotIn"><div class="thumb"></div><div><b>צילום מסך נשמר</b><small>לחץ כדי לפתוח</small></div><div class="acts"><span>↗</span><span>✎</span><span>🗑</span></div></div></div>
+    </div>
+    <button class="go" onclick="shoot()">📸 לצלם מסך</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let s = 64;
+setInterval(() => { s++; const t = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); $('t1').textContent = t; $('t2').textContent = t; }, 1000);
+function openIsl(e) {
+  e.stopPropagation();
+  const i = $('isl');
+  if (i.classList.contains('big')) { if (e.target.closest('.btns')) return; i.classList.remove('big'); $('tip').textContent = 'לחץ על הגלולה הירוקה למעלה'; return; }
+  i.classList.add('big'); $('tip').textContent = 'לחץ על הרקע כדי לסגור';
+}
+function outside(e) { if (!e.target.closest('.isl')) { $('isl').classList.remove('big'); $('tip').textContent = 'לחץ על הגלולה הירוקה למעלה'; } }
+function tg(el, e) { e.stopPropagation(); el.classList.toggle('on'); const sp = el.querySelector('span'); if (sp.textContent === 'השתק' || sp.textContent === 'בטל השתקה') sp.textContent = el.classList.contains('on') ? 'בטל השתקה' : 'השתק'; }
+function hang(e) { e.stopPropagation(); const i = $('isl'); i.classList.remove('big'); setTimeout(() => { i.style.opacity = 0; $('tip').textContent = 'השיחה נותקה'; setTimeout(() => { i.style.opacity = 1; s = 0; $('tip').textContent = 'לחץ על הגלולה הירוקה למעלה'; }, 1500); }, 300); }
+async function shoot() {
+  const f = $('flash'), sh = $('shot'), inn = $('shotIn');
+  f.animate([{ opacity: 0 }, { opacity: .8 }, { opacity: 0 }], { duration: 300 });
+  await new Promise(r => setTimeout(r, 250));
+  sh.style.opacity = 1;
+  await sh.animate([{ width: '30px', height: '30px', borderRadius: '15px' }, { width: '284px', height: '30px', borderRadius: '15px', offset: .5 }, { width: '284px', height: '62px', borderRadius: '22px' }], { duration: 480, easing: 'ease-out', fill: 'forwards' }).finished;
+  inn.style.paddingTop = '24px';
+  inn.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, fill: 'forwards' });
+  await new Promise(r => setTimeout(r, 2800));
+  inn.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
+  await sh.animate([{ width: '284px', height: '62px', borderRadius: '22px' }, { width: '30px', height: '30px', borderRadius: '15px' }], { duration: 260, easing: 'ease-in', fill: 'forwards' }).finished;
+  sh.style.opacity = 0; sh.getAnimations().forEach(a => a.cancel()); inn.getAnimations().forEach(a => a.cancel());
+}
+</script>
+</body>
+</html>

@@ -327,6 +327,15 @@ fun HomeScreen(resumes: Int) {
                             SwitchLine("⚡ חיבור מטען", NotchPrefs.pillCharging(ctx)) {
                                 NotchPrefs.setPillCharging(ctx, it); refresh++
                             }
+                            SwitchLine("🧭 ניווט (וויז / גוגל מפות: הפנייה הבאה והמרחק)", NotchPrefs.pillNav(ctx)) {
+                                NotchPrefs.setPillNav(ctx, it); refresh++
+                            }
+                            SwitchLine("🎧 אוזניות התחברו (שם וסוללה)", NotchPrefs.pillEarbuds(ctx)) {
+                                NotchPrefs.setPillEarbuds(ctx, it); refresh++
+                            }
+                            SwitchLine("⬇️ הורדות (הטבעת מתמלאת, ובסוף \"הורד ✓\")", NotchPrefs.pillDownloads(ctx)) {
+                                NotchPrefs.setPillDownloads(ctx, it); NotchOverlay.refresh(); refresh++
+                            }
                         }
                         if (!Driving.listenerAllowed(ctx)) {
                             TextButton(onClick = { ctx.startActivity(Intent(ctx, PermissionsActivity::class.java)) }) {
