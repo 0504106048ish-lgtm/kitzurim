@@ -376,6 +376,28 @@ fun HomeScreen(resumes: Int) {
                     SwitchLine("🙈 להסתיר במסך מלא (סרטון, משחק, תמונה)", NotchPrefs.hideFullscreen(ctx)) {
                         NotchPrefs.setHideFullscreen(ctx, it); NotchOverlay.refresh(); refresh++
                     }
+                    // נגן: הקשה על העיגול כשמתנגן שיר
+                    SwitchLine("🎵 נגן בהקשה על העיגול כשמתנגן שיר", NotchPrefs.musicTap(ctx)) {
+                        NotchPrefs.setMusicTap(ctx, it); NotchOverlay.refresh(); refresh++
+                    }
+                    if (NotchPrefs.musicTap(ctx)) {
+                        Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            SwitchLine("פס התקדמות וזמן", NotchPrefs.playerProgress(ctx)) {
+                                NotchPrefs.setPlayerProgress(ctx, it); refresh++
+                            }
+                            SwitchLine("שיר קודם / הבא", NotchPrefs.playerSkip(ctx)) {
+                                NotchPrefs.setPlayerSkip(ctx, it); refresh++
+                            }
+                            SwitchLine("תמונת האלבום", NotchPrefs.playerCover(ctx)) {
+                                NotchPrefs.setPlayerCover(ctx, it); refresh++
+                            }
+                        }
+                        if (!Driving.listenerAllowed(ctx)) {
+                            TextButton(onClick = { ctx.startActivity(Intent(ctx, PermissionsActivity::class.java)) }) {
+                                Text("לנגן צריך גישה להתראות ←")
+                            }
+                        }
+                    }
                     // אפליקציות שבהן קיצורים לא עובד בכלל: בלי טבעת, בלי נגיעות ובלי גלולה (שיחה נכנסת כן)
                     Text("🚫 כבוי באפליקציות האלה", style = MaterialTheme.typography.bodyMedium)
                     Text(

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>גדלי הגלולה</title>
+<style>
+  :root { --bg:#0b0d12; --card:#151922; --text:#e9edf5; --muted:#8b94a7; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui, "Segoe UI", Arial, sans-serif; padding:16px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 16px; font-size:14px; max-width:760px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:14px; max-width:1150px; }
+  .card { background:var(--card); border-radius:18px; padding:14px; }
+  .card h2 { font-size:15px; margin:0 0 10px; }
+  .phone { position:relative; width:340px; max-width:100%; height:150px; margin:0 auto; border-radius:18px; overflow:hidden; background:linear-gradient(180deg,#9aa3ad,#c9cfd6); direction:ltr; }
+  .status { position:absolute; top:9px; left:16px; right:16px; display:flex; justify-content:space-between; font-size:12.5px; font-weight:600; color:#fff; }
+  .hole { position:absolute; top:11px; left:50%; width:15px; height:15px; margin-left:-7.5px; border-radius:50%; background:#050505; z-index:9; }
+  .isl { position:absolute; top:2px; left:50%; transform:translateX(-50%); background:#000; border:1.5px solid var(--c); box-sizing:border-box; border-radius:17px; z-index:2; }
+  .top { position:absolute; top:0; left:0; right:0; height:33px; display:flex; align-items:center; z-index:3; }
+  .dot { position:absolute; width:20px; height:20px; border-radius:50%; color:#000; font-weight:bold; font-size:11px; display:flex; align-items:center; justify-content:center; }
+  .chip { position:absolute; font-size:13px; font-weight:bold; white-space:nowrap; }
+  .body { position:absolute; top:29px; direction:rtl; text-align:right; font-size:13px; line-height:1.4; color:#d2d8e4; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; z-index:3; }
+  .body b { color:#fff; }
+  button { display:block; margin:10px auto 0; padding:9px 18px; border:0; border-radius:12px; background:#232a38; color:var(--text); font-size:14px; cursor:pointer; }
+</style>
+</head>
+<body>
+<h1>הכרטיס בגודל של הטקסט</h1>
+<p class="sub">ליד המצלמה רק העיגול עם האות (או האחוזים). מתחת: השם וההודעה. הרוחב והגובה לפי כמה שכתוב, לא יותר. השעה והסוללה תמיד גלויות.</p>
+<div class="grid" id="grid"></div>
+
+<script>
+const ex = [
+  { t: 'הודעה של אות אחת (מה שצילמת)', c: '#25D366', letter: 'ס', name: 'סים טק השקעות', text: 'ח' },
+  { t: 'הודעה קצרה', c: '#25D366', letter: 'ד', name: 'דני', text: 'מה קורה?' },
+  { t: 'הודעה בינונית', c: '#25D366', letter: 'א', name: 'אמא', text: 'תתקשר אליי כשאתה מתפנה' },
+  { t: 'הודעה ארוכה', c: '#25D366', letter: 'ד', name: 'דני', text: 'אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר? אני ליד הקופה עכשיו ויש תור ארוך' },
+  { t: 'טעינה', c: '#3ed18c', chip: '⚡ 79%', text: 'מלאה בעוד שעה ו-10 דק׳' },
+  { t: 'שיר', c: '#b388ff', chip: '♪', text: 'עומר אדם – תל אביב' },
+];
+const grid = document.getElementById('grid');
+const W = 340, GAP = 30, PAD = 12, MAXW = W - 2 * 60, LINE = 13 * 1.4;
+const canvas = document.createElement('canvas').getContext('2d');
+canvas.font = '13px system-ui, "Segoe UI", Arial';
+
+ex.forEach((e, i) => {
+  const card = document.createElement('div'); card.className = 'card';
+  card.innerHTML = '<h2>' + e.t + '</h2><div class="phone" id="ph' + i + '"><div class="status"><span>13:52</span><span>79% ▮</span></div><div class="hole"></div></div><button onclick="play(' + i + ')">להראות שוב</button>';
+  grid.appendChild(card);
+  play(i);
+});
+
+function layout(e) {
+  const full = (e.name ? e.name + ': ' : '') + e.text;
+  canvas.font = 'bold 13px system-ui'; const nameW = e.name ? canvas.measureText(e.name + ': ').width : 0;
+  canvas.font = '13px system-ui'; const textW = canvas.measureText(e.text).width;
+  const lineW = nameW + textW + 8;
+  const cardMax = MAXW - 2 * PAD;
+  const lines = Math.min(3, Math.max(1, Math.ceil(lineW / cardMax)));
+  const bodyW = Math.min(cardMax, lines === 1 ? lineW + 8 : lineW / lines + 40);
+  // צד ימין ליד המצלמה: עיגול 20 או האחוזים
+  canvas.font = 'bold 13px system-ui';
+  const topSide = e.chip ? canvas.measureText(e.chip).width + 10 : 26;
+  let side = Math.max(topSide, (bodyW - GAP) / 2);
+  side = Math.min(side, (MAXW - GAP - 2 * PAD) / 2);
+  const inner = 2 * side + GAP, w = inner + 2 * PAD;
+  const h = 33 + Math.round(lines * LINE) + 4;
+  return { w, h, inner, side, lines };
+}
+
+async function play(i) {
+  const e = ex[i], ph = document.getElementById('ph' + i);
+  ph.querySelectorAll('.isl,.top,.body').forEach(n => n.remove());
+  const L = layout(e);
+  const isl = document.createElement('div'); isl.className = 'isl'; isl.style.setProperty('--c', e.c);
+  isl.style.width = '33px'; isl.style.height = '33px'; ph.appendChild(isl);
+  const top = document.createElement('div'); top.className = 'top'; top.style.opacity = 0;
+  const cx = W / 2, rightX = cx + GAP / 2;
+  top.innerHTML = e.chip
+    ? '<span class="chip" style="left:' + (rightX + 2) + 'px;color:' + e.c + '">' + e.chip + '</span>'
+    : '<span class="dot" style="left:' + (rightX + 3) + 'px;top:6.5px;background:' + e.c + '">' + e.letter + '</span>';
+  ph.appendChild(top);
+  const body = document.createElement('div'); body.className = 'body'; body.style.opacity = 0;
+  body.style.width = L.inner + 'px'; body.style.left = (cx - L.inner / 2) + 'px';
+  body.innerHTML = (e.name ? '<b>' + e.name + ':</b> ' : '') + e.text;
+  ph.appendChild(body);
+  // הגובה לפי הטקסט כמו שהוא באמת נשבר לשורות
+  L.h = 33 + body.offsetHeight + 4;
+  await isl.animate([
+    { width: '33px', height: '33px' },
+    { width: L.w + 'px', height: '33px', offset: .55 },
+    { width: L.w + 'px', height: L.h + 3 + 'px', offset: .85 },
+    { width: L.w + 'px', height: L.h + 'px' }
+  ], { duration: 520, easing: 'ease-out', fill: 'forwards' }).finished;
+  top.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, fill: 'forwards' });
+  body.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, fill: 'forwards' });
+}
+</script>
+</body>
+</html>

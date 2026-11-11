@@ -18,6 +18,7 @@ import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
 import android.media.AudioManager
+import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.BatteryManager
@@ -216,6 +217,18 @@ object NotchOverlay {
     // ---------- שיר ושיחה: בודקים כל שנייה ----------
     private var lastTitle: String? = null
 
+    /** יש אזור נגיעה בשביל הנגן (שיר מתנגן עכשיו) */
+    private var musicZone = false
+
+    /** הנגן שמנגן עכשיו (צריך גישה להתראות) */
+    internal fun playingController(s: Context): MediaController? = try {
+        val msm = s.getSystemService(MediaSessionManager::class.java)
+        msm?.getActiveSessions(ComponentName(s, ReplyListener::class.java))
+            ?.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+    } catch (_: Exception) {
+        null
+    }
+
     private val ticker = object : Runnable {
         override fun run() {
             val s = service ?: return
@@ -273,6 +286,17 @@ object NotchOverlay {
             val title = now?.first
             if (title != null && title != lastTitle) LivePill.showMusic(title)
             lastTitle = title
+
+            // נגן בהקשה: כשאין תנועות אחרות, אזור הנגיעה קיים רק בזמן שמתנגן שיר (או שהנגן פתוח)
+            if (NotchPrefs.musicTap(s) && !NotchPrefs.anyGesture(s) && !NotchPrefs.showZone(s)) {
+                val want = LivePill.isPlayerOpen() || playingController(s) != null
+                if (want != musicZone) {
+                    musicZone = want
+                    refresh()
+                    main.postDelayed(this, 1000)
+                    return
+                }
+            }
 
             if (changed) updateRing()
             main.postDelayed(this, 1000)
@@ -430,7 +454,8 @@ object NotchOverlay {
         }
 
         // אין אף תנועה עם פעולה: לא שמים אזור נגיעה, כדי לא לחסום את שורת המצב
-        if (!NotchPrefs.anyGesture(s) && !NotchPrefs.showZone(s)) return
+        // (חוץ מכשמתנגן שיר והנגן בהקשה דלוק: אז יש אזור נגיעה רק בזמן השיר)
+        if (!NotchPrefs.anyGesture(s) && !NotchPrefs.showZone(s) && !(NotchPrefs.musicTap(s) && musicZone)) return
 
         val z = View(s)
         // אזור הנגיעה מסומן רק כשהמתג "להראות את אזור הנגיעה" דלוק: עיגול דק בלי מילוי
@@ -462,6 +487,21 @@ object NotchOverlay {
         fun action(g: Gesture) = NotchPrefs.actionFor(s, g, currentPackage)
 
         fun fire(g: Gesture) {
+            // שיר מתנגן: הקשה על העיגול פותחת את הנגן (והקשה נוספת סוגרת)
+            if (g == Gesture.TAP && NotchPrefs.musicTap(s)) {
+                if (LivePill.isPlayerOpen()) {
+                    LivePill.hide()
+                    return
+                }
+                val c = playingController(s)
+                if (c != null) {
+                    if (NotchPrefs.haptic(s)) {
+                        v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+                    }
+                    LivePill.showPlayer(c)
+                    return
+                }
+            }
             val a = action(g)
             if (a.type == ActionType.NONE) return
             if (NotchPrefs.haptic(s)) {

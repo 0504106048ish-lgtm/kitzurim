@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>נגן בעיגול</title>
+<style>
+  :root { --bg:#0b0d12; --card:#151922; --text:#e9edf5; --muted:#8b94a7; --p:#b388ff; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui, "Segoe UI", Arial, sans-serif; padding:16px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 16px; font-size:14px; max-width:760px; }
+  .wrap { display:flex; flex-wrap:wrap; gap:14px; }
+  .card { background:var(--card); border-radius:18px; padding:14px; flex:1 1 340px; max-width:520px; }
+  .card h2 { font-size:15px; margin:0 0 10px; }
+  .phone { position:relative; width:340px; max-width:100%; height:250px; margin:0 auto; border-radius:18px; overflow:hidden; background:linear-gradient(180deg,#9aa3ad,#c9cfd6); direction:ltr; }
+  .status { position:absolute; top:9px; left:16px; right:16px; display:flex; justify-content:space-between; font-size:12.5px; font-weight:600; color:#fff; }
+  .hole { position:absolute; top:11px; left:50%; width:15px; height:15px; margin-left:-7.5px; border-radius:50%; background:#050505; z-index:9; cursor:pointer; }
+  .ring { position:absolute; top:5px; left:50%; width:27px; height:27px; margin-left:-13.5px; border-radius:50%; border:2px solid var(--p); box-sizing:border-box; z-index:8; box-shadow:0 0 8px var(--p); cursor:pointer; }
+  .isl { position:absolute; top:2px; left:50%; transform:translateX(-50%); width:33px; height:33px; background:#000; border:1.5px solid var(--p); box-sizing:border-box; border-radius:17px; z-index:2; opacity:0; }
+  .pl { position:absolute; top:33px; left:50%; transform:translateX(-50%); width:200px; z-index:3; opacity:0; direction:ltr; }
+  .note { position:absolute; top:6px; left:calc(50% + 17px); color:var(--p); font-weight:bold; font-size:14px; z-index:3; opacity:0; }
+  .row { display:flex; flex-direction:row-reverse; align-items:center; gap:10px; }
+  .cover { width:44px; height:44px; border-radius:8px; background:linear-gradient(135deg,#ff6b8b,#7b5cff); flex:none; }
+  .tt { direction:rtl; text-align:right; flex:1; min-width:0; }
+  .tt b { display:block; color:#fff; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tt span { color:#a0a8b8; font-size:12px; }
+  .bar { margin-top:10px; height:4px; border-radius:2px; background:#3c404c; position:relative; }
+  .bar i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; background:var(--p); }
+  .bar em { position:absolute; top:-5px; width:14px; height:14px; margin-left:-7px; border-radius:50%; background:#fff; }
+  .times { display:flex; justify-content:space-between; color:#a0a8b8; font-size:11px; margin-top:4px; }
+  .ctl { display:flex; justify-content:center; align-items:center; gap:28px; margin-top:4px; }
+  .ctl button { background:none; border:0; color:#fff; font-size:17px; cursor:pointer; padding:0; width:40px; height:40px; }
+  .ctl .play { width:46px; height:46px; border-radius:50%; background:#fff; color:#000; font-size:16px; }
+  .opts { margin-top:12px; display:flex; flex-direction:column; gap:6px; font-size:14px; }
+  .hint { text-align:center; color:var(--muted); font-size:13px; margin-top:8px; }
+</style>
+</head>
+<body>
+<h1>נגן בהקשה על העיגול</h1>
+<p class="sub">כשמתנגן שיר, הקשה על העיגול פותחת נגן קטן מתחת למצלמה. הקשה נוספת על העיגול סוגרת, וגם הוא נסגר לבד אחרי 7 שניות בלי נגיעה. לחיצה על שם השיר פותחת את אפליקציית המוזיקה.</p>
+<div class="wrap">
+  <div class="card">
+    <h2>לחץ על העיגול הסגול</h2>
+    <div class="phone" id="ph">
+      <div class="status"><span>13:52</span><span>79% ▮</span></div>
+      <div class="ring" id="ring" onclick="toggle()"></div><div class="hole" onclick="toggle()"></div>
+      <div class="isl" id="isl"></div><div class="note" id="note">♪</div>
+      <div class="pl" id="pl">
+        <div class="row" id="rowCover"><div class="cover" id="cover"></div><div class="tt"><b>תל אביב</b><span>עומר אדם</span></div></div>
+        <div id="prog"><div class="bar"><i id="fill"></i><em id="thumb"></em></div><div class="times"><span id="pos">1:12</span><span>3:05</span></div></div>
+        <div class="ctl"><button class="sk">⏮&#xFE0E;</button><button class="play" id="play" onclick="pp()">❚❚</button><button class="sk">⏭&#xFE0E;</button></div>
+      </div>
+    </div>
+    <div class="hint">אפשר ללחוץ על הפעלה / השהיה</div>
+  </div>
+  <div class="card">
+    <h2>בהגדרות (הכול דלוק כברירת מחדל)</h2>
+    <div class="opts">
+      <label><input type="checkbox" checked onchange="opt()" id="o0"> 🎵 נגן בהקשה על העיגול כשמתנגן שיר</label>
+      <label style="margin-right:22px"><input type="checkbox" checked onchange="opt()" id="o1"> פס התקדמות וזמן</label>
+      <label style="margin-right:22px"><input type="checkbox" checked onchange="opt()" id="o2"> שיר קודם / הבא</label>
+      <label style="margin-right:22px"><input type="checkbox" checked onchange="opt()" id="o3"> תמונת האלבום</label>
+    </div>
+    <p class="sub" style="margin-top:12px">תכבה משהו ותפתח שוב את הנגן כדי לראות איך הוא נראה בלעדיו.</p>
+  </div>
+</div>
+<script>
+let open = false, playing = true, at = 72, timer = null, closeT = null;
+const W = 340, MAXW = W - 120;
+function opt() {
+  document.getElementById('prog').style.display = o1.checked ? '' : 'none';
+  document.querySelectorAll('.sk').forEach(b => b.style.display = o2.checked ? '' : 'none');
+  document.getElementById('cover').style.display = o3.checked ? '' : 'none';
+  if (!o0.checked && open) toggle();
+}
+function draw() {
+  const f = at / 185;
+  fill.style.width = f * 100 + '%'; thumb.style.left = f * 100 + '%';
+  pos.textContent = Math.floor(at / 60) + ':' + String(Math.floor(at % 60)).padStart(2, '0');
+  play.textContent = playing ? '❚❚' : '▶︎';
+}
+function pp() { playing = !playing; draw(); keep(); }
+function keep() { clearTimeout(closeT); closeT = setTimeout(() => open && toggle(), 7000); }
+async function toggle() {
+  if (!o0.checked) return;
+  const isl = document.getElementById('isl'), pl = document.getElementById('pl'), note = document.getElementById('note');
+  if (!open) {
+    open = true; draw();
+    const h = 33 + pl.offsetHeight + 8;
+    pl.style.width = (MAXW - 24) + 'px';
+    const hh = 33 + pl.offsetHeight + 10;
+    isl.style.opacity = 1;
+    await isl.animate([{ width: '33px', height: '33px' }, { width: MAXW + 'px', height: '33px', offset: .55 }, { width: MAXW + 'px', height: hh + 4 + 'px', offset: .85 }, { width: MAXW + 'px', height: hh + 'px' }], { duration: 520, easing: 'ease-out', fill: 'forwards' }).finished;
+    pl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, fill: 'forwards' });
+    note.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, fill: 'forwards' });
+    timer = setInterval(() => { if (playing) { at = (at + 0.5) % 185; draw(); } }, 500);
+    keep();
+  } else {
+    open = false; clearInterval(timer); clearTimeout(closeT);
+    pl.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100, fill: 'forwards' });
+    note.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100, fill: 'forwards' });
+    await isl.animate([{ width: MAXW + 'px', height: isl.offsetHeight + 'px' }, { width: '33px', height: '33px' }], { duration: 240, easing: 'ease-in', fill: 'forwards' }).finished;
+    isl.style.opacity = 0;
+  }
+}
+</script>
+</body>
+</html>

@@ -4,11 +4,17 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import android.media.MediaMetadata
+import android.media.session.MediaController
+import android.media.session.PlaybackState
 import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
@@ -17,7 +23,9 @@ import android.view.animation.AccelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import kotlin.math.max
 import kotlin.math.min
@@ -33,6 +41,7 @@ object LivePill {
     private var pill: LinearLayout? = null
     private var bg: View? = null
     private var body: TextView? = null
+    private var extra: View? = null
     private var kind: String? = null
     private var timerText: TextView? = null
     private var collapsedW = 0
@@ -107,10 +116,205 @@ object LivePill {
         if (kind == "incall" || kind == "call") hide()
     }
 
+    // ---------- נגן: נפתח בהקשה על העיגול כשמתנגן שיר ----------
+
+    private var player: MediaController? = null
+    private var pv: PlayerViews? = null
+    private var dragging = false
+    private var lastArt: Bitmap? = null
+    private const val PLAYER_MS = 7000L
+
+    private class PlayerViews(
+        val title: TextView,
+        val artist: TextView,
+        val cover: ImageView?,
+        val seek: SeekBar?,
+        val pos: TextView?,
+        val dur: TextView?,
+        val play: TextView,
+    )
+
+    private val playerTick = object : Runnable {
+        override fun run() {
+            updatePlayer()
+            main.postDelayed(this, 500)
+        }
+    }
+
+    fun isPlayerOpen() = kind == "player"
+
+    /** כל נגיעה בנגן מאריכה את הזמן שהוא פתוח */
+    private fun keepOpen() {
+        main.removeCallbacks(autoClose)
+        main.postDelayed(autoClose, PLAYER_MS)
+    }
+
+    fun showPlayer(c: MediaController) {
+        val s = NotchOverlay.service ?: return
+        if (kind == "call" || kind == "incall") return
+        val d = s.resources.displayMetrics.density
+        val purple = Color.rgb(179, 136, 255)
+        val grey = Color.rgb(160, 168, 184)
+        player = c
+        lastArt = null
+
+        val box = LinearLayout(s).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            setPadding((4 * d).toInt(), 0, (4 * d).toInt(), 0)
+        }
+
+        // שורה: תמונת האלבום מימין, ולידה שם השיר והזמר. לחיצה פותחת את אפליקציית המוזיקה
+        val row = LinearLayout(s).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            gravity = Gravity.CENTER_VERTICAL
+            setOnClickListener {
+                runCatching { c.sessionActivity?.send() }
+                hide()
+            }
+        }
+        val cover = if (NotchPrefs.playerCover(s)) ImageView(s).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = GradientDrawable().apply {
+                cornerRadius = 8 * d
+                setColor(purple)
+            }
+            clipToOutline = true
+            layoutParams = LinearLayout.LayoutParams((44 * d).toInt(), (44 * d).toInt()).apply { marginEnd = (10 * d).toInt() }
+        } else null
+        cover?.let { row.addView(it) }
+        val texts = LinearLayout(s).apply { orientation = LinearLayout.VERTICAL }
+        val title = label(s, "", 14.5f, Color.WHITE, bold = true)
+        val artist = label(s, "", 12.5f, grey)
+        texts.addView(title)
+        texts.addView(artist)
+        row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        box.addView(row)
+
+        // פס התקדמות: אפשר לגרור כדי לקפוץ בשיר
+        var seek: SeekBar? = null
+        var pos: TextView? = null
+        var dur: TextView? = null
+        if (NotchPrefs.playerProgress(s)) {
+            seek = SeekBar(s).apply {
+                max = 1000
+                progressTintList = ColorStateList.valueOf(purple)
+                progressBackgroundTintList = ColorStateList.valueOf(Color.rgb(60, 64, 76))
+                thumbTintList = ColorStateList.valueOf(Color.WHITE)
+                setPadding((6 * d).toInt(), 0, (6 * d).toInt(), 0)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) {}
+                    override fun onStartTrackingTouch(sb: SeekBar) {
+                        dragging = true
+                        main.removeCallbacks(autoClose)
+                    }
+                    override fun onStopTrackingTouch(sb: SeekBar) {
+                        dragging = false
+                        val length = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+                        if (length > 0) runCatching { c.transportControls.seekTo(length * sb.progress / 1000) }
+                        keepOpen()
+                    }
+                })
+            }
+            box.addView(seek, LinearLayout.LayoutParams(-1, (26 * d).toInt()).apply { topMargin = (6 * d).toInt() })
+            val times = FrameLayout(s)
+            pos = label(s, "0:00", 11f, grey)
+            dur = label(s, "0:00", 11f, grey)
+            times.addView(pos, FrameLayout.LayoutParams(-2, -2, Gravity.LEFT))
+            times.addView(dur, FrameLayout.LayoutParams(-2, -2, Gravity.RIGHT))
+            box.addView(times)
+        }
+
+        // כפתורים: הקודם, הפעלה / השהיה, הבא
+        val controls = LinearLayout(s).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            gravity = Gravity.CENTER
+        }
+        fun ctl(symbol: String, size: Int, filled: Boolean, onClick: () -> Unit) = TextView(s).apply {
+            text = symbol
+            gravity = Gravity.CENTER
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, if (filled) 18f else 17f)
+            setTextColor(if (filled) Color.BLACK else Color.WHITE)
+            if (filled) background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.WHITE)
+            }
+            layoutParams = LinearLayout.LayoutParams((size * d).toInt(), (size * d).toInt()).apply {
+                marginStart = (14 * d).toInt()
+                marginEnd = (14 * d).toInt()
+            }
+            setOnClickListener {
+                onClick()
+                keepOpen()
+                main.postDelayed({ updatePlayer() }, 250)
+            }
+        }
+        val skip = NotchPrefs.playerSkip(s)
+        if (skip) controls.addView(ctl("⏮︎", 40, false) { runCatching { c.transportControls.skipToPrevious() } })
+        val play = ctl("❚❚", 46, true) {
+            runCatching {
+                if (c.playbackState?.state == PlaybackState.STATE_PLAYING) c.transportControls.pause()
+                else c.transportControls.play()
+            }
+        }
+        controls.addView(play)
+        if (skip) controls.addView(ctl("⏭︎", 40, false) { runCatching { c.transportControls.skipToNext() } })
+        box.addView(controls, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (4 * d).toInt() })
+
+        pv = PlayerViews(title, artist, cover, seek, pos, dur, play)
+        updatePlayer()
+        // הקשה על השורה של המצלמה סוגרת את הנגן
+        show("player", 320, purple, PLAYER_MS, onTap = {}, extra = box) { ctx, _, right ->
+            right.addView(label(ctx, "♪", 14f, purple, bold = true))
+        }
+        if (kind == "player") main.post(playerTick)
+    }
+
+    /** מעדכן את הנגן: שם, תמונה, מיקום בשיר, והכפתור הפעלה / השהיה */
+    private fun updatePlayer() {
+        val c = player ?: return
+        val v = pv ?: return
+        val md = c.metadata
+        val st = c.playbackState
+        v.title.text = md?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
+        val who = md?.getString(MediaMetadata.METADATA_KEY_ARTIST)
+            ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+            ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM) ?: ""
+        v.artist.text = who
+        v.artist.visibility = if (who.isBlank()) View.GONE else View.VISIBLE
+        v.cover?.let { img ->
+            val art = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+                ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                ?: md?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+            if (art !== lastArt) {
+                lastArt = art
+                img.setImageBitmap(art)
+            }
+        }
+        val playing = st?.state == PlaybackState.STATE_PLAYING
+        v.play.text = if (playing) "❚❚" else "▶︎"
+        val length = md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        if (st != null && length > 0) {
+            val at = (st.position + if (playing) ((SystemClock.elapsedRealtime() - st.lastPositionUpdateTime) * st.playbackSpeed).toLong() else 0L)
+                .coerceIn(0L, length)
+            if (!dragging) v.seek?.progress = (at * 1000 / length).toInt()
+            v.pos?.text = clock(at)
+            v.dur?.text = clock(length)
+        }
+    }
+
+    private fun clock(ms: Long): String {
+        val sec = ms / 1000
+        return "%d:%02d".format(sec / 60, sec % 60)
+    }
+
     fun showMusic(title: String) {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusic(s)) return
-        if (kind == "call" || kind == "incall") return
+        // הנגן פתוח: הוא כבר מתעדכן לשיר החדש בעצמו
+        if (kind == "call" || kind == "incall" || kind == "player") return
         val purple = Color.rgb(179, 136, 255)
         show("music", 240, purple, 3500, onTap = null, long = title) { ctx, left, right ->
             val disc = label(ctx, "♪", 13f, Color.WHITE, bold = true)
@@ -156,6 +360,7 @@ object LivePill {
         onTap: (() -> Unit)?,
         long: CharSequence? = null,
         longColor: Int = Color.WHITE,
+        extra: View? = null,
         fill: (Context, LinearLayout, LinearLayout) -> Unit,
     ) {
         val s = NotchOverlay.service ?: return
@@ -223,9 +428,9 @@ object LivePill {
         // הגודל לפי הטקסט: מילה אחת = כרטיס קטן בשורה אחת, הרבה מלל = רחב יותר ועד 3 שורות
         val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         left.measure(free, free)
-        val expanded = long != null
-        if (expanded) left.removeAllViews()
-        val body: TextView? = if (!expanded) null else label(s, long!!, 13.5f, longColor).apply {
+        val expanded = long != null || extra != null
+        if (long != null) left.removeAllViews()
+        val body: TextView? = if (long == null) null else label(s, long, 13.5f, longColor).apply {
             maxLines = 3
             gravity = Gravity.RIGHT
             alpha = 0f
@@ -238,17 +443,20 @@ object LivePill {
         left.measure(wSpec, hSpec)
         right.measure(wSpec, hSpec)
         var side = min(max(left.measuredWidth, right.measuredWidth) + (6 * d).toInt(), maxSide)
+        // נגן: תמיד ברוחב המלא (בין השעה לסוללה)
+        if (extra != null) side = maxSide
 
         // גובה הכרטיס לפי כמות הטקסט: כמה שורות שצריך (עד 3), ולא יותר
         var bodyH = 0
         if (body != null) {
-            // רוחב לפי הטקסט: אם הוא נכנס בשתי שורות קצרות, הכרטיס לא יהיה רחב מדי
+            // רוחב לפי הטקסט: אם הוא נכנס בשתי שורות קצרות, הכרטיס לא יהיה רחב מדי.
+            // עם קצת מרווח, כי מילים לא נשברות בדיוק באמצע
             body.measure(free, free)
             val lineW = body.measuredWidth
             val cardMax = maxW - 2 * padW
             val lines = ((lineW + cardMax - 1) / cardMax).coerceIn(1, 3)
-            val bodyW = min(cardMax, lineW / lines + (16 * d).toInt())
-            side = max(side, (bodyW + 2 * padW - gapW - 2 * padW) / 2).coerceAtMost(maxSide)
+            val bodyW = min(cardMax, if (lines == 1) lineW + (8 * d).toInt() else lineW / lines + (40 * d).toInt())
+            side = max(side, (bodyW - gapW + 1) / 2).coerceAtMost(maxSide)
             val cardInner = 2 * side + gapW
             body.measure(
                 View.MeasureSpec.makeMeasureSpec(cardInner, View.MeasureSpec.EXACTLY),
@@ -256,8 +464,18 @@ object LivePill {
             )
             bodyH = body.measuredHeight + (2 * d).toInt()
         }
+        // מתחת לטקסט: הנגן (פס התקדמות וכפתורים)
+        var extraH = 0
+        if (extra != null) {
+            extra.measure(
+                View.MeasureSpec.makeMeasureSpec(2 * side + gapW, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+            extraH = extra.measuredHeight + (6 * d).toInt()
+            extra.alpha = 0f
+        }
         val targetW = max(2 * side + gapW + 2 * padW, collapsedW)
-        val targetH = h + bodyH
+        val targetH = h + bodyH + extraH
         p.addView(left, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
         p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
         p.addView(right, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
@@ -283,6 +501,13 @@ object LivePill {
             )
             if (onTap != null) body.setOnClickListener { onTap(); hide() }
         }
+        if (extra != null) {
+            root.addView(
+                extra,
+                FrameLayout.LayoutParams(2 * side + gapW, extraH, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                    .apply { topMargin = pillTop + h - (6 * d).toInt() + bodyH },
+            )
+        }
 
         runCatching {
             wm.addView(
@@ -307,7 +532,7 @@ object LivePill {
                 val fh = if (expanded) ((f - 0.35f) / 0.65f).coerceIn(0f, 1.1f) else 0f
                 val lp = b.layoutParams
                 lp.width = (collapsedW + (targetW - collapsedW) * fw).toInt().coerceAtLeast(collapsedW)
-                lp.height = (h + bodyH * fh).toInt().coerceAtLeast(h)
+                lp.height = (h + (bodyH + extraH) * fh).toInt().coerceAtLeast(h)
                 b.layoutParams = lp
             }
             start()
@@ -315,6 +540,8 @@ object LivePill {
         left.animate().alpha(1f).setStartDelay(220).setDuration(180).start()
         right.animate().alpha(1f).setStartDelay(220).setDuration(180).start()
         body?.animate()?.alpha(1f)?.setStartDelay(340)?.setDuration(180)?.start()
+        extra?.animate()?.alpha(1f)?.setStartDelay(360)?.setDuration(180)?.start()
+        this.extra = extra
 
         if (autoMs != null) main.postDelayed(autoClose, autoMs)
     }
@@ -327,6 +554,8 @@ object LivePill {
         kind = null
         p.animate().alpha(0f).setDuration(120).start()
         body?.animate()?.alpha(0f)?.setDuration(100)?.start()
+        extra?.animate()?.alpha(0f)?.setDuration(100)?.start()
+        main.removeCallbacks(playerTick)
         val w0 = b.width.coerceAtLeast(collapsedW)
         val h0 = b.height
         val hMin = p.height.takeIf { it > 0 } ?: h0
@@ -351,6 +580,8 @@ object LivePill {
         pill = null
         bg = null
         body = null
+        extra = null
+        main.removeCallbacks(playerTick)
         kind = null
     }
 

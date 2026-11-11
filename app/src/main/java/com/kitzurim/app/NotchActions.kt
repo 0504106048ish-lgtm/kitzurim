@@ -286,6 +286,16 @@ object NotchPrefs {
     fun pulseSeconds(c: Context) = sp(c).getInt("pulse_secs", 30)
     fun setPulseSeconds(c: Context, v: Int) = sp(c).edit().putInt("pulse_secs", v).apply()
 
+    // ---------- נגן בהקשה על העיגול (דלוק כברירת מחדל) ----------
+    fun musicTap(c: Context) = sp(c).getBoolean("music_tap", true)
+    fun setMusicTap(c: Context, v: Boolean) = sp(c).edit().putBoolean("music_tap", v).apply()
+    fun playerProgress(c: Context) = sp(c).getBoolean("player_progress", true)
+    fun setPlayerProgress(c: Context, v: Boolean) = sp(c).edit().putBoolean("player_progress", v).apply()
+    fun playerSkip(c: Context) = sp(c).getBoolean("player_skip", true)
+    fun setPlayerSkip(c: Context, v: Boolean) = sp(c).edit().putBoolean("player_skip", v).apply()
+    fun playerCover(c: Context) = sp(c).getBoolean("player_cover", true)
+    fun setPlayerCover(c: Context, v: Boolean) = sp(c).edit().putBoolean("player_cover", v).apply()
+
     /** עובי הטבעת בנקודות (dp) */
     fun thickness(c: Context) = sp(c).getFloat("thick", 1.6f)
     fun setThickness(c: Context, v: Float) = sp(c).edit().putFloat("thick", v).apply()
