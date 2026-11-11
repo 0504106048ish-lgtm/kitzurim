@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הגלולה החיה</title>
+<style>
+:root{--bg:#f3f2ee;--text:#1f1f1d;--muted:#6b6a65;--border:rgba(0,0,0,.12);--card:#fff;--frame:#1f1f1d;--accent:#185FA5;--accentBg:#E6F1FB}
+@media (prefers-color-scheme: dark){:root{--bg:#1a1a19;--text:#f1efe8;--muted:#b4b2a9;--border:rgba(255,255,255,.14);--card:#262624;--frame:#d3d1c7;--accent:#85B7EB;--accentBg:#0C447C}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;padding:16px}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:20px;font-weight:500;margin:4px 0;text-align:center}
+.sub{font-size:14px;color:var(--muted);text-align:center;margin:0 0 14px;line-height:1.6}
+.btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:20px}
+.b{padding:10px 16px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-size:14px}
+.b:active{transform:scale(.97)}
+.grid{display:flex;flex-wrap:wrap;gap:26px;justify-content:center}
+.opt{display:flex;flex-direction:column;align-items:center;gap:8px;width:300px}
+.lbl{font-size:15px;font-weight:500}.desc{font-size:12.5px;color:var(--muted);text-align:center;min-height:36px;line-height:1.5}
+.rec{font-size:11px;background:#E1F5EE;color:#085041;padding:2px 8px;border-radius:7px}
+.ph{position:relative;width:290px;height:260px;border:6px solid var(--frame);border-bottom:none;border-radius:40px 40px 0 0;overflow:hidden;background:radial-gradient(circle at 50% 0%,#1d2a40,#0b0e14 70%)}
+.status{position:absolute;top:13px;left:22px;right:22px;display:flex;justify-content:space-between;color:#fff;font-size:12px;opacity:.85;z-index:1}
+.clock{position:absolute;top:120px;width:100%;text-align:center;color:#fff;font-size:44px;font-weight:300;opacity:.9}
+/* הגלולה: בהתחלה עיגול קטן סביב החור */
+.pill{position:absolute;top:8px;left:50%;height:30px;width:30px;transform:translateX(-50%);background:#000;border-radius:20px;z-index:3;display:flex;align-items:center;justify-content:space-between;overflow:hidden;color:#fff;box-shadow:0 0 0 1.5px rgba(62,209,140,.9)}
+.pill .in{display:flex;align-items:center;gap:8px;width:100%;padding:0 10px;opacity:0;transition:opacity .2s;white-space:nowrap;font-size:12.5px}
+.pill.open .in{opacity:1;transition-delay:.18s}
+.cam{position:absolute;top:16px;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#050505;box-shadow:inset 0 0 3px #333;z-index:4}
+.av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.cb{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;cursor:pointer}
+.mid{flex:1;overflow:hidden;line-height:1.25}.mid .s{font-size:10.5px;color:#9aa4b5;overflow:hidden;text-overflow:ellipsis}
+.bars{display:flex;gap:2px;align-items:flex-end;height:14px}.bars i{width:3px;background:#b388ff;border-radius:2px;animation:bar .9s ease-in-out infinite}
+.bars i:nth-child(2){animation-delay:.15s}.bars i:nth-child(3){animation-delay:.3s}.bars i:nth-child(4){animation-delay:.45s}
+@keyframes bar{0%,100%{height:4px}50%{height:14px}}
+.disc{animation:spin 3s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+
+/* א. מתיחה אלסטית: נפתח עם קפיצה קטנה בסוף */
+.elastic .pill{transition:width .55s cubic-bezier(.34,1.56,.64,1),height .55s cubic-bezier(.34,1.56,.64,1),border-radius .4s}
+/* ב. גל מתפשט: טבעת שקופה יוצאת מהחור, ואז הגלולה נפתחת בעדינות */
+.ripple .pill{transition:width .35s ease-out .12s,height .35s ease-out .12s}
+.wave{position:absolute;top:23px;left:50%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:2px solid rgba(62,209,140,.9);opacity:0;z-index:2;pointer-events:none}
+.wave.go{animation:wave .9s ease-out}
+@keyframes wave{0%{transform:scale(1);opacity:.9}100%{transform:scale(5);opacity:0}}
+/* ג. זוהר נושם: נפתח רך, והאור מתחזק ונחלש בזמן שהוא פתוח */
+.breath .pill{transition:width .5s ease-in-out,height .5s ease-in-out}
+.breath .pill.open{animation:breath 2.2s ease-in-out infinite}
+@keyframes breath{0%,100%{box-shadow:0 0 0 1.5px var(--gc),0 0 6px var(--gc)}50%{box-shadow:0 0 0 1.5px var(--gc),0 0 22px var(--gc),0 0 40px var(--gc)}}
+.foot{font-size:13px;color:var(--muted);text-align:center;margin-top:22px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>הגלולה החיה: 3 סוגי תנועה</h1>
+<p class="sub">לוחצים על אירוע, והוא מופיע בשלושת הטלפונים יחד, כל אחד עם סוג תנועה אחר.<br>בשיחה אפשר ללחוץ ✓ או ✕, ובהודעה הגלולה נסגרת לבד אחרי 4 שניות.</p>
+<div class="btns">
+<button class="b" data-e="call">📞 שיחה נכנסת</button>
+<button class="b" data-e="msg">💬 הודעה מוואטסאפ</button>
+<button class="b" data-e="music">🎵 מוזיקה</button>
+<button class="b" data-e="charge">⚡ חיבור מטען</button>
+<button class="b" data-e="close">↩️ לסגור</button>
+</div>
+<div class="grid">
+<div class="opt"><div class="lbl">א. מתיחה אלסטית <span class="rec">מומלץ</span></div><div class="desc">הגלולה נמתחת לצדדים ונעצרת עם קפיצה קטנה, כמו גומי.</div>
+<div class="ph elastic"><div class="status"><span>10:24</span><span>87%</span></div><div class="wave"></div><div class="pill"><div class="in"></div></div><div class="cam"></div><div class="clock">10:24</div></div></div>
+<div class="opt"><div class="lbl">ב. גל מתפשט</div><div class="desc">קודם גל שקוף יוצא מהחור ונעלם, ואז הגלולה נפתחת בעדינות.</div>
+<div class="ph ripple"><div class="status"><span>10:24</span><span>87%</span></div><div class="wave"></div><div class="pill"><div class="in"></div></div><div class="cam"></div><div class="clock">10:24</div></div></div>
+<div class="opt"><div class="lbl">ג. זוהר נושם</div><div class="desc">הגלולה נפתחת רך, והאור סביבה מתחזק ונחלש לאט כל עוד היא פתוחה.</div>
+<div class="ph breath"><div class="status"><span>10:24</span><span>87%</span></div><div class="wave"></div><div class="pill"><div class="in"></div></div><div class="cam"></div><div class="clock">10:24</div></div></div>
+</div>
+<p class="foot"><b>ההמלצה שלי: א. מתיחה אלסטית.</b> היא מרגישה הכי "חיה" ומהירה, ואת ההבדל רואים מיד. אפשר גם לשלב: מתיחה אלסטית לפתיחה, וזוהר נושם רק בשיחה נכנסת, כדי שהיא תבלוט במיוחד.</p>
+</div>
+<script>
+const EV={
+ call:{w:250,h:42,color:'#4fb3ff',html:`<span class="cb" style="background:#e5484d" data-x>✕</span><div class="mid">אמא<div class="s">שיחה נכנסת…</div></div><span class="av" style="background:#9FE1CB;color:#04342C">א</span><span class="cb" style="background:#2ad49a;color:#0b0e14" data-ok>✓</span>`},
+ incall:{w:120,h:30,color:'#2ad49a',html:`<span style="color:#2ad49a">●</span><span id="t">00:00</span>`},
+ msg:{w:250,h:46,color:'#25D366',auto:4000,html:`<span class="av" style="background:#25D366;color:#063">ד</span><div class="mid">דוד<div class="s">אתה מגיע היום לשיעור?</div></div><span style="font-size:11px;color:#25D366">וואטסאפ</span>`},
+ music:{w:200,h:34,color:'#b388ff',html:`<span class="av disc" style="background:conic-gradient(#b388ff,#4fb3ff,#b388ff)">♪</span><div class="mid" style="font-size:11.5px">שיר יפה</div><span class="bars"><i></i><i></i><i></i><i></i></span>`},
+ charge:{w:170,h:30,color:'#3ed18c',auto:3000,html:`<span style="color:#3ed18c">⚡</span><span>47% · מלאה בעוד שעה</span>`},
+};
+let timers=[],tick=null;
+function setAll(name){
+ timers.forEach(clearTimeout);timers=[];clearInterval(tick);
+ document.querySelectorAll('.ph').forEach(ph=>{
+  const p=ph.querySelector('.pill'),inn=p.querySelector('.in'),wave=ph.querySelector('.wave');
+  if(name==='close'||!EV[name]){p.classList.remove('open');p.style.width='30px';p.style.height='30px';p.style.boxShadow='';inn.innerHTML='';return}
+  const e=EV[name];
+  p.style.setProperty('--gc',e.color);
+  if(!ph.classList.contains('breath'))p.style.boxShadow=`0 0 0 1.5px ${e.color}, 0 0 10px ${e.color}55`;
+  if(ph.classList.contains('ripple')){wave.style.borderColor=e.color;wave.classList.remove('go');void wave.offsetWidth;wave.classList.add('go')}
+  inn.innerHTML=e.html;p.style.width=e.w+'px';p.style.height=e.h+'px';p.classList.add('open');
+  inn.querySelectorAll('[data-x]').forEach(x=>x.onclick=()=>setAll('close'));
+  inn.querySelectorAll('[data-ok]').forEach(x=>x.onclick=()=>startCall());
+ });
+ if(EV[name]&&EV[name].auto)timers.push(setTimeout(()=>setAll('close'),EV[name].auto));
+}
+function startCall(){setAll('incall');let s=0;tick=setInterval(()=>{s++;document.querySelectorAll('#t').forEach(t=>t.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'))},1000)}
+document.querySelectorAll('.b').forEach(b=>b.onclick=()=>setAll(b.dataset.e));
+</script>
+</body>
+</html>

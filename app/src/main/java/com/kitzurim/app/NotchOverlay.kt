@@ -46,8 +46,11 @@ import kotlin.math.sin
  */
 @SuppressLint("StaticFieldLeak")
 object NotchOverlay {
-    private var service: AccessibilityService? = null
-    private var wm: WindowManager? = null
+    /** השירות והחלונות: משותפים עם הגלולה החיה */
+    internal var service: AccessibilityService? = null
+        private set
+    internal var wm: WindowManager? = null
+        private set
     private var ring: RingView? = null
     private var zone: View? = null
     private var batteryReceiver: BroadcastReceiver? = null
@@ -56,6 +59,7 @@ object NotchOverlay {
 
     private var level = 100
     private var charging = false
+    private var batteryReady = false
 
     /** התראות שעוד לא נקראו: מפתח ההתראה ← הצבע שלה */
     private val pulses = LinkedHashMap<String, Int>()
@@ -84,7 +88,15 @@ object NotchOverlay {
                 val sc = i.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
                 if (l >= 0 && sc > 0) level = l * 100 / sc
                 val st = i.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                val was = charging
                 charging = st == BatteryManager.BATTERY_STATUS_CHARGING || st == BatteryManager.BATTERY_STATUS_FULL
+                // חיברו מטען: הגלולה מראה את האחוז והזמן עד מלא
+                if (charging && !was && batteryReady) {
+                    val info = Battery.read(c, i)
+                    LivePill.showCharging(info.percent, info.minutesToFull)
+                }
+                // ההודעה הראשונה מגיעה מיד כשהשירות עולה: לא נחשבת כחיבור מטען
+                batteryReady = true
                 updateRing()
             }
         }
@@ -104,6 +116,8 @@ object NotchOverlay {
 
     fun detach() {
         main.removeCallbacks(ticker)
+        LivePill.hide()
+        batteryReady = false
         removeViews()
         service?.let { s ->
             batteryReceiver?.let { runCatching { s.unregisterReceiver(it) } }
@@ -167,13 +181,16 @@ object NotchOverlay {
     }
 
     // ---------- שיר ושיחה: בודקים כל שנייה ----------
+    private var lastTitle: String? = null
+
     private val ticker = object : Runnable {
         override fun run() {
             val s = service ?: return
             var changed = false
+            val wantCalls = NotchPrefs.callRing(s) || (NotchPrefs.pill(s) && NotchPrefs.pillCalls(s))
 
             // שיחה: לפי מצב השמע של הטלפון (עובד גם לשיחות וואטסאפ, בלי הרשאה נוספת)
-            if (NotchPrefs.callRing(s)) {
+            if (wantCalls) {
                 val mode = s.getSystemService(AudioManager::class.java)?.mode ?: AudioManager.MODE_NORMAL
                 val ringingNow = mode == AudioManager.MODE_RINGTONE
                 val inCall = mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION
@@ -186,9 +203,13 @@ object NotchOverlay {
                     changed = true
                 } else if (!inCall && callStart != 0L) {
                     callStart = 0L
+                    LivePill.callEnded()
                     changed = true
                 }
-                if (inCall) changed = true // כל שנייה מתקדם
+                if (inCall) {
+                    changed = true // כל שנייה מתקדם
+                    LivePill.inCall(((SystemClock.elapsedRealtime() - callStart) / 1000).toInt())
+                }
             } else if (callRinging || callStart != 0L) {
                 callRinging = false
                 callStart = 0L
@@ -196,32 +217,47 @@ object NotchOverlay {
             }
 
             // שיר: מהנגן שמנגן עכשיו (צריך גישה להתראות)
-            val m = if (NotchPrefs.musicRing(s)) musicProgress(s) else null
+            val wantMusic = NotchPrefs.musicRing(s) || (NotchPrefs.pill(s) && NotchPrefs.pillMusic(s))
+            val now = if (wantMusic) nowPlaying(s) else null
+            val m = if (NotchPrefs.musicRing(s)) now?.second else null
             if (m != music) {
                 music = m
                 changed = true
             }
+            // שיר חדש התחיל: הגלולה מראה את השם לשלוש שניות
+            val title = now?.first
+            if (title != null && title != lastTitle) LivePill.showMusic(title)
+            lastTitle = title
 
             if (changed) updateRing()
             main.postDelayed(this, 1000)
         }
     }
 
-    private fun musicProgress(s: Context): Float? = try {
+    /** מה מתנגן עכשיו: שם השיר, וכמה ממנו עבר (0 עד 1) */
+    private fun nowPlaying(s: Context): Pair<String, Float?>? = try {
         val msm = s.getSystemService(MediaSessionManager::class.java)
         val controllers = msm?.getActiveSessions(ComponentName(s, ReplyListener::class.java)) ?: emptyList()
         val c = controllers.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
-        val duration = c?.metadata?.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) ?: 0L
-        val st = c?.playbackState
-        if (c == null || st == null || duration <= 0) {
+        if (c == null) {
             null
         } else {
-            val pos = st.position + ((SystemClock.elapsedRealtime() - st.lastPositionUpdateTime) * st.playbackSpeed).toLong()
-            (pos.toFloat() / duration).coerceIn(0f, 1f)
+            val md = c.metadata
+            val title = md?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: ""
+            val duration = md?.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+            val st = c.playbackState
+            val progress = if (st == null || duration <= 0) {
+                null
+            } else {
+                val pos = st.position + ((SystemClock.elapsedRealtime() - st.lastPositionUpdateTime) * st.playbackSpeed).toLong()
+                (pos.toFloat() / duration).coerceIn(0f, 1f)
+            }
+            title to progress
         }
     } catch (_: Exception) {
         null
     }
+
 
     private fun updateRing() {
         val s = service ?: return
@@ -249,7 +285,7 @@ object NotchOverlay {
     }
 
     /** איפה החור של המצלמה (בפיקסלים) */
-    private fun cutout(s: Context): Rect {
+    internal fun cutout(s: Context): Rect {
         val d = s.resources.displayMetrics.density
         if (Build.VERSION.SDK_INT >= 29) {
             val disp = s.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)
@@ -262,7 +298,7 @@ object NotchOverlay {
         return Rect(w / 2 - size / 2, top, w / 2 + size / 2, top + size)
     }
 
-    private fun params(w: Int, h: Int, x: Int, y: Int, touchable: Boolean) = WindowManager.LayoutParams(
+    internal fun params(w: Int, h: Int, x: Int, y: Int, touchable: Boolean) = WindowManager.LayoutParams(
         w, h,
         WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or

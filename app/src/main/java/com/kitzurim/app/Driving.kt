@@ -61,14 +61,39 @@ class ReplyListener : NotificationListenerService() {
     private fun lightFor(sbn: StatusBarNotification) {
         val n = sbn.notification
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+
+        // שיחה נכנסת (רגילה או וואטסאפ): הגלולה עם "ענה" ו"דחה", דרך הכפתורים שכבר בהתראה
+        if (n.category == Notification.CATEGORY_CALL && n.fullScreenIntent != null) {
+            val name = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "שיחה"
+            val actions = n.actions?.toList() ?: emptyList()
+            fun find(words: List<String>) = actions.firstOrNull { a ->
+                val t = a.title?.toString()?.lowercase() ?: ""
+                words.any { t.contains(it) }
+            }
+            val answer = find(listOf("ענה", "מענה", "קבל", "answer", "accept")) ?: actions.lastOrNull()
+            val decline = find(listOf("דחה", "דחיי", "נתק", "decline", "reject", "dismiss")) ?: actions.firstOrNull()
+            LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent)
+            return
+        }
+
         if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) return
         val color = lightColors[sbn.packageName]
             ?: if (n.category == Notification.CATEGORY_MESSAGE && n.color != 0) n.color else return
         NotchOverlay.notificationPosted(sbn.key, color)
+
+        // הגלולה החיה: מי שלח ומה כתב (לא מה ששלחת אתה)
+        val style = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)
+        val last = style?.messages?.lastOrNull()
+        if (style != null && last != null && last.person == null) return
+        val sender = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return
+        val text = last?.text?.toString() ?: n.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return
+        if (text.isBlank()) return
+        LivePill.showMessage(sender, text, color, n.contentIntent)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         NotchOverlay.notificationRemoved(sbn.key)
+        LivePill.callNotificationRemoved(sbn.key)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {

@@ -319,6 +319,18 @@ object NotchPrefs {
     fun callRing(c: Context) = sp(c).getBoolean("call_ring", false)
     fun setCallRing(c: Context, v: Boolean) = sp(c).edit().putBoolean("call_ring", v).apply()
 
+    // ---------- הגלולה החיה (מתחילה כבויה) ----------
+    fun pill(c: Context) = sp(c).getBoolean("pill", false)
+    fun setPill(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill", v).apply()
+    fun pillMessages(c: Context) = sp(c).getBoolean("pill_msg", true)
+    fun setPillMessages(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_msg", v).apply()
+    fun pillCalls(c: Context) = sp(c).getBoolean("pill_call", true)
+    fun setPillCalls(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_call", v).apply()
+    fun pillMusic(c: Context) = sp(c).getBoolean("pill_music", true)
+    fun setPillMusic(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_music", v).apply()
+    fun pillCharging(c: Context) = sp(c).getBoolean("pill_charge", true)
+    fun setPillCharging(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_charge", v).apply()
+
     // ---------- התנהגות ----------
     /** רטט קטן בכל נגיעה בחור */
     fun haptic(c: Context) = sp(c).getBoolean("haptic", false)
