@@ -93,8 +93,8 @@ class ReplyListener : NotificationListenerService() {
                 val text = (n.extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
                     ?: n.extras.getCharSequence(Notification.EXTRA_TEXT))?.toString() ?: ""
                 val arrow = runCatching { n.getLargeIcon()?.loadDrawable(this) }.getOrNull()
-                if (title.isNotBlank() || text.isNotBlank()) {
-                    LivePill.showNav(sbn.key, title.ifBlank { text }, if (title.isBlank()) "" else text, arrow, n.contentIntent)
+                run {
+                    LivePill.showNav(sbn.key, sbn.packageName, title, text, arrow, n.contentIntent)
                 }
             }
             return
@@ -116,6 +116,10 @@ class ReplyListener : NotificationListenerService() {
             return
         }
 
+        // נגן מוזיקה: זוכרים את ערוץ ההתראה שלו, בשביל הכפתור "להסתיר את סמל המוזיקה משורת המצב"
+        if (n.extras.containsKey(Notification.EXTRA_MEDIA_SESSION) && n.channelId != null) {
+            NotchPrefs.setMediaChannel(this, sbn.packageName, n.channelId)
+        }
         if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) return
         val color = lightColors[sbn.packageName]
             ?: if (n.category == Notification.CATEGORY_MESSAGE && n.color != 0) n.color else return

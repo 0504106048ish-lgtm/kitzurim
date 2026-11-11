@@ -320,6 +320,7 @@ object NotchOverlay {
 
     // ---------- שיר ושיחה: בודקים כל שנייה ----------
     private var lastTitle: String? = null
+    private var musicOff = 0
 
     /** יש אזור נגיעה בשביל הנגן (שיר מתנגן עכשיו) */
     private var musicZone = false
@@ -381,7 +382,7 @@ object NotchOverlay {
             }
 
             // שיר: מהנגן שמנגן עכשיו (צריך גישה להתראות)
-            val wantMusic = NotchPrefs.musicRing(s) || (NotchPrefs.pill(s) && NotchPrefs.pillMusic(s))
+            val wantMusic = NotchPrefs.musicRing(s) || (NotchPrefs.pill(s) && (NotchPrefs.pillMusic(s) || NotchPrefs.pillMusicLive(s)))
             val now = if (wantMusic) nowPlaying(s) else null
             // אורך השיר לא ידוע: טבעת מלאה, כדי שעדיין יראו שמשהו מתנגן
             val m = if (NotchPrefs.musicRing(s)) now?.let { it.second ?: 1f } else null
@@ -391,8 +392,20 @@ object NotchOverlay {
             }
             // שיר חדש התחיל: הגלולה מראה את השם לשלוש שניות
             val title = now?.first
-            if (title != null && title != lastTitle) LivePill.showMusic(title)
+            if (title != null && title != lastTitle && NotchPrefs.pillMusic(s)) LivePill.showMusic(title)
             lastTitle = title
+            // מוזיקה כל הזמן בעיגול: כל עוד מתנגן. נעלמת רק אחרי 3 שניות בלי מוזיקה (לא בכל עצירה קטנה)
+            if (title != null) {
+                musicOff = 0
+                if (NotchPrefs.pill(s) && NotchPrefs.pillMusicLive(s)) {
+                    LivePill.musicLive(playingController(s)?.metadata?.let { md ->
+                        md.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
+                            ?: md.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART)
+                    })
+                }
+            } else if (++musicOff == 3) {
+                LivePill.musicStopped()
+            }
 
             // נגן בהקשה: כשאין תנועות אחרות, אזור הנגיעה קיים רק בזמן שמתנגן שיר (או שהנגן פתוח)
             if (NotchPrefs.musicTap(s) && !NotchPrefs.anyGesture(s) && !NotchPrefs.showZone(s)) {

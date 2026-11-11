@@ -556,45 +556,57 @@ object LivePill {
         return "%d:%02d".format(sec / 60, sec % 60)
     }
 
-    // ---------- ניווט, אוזניות, הורדה ----------
+    // ---------- ניווט, אוזניות, הורדה, מוזיקה קבועה ----------
 
     private var navKey: String? = null
     private var navStep: String? = null
     private var navIcon: ImageView? = null
     private val navSmall = Runnable { navCompact() }
-    private var navDist = ""
+    private var navLabel = ""
     private var navOpen: PendingIntent? = null
-    private var navArrow: android.graphics.drawable.Drawable? = null
+    private var navImg: android.graphics.drawable.Drawable? = null
+    private var navTint = false
+    private val NAV_BLUE = Color.rgb(51, 204, 255)
+
+    /** אין כרגע גלולה, או שמוצגת רק המוזיקה הקבועה (שמפנה מקום לכל דבר אחר) */
+    private fun free() = kind == null || kind == "musicLive"
 
     /**
-     * ניווט (וויז / גוגל מפות): כשיש פנייה חדשה, גלולה גדולה עם ההוראה לכמה שניות,
-     * ואחר כך גלולה קטנה עם החץ והמרחק, שמתעדכנת כל הזמן. הקשה פותחת את אפליקציית הניווט.
+     * ניווט (וויז / גוגל מפות): גלולה קטנה מאוד, עם הסמל של האפליקציה והשם שלה בכחול.
+     * אם בהתראה יש מרחק לפנייה הבאה, רואים אותו במקום השם, ובפנייה חדשה ההוראה המלאה לכמה שניות.
+     * הקשה פותחת את אפליקציית הניווט.
      */
-    fun showNav(key: String, distance: String, step: String, arrow: android.graphics.drawable.Drawable?, open: PendingIntent?) {
+    fun showNav(key: String, pkg: String, title: String, text: String, arrow: android.graphics.drawable.Drawable?, open: PendingIntent?) {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillNav(s)) return
         if (inCallPill() || kind == "player" || kind == "msg") return
+        val hasDist = title.any { it.isDigit() }
+        val appName = runCatching {
+            s.packageManager.getApplicationLabel(s.packageManager.getApplicationInfo(pkg, 0)).toString()
+        }.getOrNull() ?: if (pkg == "com.waze") "Waze" else "מפות"
+        val appIcon = runCatching { s.packageManager.getApplicationIcon(pkg) }.getOrNull()
         navKey = key
-        navDist = distance
         navOpen = open
-        navArrow = arrow
+        navLabel = if (hasDist) title else appName
+        navImg = if (hasDist && arrow != null) arrow else appIcon
+        navTint = hasDist && arrow != null
+        val step = if (hasDist) text else ""
         val newStep = step.isNotBlank() && step != navStep
         navStep = step
-        val blue = Color.rgb(79, 179, 255)
         when {
             newStep -> {
                 main.removeCallbacks(navSmall)
-                show("navbig", 300, blue, null, onTap = { launch(open) }, long = navLine(distance, step)) { ctx, _, right ->
-                    right.addView(navArrowView(ctx, arrow, blue))
+                show("navbig", 300, NAV_BLUE, null, onTap = { launch(open) }, long = navLine(title, step)) { ctx, _, right ->
+                    right.addView(navIconView(ctx))
                 }
                 main.postDelayed(navSmall, 4500)
             }
-            kind == "navbig" -> body?.text = navLine(distance, step)
+            kind == "navbig" -> body?.text = navLine(title, step)
             kind == "nav" -> {
-                timerText?.text = distance
-                if (arrow != null) navIcon?.setImageDrawable(arrow)
+                timerText?.text = navLabel
+                navImg?.let { navIcon?.setImageDrawable(it) }
             }
-            kind == null -> navCompact()
+            free() -> navCompact()
         }
     }
 
@@ -602,13 +614,12 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (navKey == null || inCallPill() || kind == "player" || kind == "msg") return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillNav(s)) return
-        val blue = Color.rgb(79, 179, 255)
         val open = navOpen
-        show("nav", 150, blue, null, onTap = { launch(open) }) { ctx, left, right ->
-            val t = label(ctx, navDist, 13.5f, Color.WHITE, bold = true)
+        show("nav", 150, NAV_BLUE, null, onTap = { launch(open) }) { ctx, left, right ->
+            val t = label(ctx, navLabel, 12.5f, NAV_BLUE, bold = true)
             timerText = t
             left.addView(t)
-            right.addView(navArrowView(ctx, navArrow, blue))
+            right.addView(navIconView(ctx))
         }
     }
 
@@ -625,22 +636,104 @@ object LivePill {
         android.text.SpannableStringBuilder().apply {
             append(distance.trim())
             setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            setSpan(android.text.style.ForegroundColorSpan(Color.WHITE), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.ForegroundColorSpan(NAV_BLUE), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             if (step.isNotBlank()) {
                 append("\n")
                 append(step.trim())
             }
         }
 
-    private fun navArrowView(ctx: Context, arrow: android.graphics.drawable.Drawable?, color: Int): View {
+    /** הסמל של וויז / מפות (או חץ הפנייה) */
+    private fun navIconView(ctx: Context): View {
         val d = ctx.resources.displayMetrics.density
-        if (arrow == null) return label(ctx, "➤", 15f, color, bold = true)
+        val img = navImg ?: return label(ctx, "➤", 13f, NAV_BLUE, bold = true)
         return ImageView(ctx).apply {
-            setImageDrawable(arrow)
-            setColorFilter(Color.WHITE)
-            layoutParams = LinearLayout.LayoutParams((22 * d).toInt(), (22 * d).toInt())
+            setImageDrawable(img)
+            if (navTint) setColorFilter(NAV_BLUE)
+            layoutParams = LinearLayout.LayoutParams((18 * d).toInt(), (18 * d).toInt())
             navIcon = this
         }
+    }
+
+    // ---------- מוזיקה כל הזמן: תמונת האלבום מסתובבת וגלי צליל ----------
+    private var liveArt: ImageView? = null
+
+    /** נקרא כל שנייה כשמתנגן שיר. מראה את הגלולה הקבועה אם אין משהו אחר על המסך */
+    fun musicLive(art: android.graphics.Bitmap?) {
+        val s = NotchOverlay.service ?: return
+        if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusicLive(s)) return
+        if (navKey != null) return // בזמן ניווט הניווט חשוב יותר
+        if (kind == "musicLive") {
+            if (art != null) liveArt?.setImageBitmap(art)
+            return
+        }
+        if (kind != null) return
+        val purple = Color.rgb(179, 136, 255)
+        show("musicLive", 120, purple, null, onTap = {
+            NotchOverlay.playingController(s)?.let { c -> main.postDelayed({ showPlayer(c) }, 280) }
+            Unit
+        }) { ctx, left, right ->
+            left.addView(eqBars(ctx, purple))
+            right.addView(artView(ctx, art, purple).also { liveArt = it })
+        }
+    }
+
+    /** המוזיקה נעצרה */
+    fun musicStopped() {
+        if (kind == "musicLive") hide()
+    }
+
+    private fun artView(ctx: Context, art: android.graphics.Bitmap?, color: Int): ImageView {
+        val d = ctx.resources.displayMetrics.density
+        return ImageView(ctx).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(color)
+            }
+            clipToOutline = true
+            if (art != null) setImageBitmap(art)
+            layoutParams = LinearLayout.LayoutParams((18 * d).toInt(), (18 * d).toInt())
+            // מסתובבת לאט, כמו תקליט
+            ValueAnimator.ofFloat(0f, 360f).apply {
+                duration = 6000
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = LinearInterpolator()
+                addUpdateListener { rotation = it.animatedValue as Float }
+                start()
+            }
+        }
+    }
+
+    /** ארבעה פסים קטנים שקופצים בקצב */
+    private fun eqBars(ctx: Context, color: Int): View {
+        val d = ctx.resources.displayMetrics.density
+        val row = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val maxH = 14 * d
+        listOf(0L, 220L, 440L, 120L).forEach { delay ->
+            val bar = View(ctx).apply {
+                background = GradientDrawable().apply {
+                    cornerRadius = 2 * d
+                    setColor(color)
+                }
+            }
+            row.addView(bar, LinearLayout.LayoutParams((2.5f * d).toInt(), maxH.toInt()).apply {
+                marginStart = (1.2f * d).toInt()
+                marginEnd = (1.2f * d).toInt()
+            })
+            ValueAnimator.ofFloat(0.25f, 1f).apply {
+                duration = 450
+                startDelay = delay
+                repeatCount = ValueAnimator.INFINITE
+                repeatMode = ValueAnimator.REVERSE
+                addUpdateListener { bar.scaleY = it.animatedValue as Float }
+                start()
+            }
+        }
+        return row
     }
 
     /** אוזניות התחברו: השם והסוללה */
@@ -676,35 +769,51 @@ object LivePill {
         }
     }
 
+    /** שיר חדש התחיל: גלולה עם תמונת השיר, השם והזמר. הקשה פותחת את הנגן המלא */
     fun showMusic(title: String) {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusic(s)) return
         // הנגן פתוח: הוא כבר מתעדכן לשיר החדש בעצמו
         if (inCallPill() || kind == "player") return
         val purple = Color.rgb(179, 136, 255)
+        val grey = Color.rgb(160, 168, 184)
+        val d = s.resources.displayMetrics.density
+        val c = NotchOverlay.playingController(s)
+        val md = c?.metadata
+        val art = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+        val who = md?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST) ?: ""
         // הקשה על הודעת השיר פותחת את הנגן המלא
         val openPlayer = {
-            NotchOverlay.playingController(s)?.let { c -> main.postDelayed({ showPlayer(c) }, 280) }
+            c?.let { main.postDelayed({ showPlayer(it) }, 280) }
             Unit
         }
-        show("music", 240, purple, 3500, onTap = openPlayer, long = title) { ctx, left, right ->
-            val disc = label(ctx, "♪", 13f, Color.WHITE, bold = true)
-            disc.background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
+        // תמונת השיר מימין, ולידה השם והזמר
+        val row = LinearLayout(s).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding((2 * d).toInt(), (2 * d).toInt(), (2 * d).toInt(), (4 * d).toInt())
+        }
+        val img = ImageView(s).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = GradientDrawable().apply {
+                cornerRadius = 9 * d
                 setColor(purple)
             }
-            disc.gravity = Gravity.CENTER
-            val dp = ctx.resources.displayMetrics.density
-            disc.layoutParams = LinearLayout.LayoutParams((22 * dp).toInt(), (22 * dp).toInt())
-            ValueAnimator.ofFloat(0f, 360f).apply {
-                duration = 3000
-                repeatCount = ValueAnimator.INFINITE
-                interpolator = LinearInterpolator()
-                addUpdateListener { disc.rotation = it.animatedValue as Float }
-                start()
-            }
-            right.addView(disc)
-            left.addView(label(ctx, title, 13.5f, Color.WHITE))
+            clipToOutline = true
+            if (art != null) setImageBitmap(art)
+        }
+        row.addView(img, LinearLayout.LayoutParams((44 * d).toInt(), (44 * d).toInt()).apply { marginEnd = (10 * d).toInt() })
+        val texts = LinearLayout(s).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(label(s, title, 14f, Color.WHITE, bold = true))
+        if (who.isNotBlank()) texts.addView(label(s, who, 12.5f, grey))
+        row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        row.setOnClickListener {
+            openPlayer()
+            hide()
+        }
+        show("music", 240, purple, 3500, onTap = openPlayer, extra = row) { ctx, _, right ->
+            right.addView(label(ctx, "♪", 14f, purple, bold = true))
         }
     }
 
@@ -748,13 +857,15 @@ object LivePill {
         val cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
         val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
         val hole = max(c.width(), c.height())
-        val h = (max(hole.toFloat(), 22 * d) + 18 * d).toInt()
+        // גלולות קטנות (ניווט, מוזיקה, זמן שיחה): דקות כמו הסימן של ספוטיפיי בשורת המצב, צמודות לחור
+        val tight = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
+        val h = if (tight) max(hole * 0.85f + 2 * d, 24 * d).toInt() else (max(hole.toFloat(), 22 * d) + 18 * d).toInt()
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
         val maxW = (screenW - 2 * 58 * d).toInt()
-        val gapW = hole + (14 * d).toInt()
+        val gapW = hole + ((if (tight) 4 else 14) * d).toInt()
         // גלולת השיחה הקטנה: צמודה ככל האפשר (רק שניות וסמל)
-        val compact = newKind == "incall" || newKind == "nav"
-        val padW = ((if (compact) 7 else 12) * d).toInt()
+        val compact = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
+        val padW = ((if (compact) 5 else 12) * d).toInt()
         collapsedW = h
 
         val root = FrameLayout(s)

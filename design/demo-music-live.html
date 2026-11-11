@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מוזיקה בעיגול</title>
+<style>
+  :root { --bg:#0b0d12; --card:#151922; --text:#e9edf5; --muted:#8b94a7; --p:#b388ff; --g:#1ed760; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui, "Segoe UI", Arial, sans-serif; padding:16px; }
+  h1 { font-size:21px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 16px; font-size:14px; max-width:800px; line-height:1.55; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; max-width:1100px; }
+  .card { background:var(--card); border-radius:20px; padding:14px; }
+  .card h2 { font-size:16px; margin:0 0 4px; }
+  .why { color:var(--muted); font-size:13px; margin:0 0 12px; line-height:1.5; min-height:58px; }
+  .tag { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; margin-bottom:6px; background:#2a2440; color:#c9b6ff; }
+  .phone { position:relative; width:290px; height:220px; margin:0 auto; border-radius:30px; overflow:hidden; border:7px solid #000; background:linear-gradient(160deg,#2b3550,#141a28); }
+  .apps { position:absolute; top:84px; left:22px; right:22px; display:grid; grid-template-columns:repeat(4,1fr); gap:20px; }
+  .apps i { width:40px; height:40px; border-radius:12px; background:rgba(255,255,255,.13); display:block; margin:auto; }
+  .sb { position:absolute; top:9px; left:16px; right:16px; display:flex; justify-content:space-between; font-size:11px; font-weight:600; color:#fff; direction:ltr; }
+  .cam { position:absolute; top:11px; left:50%; width:12px; height:12px; margin-left:-6px; border-radius:50%; background:#000; z-index:50; }
+  .isl { position:absolute; top:3px; left:50%; transform:translateX(-50%); height:30px; border-radius:15px; background:#000; border:1.5px solid var(--p); display:flex; align-items:center; justify-content:space-between; padding:0 7px; direction:ltr; z-index:20; }
+  .art { width:20px; height:20px; border-radius:6px; background:linear-gradient(135deg,#ff6b8b,#7b5cff); animation:spin 6s linear infinite; }
+  .art.round { border-radius:50%; }
+  @keyframes spin { to { transform:rotate(360deg) } }
+  .eq { display:flex; gap:2px; align-items:center; height:18px; }
+  .eq i { width:3px; border-radius:2px; background:var(--p); animation:eq .9s ease-in-out infinite; }
+  @keyframes eq { 0%,100% { height:4px } 50% { height:16px } }
+  .paused .eq i, .paused .art, .paused .marq span { animation-play-state:paused; }
+  .paused .eq i { height:4px; }
+  .ringwrap { position:absolute; top:2px; left:50%; width:32px; height:32px; margin-left:-16px; z-index:20; }
+  .marq { width:120px; overflow:hidden; white-space:nowrap; font-size:11.5px; color:#fff; direction:rtl; }
+  .marq span { display:inline-block; padding-right:100%; animation:mq 7s linear infinite; }
+  @keyframes mq { from { transform:translateX(0) } to { transform:translateX(100%) } }
+  .ctl { display:flex; gap:8px; justify-content:center; margin-top:10px; }
+  .ctl button { padding:8px 14px; border:0; border-radius:12px; background:#232a38; color:var(--text); font-size:13px; cursor:pointer; }
+  .note { max-width:1100px; margin-top:18px; background:var(--card); border-radius:18px; padding:14px 16px; font-size:14px; color:var(--muted); line-height:1.65; }
+  .note b { color:var(--text); }
+  .sbar { display:flex; justify-content:space-between; align-items:center; background:#000; border-radius:12px; padding:8px 12px; margin:10px 0; direction:ltr; font-size:12px; font-weight:600; }
+  .sbar .ic { display:flex; gap:6px; align-items:center; }
+  .sp { width:14px; height:14px; border-radius:50%; background:var(--g); display:inline-block; }
+</style>
+</head>
+<body>
+<h1>מוזיקה כל הזמן בעיגול</h1>
+<p class="sub">כל עוד מתנגן שיר, הגלולה הקטנה נשארת סביב המצלמה. הקשה עליה פותחת את הנגן המלא שכבר יש. כשעוצרים את השיר היא נעלמת אחרי כמה שניות. אפשר ללחוץ "השהה" בכל דוגמא.</p>
+
+<div class="grid">
+  <div class="card" id="c1">
+    <span class="tag">א · אני ממליץ</span>
+    <h2>תמונת האלבום + גלי צליל</h2>
+    <p class="why">משמאל תמונת האלבום הקטנה מסתובבת, ומימין פסים קטנים שקופצים בקצב. ברור מיד שיש מוזיקה, ולא תופס מקום.</p>
+    <div class="phone"><div class="sb"><span>14:32</span><span>72%</span></div><div class="apps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="cam"></div>
+      <div class="isl" style="width:92px"><div class="art"></div><div class="eq"><i style="animation-delay:0s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.4s"></i><i style="animation-delay:.1s"></i></div></div>
+    </div>
+    <div class="ctl"><button onclick="pause('c1',this)">⏸ השהה</button></div>
+  </div>
+
+  <div class="card" id="c2">
+    <span class="tag" style="background:#1d2a22;color:#8fe3b7">ב</span>
+    <h2>רק הטבעת</h2>
+    <p class="why">בלי גלולה: הטבעת הסגולה סביב המצלמה מתמלאת לאט לפי כמה עבר מהשיר. הכי נקי ושקט.</p>
+    <div class="phone"><div class="sb"><span>14:32</span><span>72%</span></div><div class="apps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="cam"></div>
+      <svg class="ringwrap" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="none" stroke="rgba(179,136,255,.25)" stroke-width="2"/><circle id="arc" cx="16" cy="16" r="13" fill="none" stroke="#b388ff" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="81.7" stroke-dashoffset="50" transform="rotate(-90 16 16)" style="filter:drop-shadow(0 0 3px #b388ff)"/></svg>
+    </div>
+    <div class="ctl"><button onclick="pause('c2',this)">⏸ השהה</button></div>
+  </div>
+
+  <div class="card" id="c3">
+    <span class="tag" style="background:#3b2030;color:#ffb3c7">ג</span>
+    <h2>שם השיר רץ</h2>
+    <p class="why">גלולה קצת יותר רחבה: עיגול של האלבום, ולידו שם השיר והזמר זזים לאט. רואים מה מתנגן בלי לפתוח כלום.</p>
+    <div class="phone"><div class="sb"><span>14:32</span><span>72%</span></div><div class="apps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="cam"></div>
+      <div class="isl" style="width:200px;justify-content:flex-start;gap:6px"><div class="marq"><span>עומר אדם – תל אביב</span></div><div style="flex:1"></div><div class="art round"></div></div>
+    </div>
+    <div class="ctl"><button onclick="pause('c3',this)">⏸ השהה</button></div>
+  </div>
+</div>
+
+<div class="note">
+<b>על הסמל של ספוטיפיי בשורת המצב:</b> אנדרואיד לא נותן לאפליקציה אחרת להסתיר סמלים של ספוטיפיי, כי זה נשלט רק בהגדרות ההתראות של ספוטיפיי עצמה. מה שאפשר לעשות זה כפתור בקיצורים "להסתיר את ספוטיפיי משורת המצב" שפותח ישר את המקום הנכון בהגדרות, עם הסבר מה לכבות:
+<div class="sbar"><span>14:32</span><span class="ic"><span class="sp"></span> ✉ 72%</span></div>
+<div class="sbar"><span>14:32</span><span class="ic">✉ 72%</span></div>
+בסמסונג: הגדרות ← התראות ← ספוטיפיי ← "התראות מדיה" ← לכבות "סמל בשורת המצב" (או לסמן "שקט"). המוזיקה ממשיכה לעבוד, הנגן בעיגול של קיצורים ממשיך לעבוד, ורק הסמל הירוק למעלה נעלם.
+</div>
+
+<script>
+let f = 0.39;
+setInterval(() => { if (!document.getElementById('c2').classList.contains('paused')) { f = (f + 0.004) % 1; document.getElementById('arc').setAttribute('stroke-dashoffset', 81.7 * (1 - f)); } }, 200);
+function pause(id, b) { const c = document.getElementById(id); c.classList.toggle('paused'); b.textContent = c.classList.contains('paused') ? '▶ המשך' : '⏸ השהה'; }
+</script>
+</body>
+</html>

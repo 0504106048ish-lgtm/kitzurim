@@ -321,9 +321,31 @@ fun HomeScreen(resumes: Int) {
                             SwitchLine("📞 שיחות (ענה / דחה, וזמן השיחה)", NotchPrefs.pillCalls(ctx)) {
                                 NotchPrefs.setPillCalls(ctx, it); refresh++
                             }
-                            SwitchLine("🎵 שיר חדש", NotchPrefs.pillMusic(ctx)) {
+                            SwitchLine("🎵 שיר חדש (עם התמונה של השיר)", NotchPrefs.pillMusic(ctx)) {
                                 NotchPrefs.setPillMusic(ctx, it); refresh++
                             }
+                            SwitchLine("💿 מוזיקה כל הזמן בעיגול (תמונת האלבום וגלי צליל)", NotchPrefs.pillMusicLive(ctx)) {
+                                NotchPrefs.setPillMusicLive(ctx, it)
+                                if (!it) LivePill.musicStopped()
+                                refresh++
+                            }
+                            // הסמל של אפליקציית המוזיקה בשורת המצב: רק היא יכולה להסתיר אותו, אז פותחים ישר את המקום
+                            TextButton(onClick = {
+                                val pkg = NotchPrefs.mediaApp(ctx) ?: "com.spotify.music"
+                                val ch = NotchPrefs.mediaChannel(ctx)
+                                Actions.toast(ctx, "לכבות כאן את \"הפעלה\" / \"סמל בשורת המצב\". המוזיקה ממשיכה לעבוד")
+                                val i = if (ch != null && android.os.Build.VERSION.SDK_INT >= 26) {
+                                    Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, pkg)
+                                        .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, ch)
+                                } else {
+                                    Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, pkg)
+                                }
+                                runCatching { ctx.startActivity(i) }.onFailure {
+                                    Actions.toast(ctx, "לא הצלחתי לפתוח את ההגדרות")
+                                }
+                            }) { Text("🙈 להסתיר את סמל המוזיקה משורת המצב ←") }
                             SwitchLine("⚡ חיבור מטען", NotchPrefs.pillCharging(ctx)) {
                                 NotchPrefs.setPillCharging(ctx, it); refresh++
                             }

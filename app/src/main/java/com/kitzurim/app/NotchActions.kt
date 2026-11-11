@@ -354,6 +354,17 @@ object NotchPrefs {
     fun setPillEarbuds(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_earbuds", v).apply()
     fun pillDownloads(c: Context) = sp(c).getBoolean("pill_downloads", true)
     fun setPillDownloads(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_downloads", v).apply()
+    /** מוזיקה כל הזמן בעיגול (תמונת האלבום וגלי צליל) */
+    fun pillMusicLive(c: Context) = sp(c).getBoolean("pill_music_live", true)
+    fun setPillMusicLive(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_music_live", v).apply()
+
+    /** הנגן האחרון שראינו וערוץ ההתראה שלו (בשביל להסתיר את הסמל שלו משורת המצב) */
+    fun mediaApp(c: Context) = sp(c).getString("media_pkg", null)
+    fun mediaChannel(c: Context) = sp(c).getString("media_channel", null)
+    fun setMediaChannel(c: Context, pkg: String, channel: String) {
+        if (mediaApp(c) == pkg && mediaChannel(c) == channel) return
+        sp(c).edit().putString("media_pkg", pkg).putString("media_channel", channel).apply()
+    }
 
     // ---------- התנהגות ----------
     /** רטט קטן בכל נגיעה בחור */
