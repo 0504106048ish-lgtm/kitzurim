@@ -229,7 +229,7 @@ object CallNotif {
         val st = Calls.state(c)
         val ringing = st == Call.STATE_RINGING
         // סימן כיוון מימין לשמאל בהתחלה: מספר כמו *8787 לא בורח הצידה ולא נכנס מתחת לסמל
-        val name = "200F" + Calls.name(ctx, c)
+        val name = "‏" + Calls.name(ctx, c)
         val b = NotificationCompat.Builder(ctx, if (ringing) CH_RING else CH_ON)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(name)
@@ -249,7 +249,7 @@ object CallNotif {
                 b.setWhen(at).setShowWhen(true).setUsesChronometer(true)
                     .setContentText(if (st == Call.STATE_HOLDING) "בהמתנה" else "בשיחה")
             } else {
-                b.setContentText("200Fמחייג…")
+                b.setContentText("מחייג…")
             }
             b.addAction(0, if (Calls.muted) "בטל השתקה" else "השתק", pi(ctx, "mute", 4))
                 .addAction(0, "רמקול", pi(ctx, "speaker", 5))
