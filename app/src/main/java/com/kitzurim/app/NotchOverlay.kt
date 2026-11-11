@@ -325,8 +325,14 @@ object NotchOverlay {
 
     private fun onVolumeChanged(i: Intent) {
         val s = service ?: return
-        if (!NotchPrefs.volumeRing(s)) return
         val am = s.getSystemService(AudioManager::class.java) ?: return
+        // גלולת המוזיקה פתוחה: המסגרת שלה מראה את עוצמת המוזיקה לשנייה (גם בלי הטבעת)
+        if (i.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1) == AudioManager.STREAM_MUSIC) {
+            val v = i.getIntExtra("android.media.EXTRA_VOLUME_STREAM_VALUE", -1)
+                .takeIf { it >= 0 } ?: am.getStreamVolume(AudioManager.STREAM_MUSIC)
+            LivePill.musicVolume(v.toFloat() / am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1))
+        }
+        if (!NotchPrefs.volumeRing(s)) return
         // העוצמה שבאמת השתנתה (מדיה, צלצול או שיחה), כך שהטבעת זזה עם כל לחיצה למעלה או למטה
         val stream = i.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
         if (stream != AudioManager.STREAM_MUSIC && stream != AudioManager.STREAM_RING &&
@@ -444,6 +450,8 @@ object NotchOverlay {
                         md.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART)
                             ?: md.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART)
                     })
+                    // המסגרת של הגלולה מתמלאת עד סוף השיר
+                    LivePill.musicProgress(now?.second)
                 }
             } else if (++musicOff == 3) {
                 LivePill.musicStopped()

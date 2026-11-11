@@ -761,6 +761,91 @@ object LivePill {
             left.addView(eqBars(ctx, purple))
             right.addView(artView(ctx, art, purple).also { liveArt = it })
         }
+        // המסגרת: עמומה, ומעליה הקו הסגול שמתמלא עד סוף השיר
+        val b = bg
+        val r = window
+        if (kind == "musicLive" && b != null && r != null) {
+            val d = s.resources.displayMetrics.density
+            (b.background as? GradientDrawable)?.setStroke((1.5f * d).toInt(), Color.argb(60, Color.red(purple), Color.green(purple), Color.blue(purple)))
+            outline = PillOutline(s, b, 1.8f * d).also { r.addView(it, FrameLayout.LayoutParams(-1, -1)) }
+            refreshOutline()
+        }
+    }
+
+    // ---------- המסגרת של גלולת המוזיקה: מתמלאת לפי השיר, וכחולה לשנייה כשמשנים עוצמה ----------
+    private var outline: PillOutline? = null
+    private var songProgress = 1f
+    private var volValue = 0f
+    private var volUntil = 0L
+    private val outlineTick = Runnable { refreshOutline() }
+
+    /** איפה השיר (0 עד 1). אורך לא ידוע: מסגרת מלאה */
+    fun musicProgress(p: Float?) {
+        songProgress = p ?: 1f
+        refreshOutline()
+    }
+
+    /** שינו עוצמה בזמן שהגלולה של המוזיקה פתוחה */
+    fun musicVolume(v: Float) {
+        if (kind != "musicLive") return
+        volValue = v
+        volUntil = SystemClock.uptimeMillis() + 1500
+        refreshOutline()
+        main.removeCallbacks(outlineTick)
+        main.postDelayed(outlineTick, 1550)
+    }
+
+    private fun refreshOutline() {
+        val o = outline ?: return
+        val s = NotchOverlay.service
+        val vol = SystemClock.uptimeMillis() < volUntil
+        if (vol) o.set(volValue, NotchPrefs.tint(s, "volume", Color.rgb(79, 179, 255)))
+        else o.set(songProgress, NotchPrefs.tint(s, "music", Color.rgb(179, 136, 255)))
+    }
+
+    /** מסגרת שמתמלאת סביב הגלולה, מהאמצע למעלה עם כיוון השעון */
+    private class PillOutline(ctx: Context, private val target: View, private val sw: Float) : View(ctx) {
+        private var progress = 0f
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = sw
+            strokeCap = android.graphics.Paint.Cap.ROUND
+        }
+        private val path = android.graphics.Path()
+        private val seg = android.graphics.Path()
+        private val pm = android.graphics.PathMeasure()
+
+        init {
+            target.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> invalidate() }
+        }
+
+        fun set(p: Float, color: Int) {
+            progress = p.coerceIn(0f, 1f)
+            paint.color = color
+            invalidate()
+        }
+
+        override fun onDraw(c: android.graphics.Canvas) {
+            if (progress <= 0f) return
+            val l = target.left + sw / 2
+            val t = target.top + sw / 2
+            val r = target.right - sw / 2
+            val b = target.bottom - sw / 2
+            val rad = (b - t) / 2f
+            if (r - l < 2 * rad) return
+            val cx = (l + r) / 2
+            path.reset()
+            path.moveTo(cx, t)
+            path.lineTo(r - rad, t)
+            path.arcTo(android.graphics.RectF(r - 2 * rad, t, r, b), -90f, 180f)
+            path.lineTo(l + rad, b)
+            path.arcTo(android.graphics.RectF(l, t, l + 2 * rad, b), 90f, 180f)
+            path.lineTo(cx, t)
+            pm.setPath(path, false)
+            seg.reset()
+            pm.getSegment(0f, pm.length * progress, seg, true)
+            c.drawPath(seg, paint)
+        }
     }
 
     /** המוזיקה נעצרה */
@@ -1307,6 +1392,8 @@ object LivePill {
         val b = bg ?: return removeNow()
         kind = null
         p.animate().alpha(0f).setDuration(120).start()
+        outline?.animate()?.alpha(0f)?.setDuration(100)?.start()
+        outline = null
         body?.animate()?.alpha(0f)?.setDuration(100)?.start()
         extra?.animate()?.alpha(0f)?.setDuration(100)?.start()
         main.removeCallbacks(playerTick)
@@ -1335,6 +1422,7 @@ object LivePill {
         bg = null
         body = null
         extra = null
+        outline = null
         main.removeCallbacks(playerTick)
         kind = null
     }
