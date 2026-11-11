@@ -151,7 +151,10 @@ fun PermissionsScreen(resumes: Int, onDone: () -> Unit) {
     val scroll = rememberScrollState()
     var wizard by rememberSaveable { mutableStateOf(false) }
     var tried by rememberSaveable { mutableStateOf("") }
-    // "הגדרות מוגבלות" אי אפשר לבדוק אם שוחררו, אז זוכרים שכבר עברת שם
+    // "הגדרות מוגבלות": אנדרואיד מראה את "⋮ ← אפשר הגדרות מוגבלות" רק אחרי שניסית פעם אחת להפעיל
+    // נגישות וקיבלת "האפליקציה לא תקבל גישה". לכן הסדר: ניסיון ← שחרור ← הפעלה אמיתית.
+    // אי אפשר לבדוק אם זה שוחרר, אז זוכרים איפה כבר עברת
+    var triedAccess by rememberSaveable { mutableStateOf(false) }
     var unlockedVisited by rememberSaveable { mutableStateOf(false) }
 
     val multi = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refresh++ }
@@ -159,15 +162,6 @@ fun PermissionsScreen(resumes: Int, onDone: () -> Unit) {
     val appDetails = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + ctx.packageName))
 
     val steps = listOf(
-        PermStep(
-            "unlock", "שחרור \"הגדרות מוגבלות\"",
-            "כי קיצורים לא הותקנה מחנות Play. במסך שנפתח: ⋮ למעלה ← \"אפשר הגדרות מוגבלות\", ואז חזרה.",
-            { !unlockedVisited && (Perms.listenerMissing(ctx) || Perms.accessibilityMissing(ctx)) },
-        ) {
-            unlockedVisited = true
-            Actions.toast(ctx, "⋮ למעלה ← \"אפשר הגדרות מוגבלות\" ← חזרה")
-            openSafely(ctx, appDetails)
-        },
         PermStep(
             "runtime", "אנשי קשר, שיחות, מיקום, התראות ובלוטות'",
             "חלונות קטנים קופצים אחד אחרי השני. בכל אחד: \"אפשר\".",
@@ -202,21 +196,42 @@ fun PermissionsScreen(resumes: Int, onDone: () -> Unit) {
             Actions.toast(ctx, "להפעיל את \"קיצורים\" ולחזור")
             openSafely(ctx, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
         },
+        // 1. ניסיון: לוחצים על המתג. כנראה יופיע "האפליקציה לא תקבל גישה". זה בסדר: סוגרים וחוזרים
+        PermStep(
+            "try", "החור של המצלמה: ניסיון ראשון",
+            "ללחוץ על המתג. אם כתוב \"האפליקציה לא תקבל גישה\": זה בסדר, ללחוץ \"סגירה\" ולחזור. זה פותח את השלב הבא.",
+            { !triedAccess && Perms.accessibilityMissing(ctx) },
+        ) {
+            triedAccess = true
+            Actions.toast(ctx, "ללחוץ על המתג. אם נחסם: \"סגירה\" ← חזרה")
+            openSafely(ctx, Perms.accessibilityIntent(ctx), Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        },
+        // 2. שחרור: עכשיו מופיע "אפשר הגדרות מוגבלות" ב-⋮
+        PermStep(
+            "unlock", "שחרור \"הגדרות מוגבלות\"",
+            "במסך שנפתח: ⋮ למעלה ← \"אפשר הגדרות מוגבלות\" ← לאשר, ואז חזרה.",
+            { triedAccess && !unlockedVisited && (Perms.listenerMissing(ctx) || Perms.accessibilityMissing(ctx)) },
+        ) {
+            unlockedVisited = true
+            Actions.toast(ctx, "⋮ למעלה ← \"אפשר הגדרות מוגבלות\" ← חזרה")
+            openSafely(ctx, appDetails)
+        },
+        // 3. עכשיו זה עובד באמת
+        PermStep(
+            "accessibility", "החור של המצלמה",
+            "הטבעת, הנגיעות בחור ושליחה אוטומטית בוואטסאפ. להפעיל את המתג, לאשר ולחזור.",
+            { triedAccess && Perms.accessibilityMissing(ctx) },
+        ) {
+            Actions.toast(ctx, "להפעיל את \"קיצורים: החור של המצלמה\" ולחזור")
+            openSafely(ctx, Perms.accessibilityIntent(ctx), Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        },
         PermStep(
             "listener", "גישה להתראות",
-            "בשביל מענה בנהיגה וסיכום הנסיעה. להפעיל את המתג ולחזור.",
+            "בשביל נורת ההתראות, מענה בנהיגה וסיכום הנסיעה. להפעיל את המתג ולחזור.",
             { Perms.listenerMissing(ctx) },
         ) {
             Actions.toast(ctx, "להפעיל את המתג ולחזור")
             openSafely(ctx, Perms.listenerIntent(ctx), Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-        },
-        PermStep(
-            "accessibility", "החור של המצלמה",
-            "הטבעת, הנגיעות בחור, ושליחה אוטומטית בוואטסאפ. להפעיל את המתג, לאשר ולחזור.",
-            { Perms.accessibilityMissing(ctx) },
-        ) {
-            Actions.toast(ctx, "להפעיל את \"קיצורים: החור של המצלמה\" ולחזור")
-            openSafely(ctx, Perms.accessibilityIntent(ctx), Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         },
     )
 
@@ -237,10 +252,10 @@ fun PermissionsScreen(resumes: Int, onDone: () -> Unit) {
     LaunchedEffect(resumes) { if (wizard) nextStep() }
 
     key(resumes, refresh) {
-        // "שחרור" לא נספר: הוא רק צעד הכנה
-        val real = steps.filter { it.id != "unlock" }
-        val missing = real.filter { it.missing() }
-        val doneCount = real.size - missing.size
+        // הספירה: 6 האישורים האמיתיים ("ניסיון" ו"שחרור" הם רק צעדי הכנה)
+        val total = 6
+        val missingCount = Perms.missingCount(ctx)
+        val doneCount = total - missingCount
         val visible = steps.filter { it.missing() }
 
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -254,15 +269,15 @@ fun PermissionsScreen(resumes: Int, onDone: () -> Unit) {
             ) {
                 Text("אישורים", style = MaterialTheme.typography.headlineMedium)
                 Text(
-                    "$doneCount מתוך ${real.size} מאושרים",
+                    "$doneCount מתוך $total מאושרים",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 LinearProgressIndicator(
-                    progress = { doneCount.toFloat() / real.size },
+                    progress = { doneCount.toFloat() / total },
                     modifier = Modifier.fillMaxWidth().height(8.dp),
                 )
 
-                if (missing.isEmpty()) {
+                if (missingCount == 0) {
                     Column(
                         Modifier.fillMaxWidth().padding(vertical = 30.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
