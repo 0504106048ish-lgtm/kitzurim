@@ -126,23 +126,29 @@ class ReplyListener : NotificationListenerService() {
             NotchPrefs.setMediaChannel(this, sbn.packageName, n.channelId)
         }
         if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) return
-        val color = lightColors[sbn.packageName]
+        val appColor = lightColors[sbn.packageName]
             ?: if (n.category == Notification.CATEGORY_MESSAGE && n.color != 0) n.color else return
-        NotchOverlay.notificationPosted(sbn.key, color)
+        val color = NotchPrefs.tint(this, "msg", appColor)
 
         // הגלולה החיה: מי שלח ומה כתב (לא מה ששלחת אתה)
         val style = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)
         val last = style?.messages?.lastOrNull()
-        if (style != null && last != null && last.person == null) return
+        // ענית בעצמך: סימן שקראת, העיגול נכבה
+        if (style != null && last != null && last.person == null) {
+            NotchOverlay.notificationRemoved(sbn.key)
+            return
+        }
         val sender = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return
         val text = last?.text?.toString() ?: n.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return
         if (text.isBlank()) return
-        // רק הודעה חדשה באמת: וואטסאפ מפרסם שוב את אותה התראה (למשל כשמחברים מטען)
+        // רק הודעה חדשה באמת: וואטסאפ מפרסם שוב את אותה התראה (למשל כשמחברים מטען),
+        // ואז העיגול לא נדלק שוב על הודעה שכבר ראית
         val sig = "$sender|$text"
         if (shown[sbn.key] == sig) return
         shown[sbn.key] = sig
         val sent = last?.timestamp?.takeIf { it > 0 } ?: n.`when`
         if (sent > 0 && System.currentTimeMillis() - sent > 60_000) return
+        NotchOverlay.notificationPosted(sbn.key, color, LastMsg(sender, text, color, n.contentIntent))
         LivePill.showMessage(sender, text, color, n.contentIntent)
     }
 

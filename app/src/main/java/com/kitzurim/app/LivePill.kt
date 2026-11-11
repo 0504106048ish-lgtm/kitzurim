@@ -59,9 +59,10 @@ object LivePill {
 
     // ---------- מה מציגים ----------
 
-    fun showMessage(sender: String, text: String, color: Int, open: PendingIntent?) {
+    fun showMessage(sender: String, text: String, color: Int, open: PendingIntent?, fromRing: Boolean = false) {
         val s = NotchOverlay.service ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s)) return
+        // הקשה על העיגול הדלוק: מראים גם אם הגלולה של הודעות כבויה
+        if (!fromRing && (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s))) return
         if (inCallPill()) return // שיחה חשובה יותר
         // הודעה ארוכה: נשארת קצת יותר זמן כדי שיספיקו לקרוא
         show(
@@ -77,7 +78,7 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return
         callKey = key
-        val blue = Color.rgb(79, 179, 255)
+        val blue = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(79, 179, 255))
         show("call", 320, blue, null, onTap = null) { ctx, left, right ->
             left.addView(button(ctx, "✕", Color.rgb(229, 72, 77)) {
                 runCatching { decline?.send() }
@@ -141,7 +142,7 @@ object LivePill {
         val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt().coerceAtLeast(0) else secondsFromAudio
         val t = clock(secs * 1000L)
         val name = callName ?: "שיחה"
-        val green = Color.rgb(42, 212, 154)
+        val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
         when {
             // מחייג: גדול עם השם, בלי שניות
             // מחייג: 2 שניות גדול עם השם, ואז קטן עם "…" (בלי שניות) עד שעונים
@@ -222,7 +223,7 @@ object LivePill {
         val hole = max(c.width(), c.height())
         val endH = (max(hole.toFloat(), 22 * d) + 18 * d)
         val endW = endH + 90 * d
-        val green = Color.rgb(42, 212, 154)
+        val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
 
         val root = FrameLayout(s)
         val bgDrawable = GradientDrawable().apply {
@@ -274,7 +275,7 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (!menuOpen) return
         val d = s.resources.displayMetrics.density
-        val green = Color.rgb(42, 212, 154)
+        val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
         val box = LinearLayout(s).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -415,7 +416,7 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (inCallPill()) return
         val d = s.resources.displayMetrics.density
-        val purple = Color.rgb(179, 136, 255)
+        val purple = NotchPrefs.tint(NotchOverlay.service, "music", Color.rgb(179, 136, 255))
         val grey = Color.rgb(160, 168, 184)
         player = c
         lastArt = null
@@ -582,7 +583,7 @@ object LivePill {
     private var navOpen: PendingIntent? = null
     private var navImg: android.graphics.drawable.Drawable? = null
     private var navTint = false
-    private val NAV_BLUE = Color.rgb(51, 204, 255)
+    private val NAV_BLUE get() = NotchPrefs.tint(NotchOverlay.service, "nav", Color.rgb(51, 204, 255))
 
     /** אין כרגע גלולה, או שמוצגת רק המוזיקה הקבועה (שמפנה מקום לכל דבר אחר) */
     private fun free() = kind == null || kind == "musicLive"
@@ -684,7 +685,7 @@ object LivePill {
             return
         }
         if (kind != null) return
-        val purple = Color.rgb(179, 136, 255)
+        val purple = NotchPrefs.tint(NotchOverlay.service, "music", Color.rgb(179, 136, 255))
         show("musicLive", 120, purple, null, onTap = {
             NotchOverlay.playingController(s)?.let { c -> main.postDelayed({ showPlayer(c) }, 280) }
             Unit
@@ -757,7 +758,7 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillEarbuds(s)) return
         if (inCallPill() || kind == "player") return
-        val c = Color.rgb(160, 168, 255)
+        val c = NotchPrefs.tint(NotchOverlay.service, "buds", Color.rgb(160, 168, 255))
         val text = if (battery != null) "$name · $battery%" else name
         if (kind == "buds") {
             body?.text = text
@@ -768,12 +769,45 @@ object LivePill {
         }
     }
 
+    /** צילום מסך נשמר: תמונה קטנה של הצילום ו"נשמר". הקשה פותחת את הצילום */
+    fun showScreenshot(thumb: Bitmap?, uri: android.net.Uri) {
+        val s = NotchOverlay.service ?: return
+        if (inCallPill() || kind == "player") return
+        val blue = NotchPrefs.tint(s, "shot", Color.rgb(79, 179, 255))
+        val d = s.resources.displayMetrics.density
+        val open = {
+            runCatching {
+                s.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_VIEW)
+                        .setDataAndType(uri, "image/*")
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                )
+            }
+            Unit
+        }
+        val line = android.text.SpannableStringBuilder().apply {
+            append("צילום מסך נשמר ✓")
+            setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        show("shot", 260, blue, 3500, onTap = open, long = line, longColor = Color.WHITE) { ctx, _, right ->
+            right.addView(ImageView(ctx).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                background = GradientDrawable().apply {
+                    cornerRadius = 4 * d
+                    setColor(blue)
+                }
+                clipToOutline = true
+                if (thumb != null) setImageBitmap(thumb)
+            }, LinearLayout.LayoutParams((14 * d).toInt(), (22 * d).toInt()))
+        }
+    }
+
     /** הורדה הסתיימה */
     fun showDownloaded(name: String, open: PendingIntent?) {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillDownloads(s)) return
         if (inCallPill() || kind == "player") return
-        val blue = Color.rgb(79, 179, 255)
+        val blue = NotchPrefs.tint(NotchOverlay.service, "download", Color.rgb(79, 179, 255))
         val line = android.text.SpannableStringBuilder().apply {
             append("הורד ✓")
             setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -800,7 +834,7 @@ object LivePill {
         songWindow?.let { w -> runCatching { wm.removeView(w) } }
         songWindow = null
 
-        val purple = Color.rgb(179, 136, 255)
+        val purple = NotchPrefs.tint(NotchOverlay.service, "music", Color.rgb(179, 136, 255))
         val grey = Color.rgb(160, 168, 184)
         val d = s.resources.displayMetrics.density
         val screenW = s.resources.displayMetrics.widthPixels
@@ -941,7 +975,7 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillCharging(s)) return
         if (inCallPill()) return
-        val green = Color.rgb(62, 209, 140)
+        val green = NotchPrefs.tint(NotchOverlay.service, "charge", Color.rgb(62, 209, 140))
         val text = minutesToFull?.let { "מלאה בעוד " + Battery.minutesText(it) } ?: "בטעינה"
         show("charge", 240, green, 3000, onTap = null, long = text) { ctx, left, right ->
             // מימין האחוזים, משמאל כמה זמן עד מלאה (ואם לא נכנס: בשורה מתחת)
@@ -1238,14 +1272,14 @@ object LivePill {
         val grey = Color.rgb(210, 216, 228)
         when (type) {
             "msg", "long" -> {
-                val green = Color.rgb(37, 211, 102)
+                val green = NotchPrefs.tint(NotchOverlay.service, "msg", Color.rgb(37, 211, 102))
                 val text = if (type == "msg") "מה קורה?" else "אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר?"
                 show("msg", 300, green, if (text.length > 40) 5500 else 3500, onTap = null, long = senderAndText("דני", text), longColor = grey) { ctx, _, right ->
                     right.addView(letter(ctx, "דני", green))
                 }
             }
             "charge" -> {
-                val green = Color.rgb(62, 209, 140)
+                val green = NotchPrefs.tint(NotchOverlay.service, "charge", Color.rgb(62, 209, 140))
                 val b = Battery.read(s, null)
                 val text = "מלאה בעוד שעה ו-10 דק׳"
                 show("charge", 240, green, 3000, onTap = null, long = text) { ctx, left, right ->
@@ -1254,7 +1288,7 @@ object LivePill {
                 }
             }
             "music" -> {
-                val purple = Color.rgb(179, 136, 255)
+                val purple = NotchPrefs.tint(NotchOverlay.service, "music", Color.rgb(179, 136, 255))
                 show("music", 240, purple, 3500, onTap = null, long = "שיר לדוגמא") { ctx, left, right ->
                     right.addView(label(ctx, "♪", 14f, purple, bold = true))
                     left.addView(label(ctx, "שיר לדוגמא", 13.5f, Color.WHITE))
@@ -1358,7 +1392,7 @@ class SwipeUpFrame(ctx: Context, private val onSwipeUp: () -> Unit) : FrameLayou
             MotionEvent.ACTION_MOVE -> {
                 val dy = e.rawY - downY
                 val dx = e.rawX - downX
-                if (-dy > slop && -dy > kotlin.math.abs(dx)) {
+                if (-dy > slop / 2f && -dy > kotlin.math.abs(dx)) {
                     dragging = true
                     return true
                 }
@@ -1369,18 +1403,23 @@ class SwipeUpFrame(ctx: Context, private val onSwipeUp: () -> Unit) : FrameLayou
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(e: MotionEvent): Boolean {
-        if (!dragging) return super.onTouchEvent(e)
-        val dy = (e.rawY - downY).coerceAtMost(0f)
         when (e.actionMasked) {
-            MotionEvent.ACTION_MOVE -> if (!done) lift(dy * 0.6f)
+            // נגיעה בחלק שאין בו כפתור: לוקחים אותה, כדי לקבל את ההחלקה
+            MotionEvent.ACTION_DOWN -> {
+                downX = e.rawX; downY = e.rawY; dragging = false; done = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = (e.rawY - downY).coerceAtMost(0f)
+                if (!dragging && -dy > slop / 2f && -dy > kotlin.math.abs(e.rawX - downX)) dragging = true
+                if (dragging && !done) lift(dy * 0.6f)
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                dragging = false
-                if (!done && (-dy > 28 * d || e.actionMasked == MotionEvent.ACTION_UP && -dy > 14 * d && e.eventTime - e.downTime < 250)) {
+                // כל החלקה למעלה סוגרת, גם קצרה מאוד
+                if (dragging && !done) {
                     done = true
                     onSwipeUp()
-                } else {
-                    for (i in 0 until childCount) getChildAt(i).animate().translationY(0f).setDuration(160).start()
                 }
+                dragging = false
             }
         }
         return true

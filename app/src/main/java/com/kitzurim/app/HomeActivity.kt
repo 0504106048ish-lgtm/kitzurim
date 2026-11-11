@@ -51,6 +51,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -112,6 +117,7 @@ fun HomeScreen(resumes: Int) {
         refresh++
     }
 
+    val shotPerm = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { refresh++ }
     val contactLauncher = rememberLauncherForActivityResult(PickPhone()) { uri ->
         val p = pendingContact
         pendingContact = null
@@ -293,6 +299,25 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
+                // ---------- צבעים ----------
+                Card {
+                    Text("🎨 צבעים", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "לכל סוג התראה אפשר לבחור צבע מכל הקשת, בעיגול ובגלולה. הקש על שורה כדי לבחור.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                    ColorLine("💬 הודעות", "msg", 0xFF25D366.toInt(), "לפי האפליקציה")
+                    ColorLine("📞 שיחות", "call", 0xFF2AD49A.toInt())
+                    ColorLine("🎵 מוזיקה", "music", 0xFFB388FF.toInt())
+                    ColorLine("🧭 ניווט", "nav", 0xFF33CCFF.toInt())
+                    ColorLine("⬇️ הורדות", "download", 0xFF4FB3FF.toInt())
+                    ColorLine("📸 צילום מסך", "shot", 0xFF4FB3FF.toInt())
+                    ColorLine("⚡ טעינה", "charge", 0xFF3ED18C.toInt())
+                    ColorLine("🎧 אוזניות", "buds", 0xFFA0A8FF.toInt())
+                    ColorLine("🔊 עוצמת קול", "volume", 0xFF4FB3FF.toInt())
+                }
+
                 // ---------- הגלולה החיה ----------
                 Card {
                     Text("✨ גלולה חיה", style = MaterialTheme.typography.titleMedium)
@@ -357,6 +382,11 @@ fun HomeScreen(resumes: Int) {
                             }
                             SwitchLine("⬇️ הורדות (הטבעת מתמלאת, ובסוף \"הורד ✓\")", NotchPrefs.pillDownloads(ctx)) {
                                 NotchPrefs.setPillDownloads(ctx, it); NotchOverlay.refresh(); refresh++
+                            }
+                            SwitchLine("📸 צילום מסך (תמונה קטנה ו\"נשמר\")", NotchPrefs.pillShots(ctx) && Screenshots.allowed(ctx)) {
+                                NotchPrefs.setPillShots(ctx, it)
+                                if (it && !Screenshots.allowed(ctx)) shotPerm.launch(Screenshots.permission)
+                                refresh++
                             }
                         }
                         if (!Driving.listenerAllowed(ctx)) {
@@ -881,5 +911,77 @@ private fun NeonButton(emoji: String, label: String, modifier: Modifier, onClick
     ) {
         Text(emoji)
         Text(label, color = Neon.GreenSoft, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
+    }
+}
+
+/** שורת צבע: הקשה פותחת פס של כל הקשת; נגיעה או גרירה עליו בוחרת צבע */
+@Composable
+private fun ColorLine(label: String, type: String, default: Int, defaultName: String = "רגיל") {
+    val ctx = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+    var chosen by remember { mutableIntStateOf(NotchPrefs.customColor(ctx, type) ?: 0) }
+    val shown = if (chosen != 0) chosen else default
+    fun save(c: Int) {
+        chosen = c
+        NotchPrefs.setCustomColor(ctx, type, c)
+        NotchOverlay.refresh()
+    }
+    fun preview() {
+        when (type) {
+            "msg" -> LivePill.demo("msg")
+            "music" -> LivePill.demo("music")
+            "charge" -> LivePill.demo("charge")
+        }
+    }
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { open = !open }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, Modifier.weight(1f))
+            Text(
+                if (chosen == 0) defaultName else "",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.size(8.dp))
+            Box(
+                Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(androidx.compose.ui.graphics.Color(shown))
+                    .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.4f), CircleShape),
+            )
+        }
+        if (open) {
+            val hues = (0..12).map { androidx.compose.ui.graphics.Color.hsv(it * 30f % 360f, 0.75f, 1f) }
+            fun pick(x: Float, w: Int) {
+                val f = (x / w.coerceAtLeast(1)).coerceIn(0f, 1f)
+                save(android.graphics.Color.HSVToColor(floatArrayOf(f * 360f % 360f, 0.75f, 1f)))
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(34.dp)
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(androidx.compose.ui.graphics.Brush.horizontalGradient(hues))
+                    .pointerInput(Unit) {
+                        detectTapGestures { pick(it.x, size.width); preview() }
+                    }
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures(onDragEnd = { preview() }) { ch, _ -> pick(ch.position.x, size.width) }
+                    },
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { save(android.graphics.Color.WHITE); preview() }) { Text("⚪ לבן") }
+                TextButton(onClick = { save(0); preview() }) { Text("↩️ $defaultName") }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { open = false }) { Text("סגור") }
+            }
+        }
     }
 }

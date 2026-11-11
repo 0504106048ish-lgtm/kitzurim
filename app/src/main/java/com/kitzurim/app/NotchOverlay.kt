@@ -82,6 +82,7 @@ object NotchOverlay {
     /** עברו לאפליקציה אחרת: אם היא ברשימת "כבוי ב...", מסתירים הכול (ומחזירים כשיוצאים ממנה) */
     fun setCurrentApp(pkg: String) {
         if (pkg == currentPackage) return
+        clearPulsesOf(pkg)
         val s = service
         val wasOff = s != null && NotchPrefs.isOffIn(s, currentPackage)
         currentPackage = pkg
@@ -183,6 +184,9 @@ object NotchOverlay {
             )
         }
 
+        // צילום מסך: גלולה עם תמונה קטנה
+        Screenshots.start(s)
+
         build()
         main.post(ticker)
     }
@@ -197,6 +201,7 @@ object NotchOverlay {
             volumeReceiver?.let { runCatching { s.unregisterReceiver(it) } }
             lockReceiver?.let { runCatching { s.unregisterReceiver(it) } }
             btReceiver?.let { runCatching { s.unregisterReceiver(it) } }
+            Screenshots.stop(s)
         }
         batteryReceiver = null
         volumeReceiver = null
@@ -228,16 +233,37 @@ object NotchOverlay {
     }
 
     // ---------- נורת התראות ----------
-    fun notificationPosted(key: String, color: Int) {
+    fun notificationPosted(key: String, color: Int, msg: LastMsg? = null) {
         pulses.remove(key)
         pulses[key] = color
+        if (msg != null) pulseMsgs[key] = msg
         pulseSeen.remove(key) // הודעה חדשה: הטיימר מתחיל מחדש
         updateRing()
+        refreshTapZone()
     }
 
     fun notificationRemoved(key: String) {
         pulseSeen.remove(key)
-        if (pulses.remove(key) != null) updateRing()
+        pulseMsgs.remove(key)
+        if (pulses.remove(key) != null) {
+            updateRing()
+            refreshTapZone()
+        }
+    }
+
+    /** ההודעות שבגללן העיגול דלוק (בשביל הקשה על העיגול) */
+    private val pulseMsgs = HashMap<String, LastMsg>()
+
+    /** ההודעה האחרונה שבגללה העיגול דלוק עכשיו */
+    fun litMessage(): LastMsg? = pulses.keys.reversed().firstNotNullOfOrNull { pulseMsgs[it] }
+
+    /** פתחו את האפליקציה של ההודעה: קראו, העיגול נכבה */
+    private fun clearPulsesOf(pkg: String) {
+        val gone = pulses.keys.filter { it.split("|").getOrNull(1) == pkg }
+        if (gone.isEmpty()) return
+        gone.forEach { pulses.remove(it); pulseSeen.remove(it); pulseMsgs.remove(it) }
+        updateRing()
+        refreshTapZone()
     }
 
     // ---------- הורדות: הטבעת מתמלאת לפי ההתקדמות ----------
@@ -326,6 +352,21 @@ object NotchOverlay {
     /** יש אזור נגיעה בשביל הנגן (שיר מתנגן עכשיו) */
     private var musicZone = false
 
+    /**
+     * כשאין תנועות אחרות: אזור הנגיעה קיים רק כשיש בשבילו משהו להקשה,
+     * שיר מתנגן (נגן) או עיגול דלוק בגלל הודעה. מחזיר true אם האזור השתנה.
+     */
+    private fun refreshTapZone(): Boolean {
+        val s = service ?: return false
+        if (NotchPrefs.anyGesture(s) || NotchPrefs.showZone(s)) return false
+        val music = NotchPrefs.musicTap(s) && (LivePill.isPlayerOpen() || playingController(s) != null)
+        val want = music || litMessage() != null
+        if (want == musicZone) return false
+        musicZone = want
+        refresh()
+        return true
+    }
+
     /** הנגן שמנגן עכשיו (צריך גישה להתראות) */
     internal fun playingController(s: Context): MediaController? = try {
         val msm = s.getSystemService(MediaSessionManager::class.java)
@@ -409,14 +450,11 @@ object NotchOverlay {
             }
 
             // נגן בהקשה: כשאין תנועות אחרות, אזור הנגיעה קיים רק בזמן שמתנגן שיר (או שהנגן פתוח)
-            if (NotchPrefs.musicTap(s) && !NotchPrefs.anyGesture(s) && !NotchPrefs.showZone(s)) {
-                val want = LivePill.isPlayerOpen() || playingController(s) != null
-                if (want != musicZone) {
-                    musicZone = want
-                    refresh()
-                    main.postDelayed(this, 1000)
-                    return
-                }
+            // וגם כשהעיגול דלוק בגלל הודעה (הקשה מראה אותה)
+            if (changed) updateRing()
+            if (refreshTapZone()) {
+                main.postDelayed(this, 1000)
+                return
             }
 
             if (changed) updateRing()
@@ -581,7 +619,7 @@ object NotchOverlay {
 
         // אין אף תנועה עם פעולה: לא שמים אזור נגיעה, כדי לא לחסום את שורת המצב
         // (חוץ מכשמתנגן שיר והנגן בהקשה דלוק: אז יש אזור נגיעה רק בזמן השיר)
-        if (!NotchPrefs.anyGesture(s) && !NotchPrefs.showZone(s) && !(NotchPrefs.musicTap(s) && musicZone)) return
+        if (!NotchPrefs.anyGesture(s) && !NotchPrefs.showZone(s) && !musicZone) return
 
         val z = View(s)
         // אזור הנגיעה מסומן רק כשהמתג "להראות את אזור הנגיעה" דלוק: עיגול דק בלי מילוי
@@ -613,6 +651,16 @@ object NotchOverlay {
         fun action(g: Gesture) = NotchPrefs.actionFor(s, g, currentPackage)
 
         fun fire(g: Gesture) {
+            // העיגול דלוק בגלל הודעה (ולא מראה עכשיו שיר): הקשה מראה שוב את ההודעה
+            if (g == Gesture.TAP && music == null && !LivePill.isPlayerOpen()) {
+                litMessage()?.let { m ->
+                    if (NotchPrefs.haptic(s)) {
+                        v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+                    }
+                    LivePill.showMessage(m.sender, m.text, m.color, m.open, fromRing = true)
+                    return
+                }
+            }
             // שיר מתנגן: הקשה על העיגול פותחת את הנגן (והקשה נוספת סוגרת)
             if (g == Gesture.TAP && NotchPrefs.musicTap(s)) {
                 // נגיעה על העיגול כשהנגן פתוח: הוא כבר נסגר מהנגיעה הזו, לא פותחים שוב
@@ -818,7 +866,7 @@ class RingView(
         // צלצול: הבהוב כחול חזק
         if (st.ringing) {
             val a = (0.5 + 0.5 * sin(phase * 4 * PI)).toFloat()
-            val col = Color.rgb(79, 179, 255)
+            val col = NotchPrefs.tint(context, "call", Color.rgb(79, 179, 255))
             glow.color = col
             glow.alpha = (80 + 150 * a).toInt()
             glow.strokeWidth = thick * (3f + 3f * a)
@@ -831,7 +879,7 @@ class RingView(
 
         // בשיחה: קו של השניות, ונקודה לכל דקה שעברה
         st.callSeconds?.let { secs ->
-            val col = Color.rgb(42, 212, 154)
+            val col = NotchPrefs.tint(context, "call", Color.rgb(42, 212, 154))
             c.drawCircle(cx, cy, radius, track)
             glowArc(c, rect, col, 360f * (secs % 60) / 60f)
             val minutes = min(secs / 60, 30)
@@ -848,7 +896,7 @@ class RingView(
         // עוצמת קול: כחול, לשנייה
         st.volume?.let { v ->
             c.drawCircle(cx, cy, radius, track)
-            glowArc(c, rect, Color.rgb(79, 179, 255), 360f * v, 95)
+            glowArc(c, rect, NotchPrefs.tint(context, "volume", Color.rgb(79, 179, 255)), 360f * v, 95)
             return
         }
 
@@ -856,13 +904,13 @@ class RingView(
         // הורדה: הטבעת מתמלאת בכחול לפי ההתקדמות
         st.download?.let { p ->
             c.drawCircle(cx, cy, radius, track)
-            glowArc(c, rect, Color.rgb(79, 179, 255), 360f * p.coerceIn(0.02f, 1f))
+            glowArc(c, rect, NotchPrefs.tint(context, "download", Color.rgb(79, 179, 255)), 360f * p.coerceIn(0.02f, 1f))
             return
         }
 
         st.music?.let { m ->
             c.drawCircle(cx, cy, radius, track)
-            glowArc(c, rect, Color.rgb(179, 136, 255), 360f * m)
+            glowArc(c, rect, NotchPrefs.tint(context, "music", Color.rgb(179, 136, 255)), 360f * m)
             return
         }
 
@@ -896,3 +944,6 @@ class RingView(
         }
     }
 }
+
+/** הודעה שבגללה העיגול דלוק: מי שלח, מה כתב, הצבע, ומה פותחים בהקשה */
+data class LastMsg(val sender: String, val text: String, val color: Int, val open: android.app.PendingIntent?)

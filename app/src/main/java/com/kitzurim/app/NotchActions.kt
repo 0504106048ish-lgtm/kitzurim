@@ -286,6 +286,13 @@ object NotchPrefs {
     fun pulseSeconds(c: Context) = sp(c).getInt("pulse_secs", 30)
     fun setPulseSeconds(c: Context, v: Int) = sp(c).edit().putInt("pulse_secs", v).apply()
 
+    // ---------- צבעים: לכל סוג התראה אפשר לבחור צבע מכל הקשת (0 = הצבע הרגיל) ----------
+    fun customColor(c: Context, type: String): Int? = sp(c).getInt("color_$type", 0).takeIf { it != 0 }
+    fun setCustomColor(c: Context, type: String, v: Int) = sp(c).edit().putInt("color_$type", v).apply()
+
+    /** הצבע של סוג מסוים: מה שבחרו, או הרגיל */
+    fun tint(c: Context?, type: String, default: Int): Int = c?.let { customColor(it, type) } ?: default
+
     /** להראות את הטבעת, הנגיעות והגלולה גם כשהמסך נעול (דלוק כברירת מחדל) */
     fun onLockScreen(c: Context) = sp(c).getBoolean("on_lock", true)
     fun setOnLockScreen(c: Context, v: Boolean) = sp(c).edit().putBoolean("on_lock", v).apply()
@@ -354,6 +361,8 @@ object NotchPrefs {
     fun setPillEarbuds(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_earbuds", v).apply()
     fun pillDownloads(c: Context) = sp(c).getBoolean("pill_downloads", true)
     fun setPillDownloads(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_downloads", v).apply()
+    fun pillShots(c: Context) = sp(c).getBoolean("pill_shots", true)
+    fun setPillShots(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_shots", v).apply()
     /** מוזיקה כל הזמן בעיגול (תמונת האלבום וגלי צליל) */
     fun pillMusicLive(c: Context) = sp(c).getBoolean("pill_music_live", true)
     fun setPillMusicLive(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_music_live", v).apply()
