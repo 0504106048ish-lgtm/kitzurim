@@ -18,7 +18,9 @@ import android.media.session.PlaybackState
 import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.view.animation.OvershootInterpolator
@@ -142,6 +144,10 @@ object LivePill {
     }
 
     fun isPlayerOpen() = kind == "player"
+
+    /** מתי הנגן נסגר בנגיעה מחוץ לו: אם הנגיעה הייתה על העיגול, לא פותחים אותו מיד שוב */
+    private var closedByOutside = 0L
+    fun closedJustNow() = SystemClock.elapsedRealtime() - closedByOutside < 500
 
     /** כל נגיעה בנגן מאריכה את הזמן שהוא פתוח */
     private fun keepOpen() {
@@ -316,7 +322,12 @@ object LivePill {
         // הנגן פתוח: הוא כבר מתעדכן לשיר החדש בעצמו
         if (kind == "call" || kind == "incall" || kind == "player") return
         val purple = Color.rgb(179, 136, 255)
-        show("music", 240, purple, 3500, onTap = null, long = title) { ctx, left, right ->
+        // הקשה על הודעת השיר פותחת את הנגן המלא
+        val openPlayer = {
+            NotchOverlay.playingController(s)?.let { c -> main.postDelayed({ showPlayer(c) }, 280) }
+            Unit
+        }
+        show("music", 240, purple, 3500, onTap = openPlayer, long = title) { ctx, left, right ->
             val disc = label(ctx, "♪", 13f, Color.WHITE, bold = true)
             disc.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -509,12 +520,19 @@ object LivePill {
             )
         }
 
-        runCatching {
-            wm.addView(
-                root,
-                NotchOverlay.params(winW, pillTop + targetH + (6 * d).toInt(), (cx - winW / 2f).toInt(), 0, touchable = newKind != "incall"),
-            )
-        }.onFailure { return }
+        // הנגן: נגיעה בכל מקום אחר במסך סוגרת אותו
+        val lp = NotchOverlay.params(winW, pillTop + targetH + (6 * d).toInt(), (cx - winW / 2f).toInt(), 0, touchable = newKind != "incall")
+        if (newKind == "player") {
+            lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+            root.setOnTouchListener { _, e ->
+                if (e.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                    closedByOutside = SystemClock.elapsedRealtime()
+                    hide()
+                }
+                false
+            }
+        }
+        runCatching { wm.addView(root, lp) }.onFailure { return }
         window = root
         pill = p
         bg = b

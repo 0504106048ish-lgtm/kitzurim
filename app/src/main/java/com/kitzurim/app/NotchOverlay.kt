@@ -489,6 +489,8 @@ object NotchOverlay {
         fun fire(g: Gesture) {
             // שיר מתנגן: הקשה על העיגול פותחת את הנגן (והקשה נוספת סוגרת)
             if (g == Gesture.TAP && NotchPrefs.musicTap(s)) {
+                // נגיעה על העיגול כשהנגן פתוח: הוא כבר נסגר מהנגיעה הזו, לא פותחים שוב
+                if (LivePill.closedJustNow()) return
                 if (LivePill.isPlayerOpen()) {
                     LivePill.hide()
                     return
