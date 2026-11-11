@@ -228,10 +228,12 @@ object CallNotif {
         )
         val st = Calls.state(c)
         val ringing = st == Call.STATE_RINGING
-        val name = Calls.name(ctx, c)
+        // סימן כיוון מימין לשמאל בהתחלה: מספר כמו *8787 לא בורח הצידה ולא נכנס מתחת לסמל
+        val name = "200F" + Calls.name(ctx, c)
         val b = NotificationCompat.Builder(ctx, if (ringing) CH_RING else CH_ON)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(name)
+            .setLargeIcon(avatar(ctx, Calls.name(ctx, c)))
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
             .setContentIntent(open)
@@ -247,7 +249,7 @@ object CallNotif {
                 b.setWhen(at).setShowWhen(true).setUsesChronometer(true)
                     .setContentText(if (st == Call.STATE_HOLDING) "בהמתנה" else "בשיחה")
             } else {
-                b.setContentText("מחייג…")
+                b.setContentText("200Fמחייג…")
             }
             b.addAction(0, if (Calls.muted) "בטל השתקה" else "השתק", pi(ctx, "mute", 4))
                 .addAction(0, "רמקול", pi(ctx, "speaker", 5))
@@ -256,6 +258,23 @@ object CallNotif {
         runCatching { nm.notify(ID, b.build()) }
     }
 
+
+    /** עיגול ירוק עם האות הראשונה (או סמל טלפון למספר), במקום התמונה בהתראה */
+    private fun avatar(ctx: Context, name: String): Bitmap {
+        val px = (64 * ctx.resources.displayMetrics.density).toInt()
+        val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+        val cv = android.graphics.Canvas(bmp)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.color = android.graphics.Color.rgb(42, 212, 154)
+        cv.drawCircle(px / 2f, px / 2f, px / 2f, p)
+        val first = name.trim().firstOrNull { it.isLetter() }?.toString() ?: "✆"
+        p.color = android.graphics.Color.rgb(4, 38, 26)
+        p.textSize = px * 0.45f
+        p.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        p.textAlign = android.graphics.Paint.Align.CENTER
+        cv.drawText(first, px / 2f, px / 2f - (p.descent() + p.ascent()) / 2f, p)
+        return bmp
+    }
     fun cancel(ctx: Context) {
         ctx.getSystemService(NotificationManager::class.java)?.cancel(ID)
     }
