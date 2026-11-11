@@ -769,51 +769,153 @@ object LivePill {
         }
     }
 
-    /** שיר חדש התחיל: גלולה עם תמונת השיר, השם והזמר. הקשה פותחת את הנגן המלא */
+    /**
+     * שיר חדש התחיל: שורה דקה אחת (תמונה קטנה, "שם השיר · הזמר") שיורדת מהעיגול שסביב המצלמה
+     * אל מתחת לשורת המצב, ואחרי 3 שניות חוזרת לתוך העיגול. הקשה פותחת את הנגן המלא.
+     */
+    private var songWindow: FrameLayout? = null
+
     fun showMusic(title: String) {
         val s = NotchOverlay.service ?: return
+        val wm = NotchOverlay.wm ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusic(s)) return
-        // הנגן פתוח: הוא כבר מתעדכן לשיר החדש בעצמו
-        if (inCallPill() || kind == "player") return
+        if (inCallPill() || kind == "player" || kind == "msg") return
+        if (NotchOverlay.offHere() || NotchOverlay.pillBlocked("music")) return
+        songWindow?.let { w -> runCatching { wm.removeView(w) } }
+        songWindow = null
+
         val purple = Color.rgb(179, 136, 255)
         val grey = Color.rgb(160, 168, 184)
         val d = s.resources.displayMetrics.density
-        val c = NotchOverlay.playingController(s)
-        val md = c?.metadata
+        val screenW = s.resources.displayMetrics.widthPixels
+        val c = NotchOverlay.cutout(s)
+        val cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
+        val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
+        val hole = max(c.width(), c.height()).toFloat().coerceAtLeast(18 * d)
+        val barId = s.resources.getIdentifier("status_bar_height", "dimen", "android")
+        val barH = if (barId != 0) s.resources.getDimensionPixelSize(barId) else (28 * d).toInt()
+        val pillH = 28 * d
+        val endTop = barH + 4 * d
+
+        val ctl = NotchOverlay.playingController(s)
+        val md = ctl?.metadata
         val art = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
         val who = md?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST) ?: ""
-        // הקשה על הודעת השיר פותחת את הנגן המלא
-        val openPlayer = {
-            c?.let { main.postDelayed({ showPlayer(it) }, 280) }
-            Unit
-        }
-        // תמונת השיר מימין, ולידה השם והזמר
-        val row = LinearLayout(s).apply {
+
+        // התוכן: תמונה עגולה קטנה, ובשורה אחת "שם השיר · הזמר"
+        val content = LinearLayout(s).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutDirection = View.LAYOUT_DIRECTION_RTL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding((2 * d).toInt(), (2 * d).toInt(), (2 * d).toInt(), (4 * d).toInt())
+            setPadding((5 * d).toInt(), 0, (10 * d).toInt(), 0)
+            alpha = 0f
         }
         val img = ImageView(s).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
-                cornerRadius = 9 * d
+                shape = GradientDrawable.OVAL
                 setColor(purple)
             }
             clipToOutline = true
             if (art != null) setImageBitmap(art)
         }
-        row.addView(img, LinearLayout.LayoutParams((44 * d).toInt(), (44 * d).toInt()).apply { marginEnd = (10 * d).toInt() })
-        val texts = LinearLayout(s).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(label(s, title, 14f, Color.WHITE, bold = true))
-        if (who.isNotBlank()) texts.addView(label(s, who, 12.5f, grey))
-        row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        row.setOnClickListener {
-            openPlayer()
-            hide()
+        content.addView(img, LinearLayout.LayoutParams((20 * d).toInt(), (20 * d).toInt()).apply { marginEnd = (7 * d).toInt() })
+        val line = android.text.SpannableStringBuilder().apply {
+            append(title.trim())
+            setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (who.isNotBlank()) {
+                val st = length
+                append("  ·  ").append(who.trim())
+                setSpan(android.text.style.ForegroundColorSpan(grey), st, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
         }
-        show("music", 240, purple, 3500, onTap = openPlayer, extra = row) { ctx, _, right ->
-            right.addView(label(ctx, "♪", 14f, purple, bold = true))
+        val tv = label(s, line, 12.5f, Color.WHITE)
+        content.addView(tv)
+
+        // רוחב לפי התוכן, ולא יותר מהרווח שבין השעה לסוללה
+        val maxW = (screenW - 2 * 58 * d).toInt()
+        val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        content.measure(free, free)
+        val endW = min(content.measuredWidth.toFloat() + 6 * d, maxW.toFloat())
+        if (content.measuredWidth > maxW) tv.maxWidth = (maxW - 40 * d).toInt()
+
+        val winW = max(endW, hole).toInt() + (8 * d).toInt()
+        val winX = (cx - winW / 2f).toInt()
+        val winH = (endTop + pillH + 6 * d).toInt()
+        val root = FrameLayout(s)
+        val box = FrameLayout(s).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = hole / 2f
+                setColor(Color.BLACK)
+                setStroke((1.5f * d).toInt(), purple)
+            }
+        }
+        box.addView(content, FrameLayout.LayoutParams(-1, -1))
+        root.addView(box, FrameLayout.LayoutParams(hole.toInt(), hole.toInt()))
+        val openPlayer = View.OnClickListener {
+            hideSong(wm, root, box, content, cx - winX, cy, hole)
+            ctl?.let { cc -> main.postDelayed({ showPlayer(cc) }, 300) }
+        }
+        box.setOnClickListener(openPlayer)
+        runCatching { wm.addView(root, NotchOverlay.params(winW, winH, winX, 0, touchable = true)) }.onFailure { return }
+        songWindow = root
+
+        // יורדת מהעיגול: מעיגול בגודל החור, למטה ולרוחב, עד שורה דקה מתחת לשורת המצב
+        fun place(f: Float) {
+            val w = hole + (endW - hole) * f
+            val h = hole + (pillH - hole) * f
+            val top = (cy - hole / 2f) + (endTop - (cy - hole / 2f)) * f
+            val lp = box.layoutParams as FrameLayout.LayoutParams
+            lp.width = w.toInt()
+            lp.height = h.toInt()
+            lp.leftMargin = ((cx - winX) - w / 2f).toInt()
+            lp.topMargin = top.toInt()
+            box.layoutParams = lp
+            (box.background as GradientDrawable).cornerRadius = h / 2f
+        }
+        place(0f)
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 460
+            interpolator = OvershootInterpolator(0.8f)
+            addUpdateListener { place(it.animatedValue as Float) }
+            start()
+        }
+        content.animate().alpha(1f).setStartDelay(300).setDuration(180).start()
+        main.postDelayed({ if (songWindow === root) hideSong(wm, root, box, content, cx - winX, cy, hole) }, 3300)
+    }
+
+    /** חוזרת לתוך העיגול ונעלמת */
+    private fun hideSong(wm: android.view.WindowManager, root: FrameLayout, box: FrameLayout, content: View, cxIn: Float, cy: Float, hole: Float) {
+        if (songWindow !== root) return
+        songWindow = null
+        val lp0 = box.layoutParams as FrameLayout.LayoutParams
+        val w0 = lp0.width.toFloat()
+        val h0 = lp0.height.toFloat()
+        val top0 = lp0.topMargin.toFloat()
+        content.animate().alpha(0f).setDuration(100).start()
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 300
+            interpolator = AccelerateInterpolator()
+            addUpdateListener {
+                val f = it.animatedValue as Float
+                val w = w0 + (hole - w0) * f
+                val h = h0 + (hole - h0) * f
+                val top = top0 + ((cy - hole / 2f) - top0) * f
+                val lp = box.layoutParams as FrameLayout.LayoutParams
+                lp.width = w.toInt()
+                lp.height = h.toInt()
+                lp.leftMargin = (cxIn - w / 2f).toInt()
+                lp.topMargin = top.toInt()
+                box.layoutParams = lp
+                (box.background as GradientDrawable).cornerRadius = h / 2f
+                box.alpha = if (f > 0.8f) (1f - f) * 5f else 1f
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    runCatching { wm.removeView(root) }
+                }
+            })
+            start()
         }
     }
 

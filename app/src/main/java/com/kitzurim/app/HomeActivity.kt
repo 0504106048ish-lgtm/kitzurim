@@ -422,11 +422,24 @@ fun HomeScreen(resumes: Int) {
                         refresh++
                     }
                     Text(
-                        "אנשי קשר והיסטוריה נשארים בטלפון של סמסונג. רק מסך השיחה (נכנסת, יוצאת ובזמן שיחה) הוא של קיצורים.",
+                        "סמסונג לא עובד כשהוא לא אפליקציית הטלפון, אז לקיצורים יש חייגן משלו: מקלדת, שיחות אחרונות, אנשי קשר ומועדפים.",
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 16.dp),
                     )
+                    if (Calls.isDefault(ctx)) {
+                        Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // קיצור "טלפון" ווידג'ט מועדפים במסך הבית
+                            SwitchLine("📱 קיצור \"טלפון\" ווידג'ט מועדפים במסך הבית", NotchPrefs.dialerHome(ctx)) { on ->
+                                NotchPrefs.setDialerHome(ctx, on)
+                                if (on) DialerHome.install(ctx.applicationContext) else DialerHome.remove(ctx.applicationContext)
+                                refresh++
+                            }
+                            TextButton(onClick = { ctx.startActivity(Intent(ctx, DialActivity::class.java)) }) {
+                                Text("לפתוח את החייגן ←")
+                            }
+                        }
+                    }
                     // נגן: הקשה על העיגול כשמתנגן שיר
                     SwitchLine("🎵 נגן בהקשה על העיגול כשמתנגן שיר", NotchPrefs.musicTap(ctx)) {
                         NotchPrefs.setMusicTap(ctx, it); NotchOverlay.refresh(); refresh++

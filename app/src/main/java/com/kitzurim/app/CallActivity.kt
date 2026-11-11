@@ -141,7 +141,11 @@ class CallActivity : ComponentActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (preview) {
-            if (Calls.isDefault(this)) Actions.toast(this, "📞 מעכשיו השיחות במסך הניאון של קיצורים")
+            if (Calls.isDefault(this)) {
+                Actions.toast(this, "📞 מעכשיו השיחות במסך הניאון של קיצורים")
+                // הקיצור "טלפון" והווידג'ט של המועדפים: הטלפון שואל אם להוסיף אותם למסך הבית
+                if (NotchPrefs.dialerHome(this)) DialerHome.install(applicationContext)
+            }
             finish()
         }
     }

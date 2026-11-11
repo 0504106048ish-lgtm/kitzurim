@@ -358,6 +358,10 @@ object NotchPrefs {
     fun pillMusicLive(c: Context) = sp(c).getBoolean("pill_music_live", true)
     fun setPillMusicLive(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_music_live", v).apply()
 
+    /** החייגן של קיצורים: קיצור "טלפון" ווידג'ט מועדפים במסך הבית */
+    fun dialerHome(c: Context) = sp(c).getBoolean("dialer_home", true)
+    fun setDialerHome(c: Context, v: Boolean) = sp(c).edit().putBoolean("dialer_home", v).apply()
+
     /** הנגן האחרון שראינו וערוץ ההתראה שלו (בשביל להסתיר את הסמל שלו משורת המצב) */
     fun mediaApp(c: Context) = sp(c).getString("media_pkg", null)
     fun mediaChannel(c: Context) = sp(c).getString("media_channel", null)
