@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תצוגה מקדימה לשיחה</title>
+<style>
+  :root { --bg:#0b0d12; --card:#151922; --text:#e9edf5; --muted:#8b94a7; --g:#2ad49a; --r:#ff4d5e; --soft:#a8b0c0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui, "Segoe UI", Arial, sans-serif; padding:16px; }
+  h1 { font-size:21px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 16px; font-size:14px; max-width:760px; line-height:1.55; }
+  .wrap { display:flex; flex-wrap:wrap; gap:18px; align-items:flex-start; }
+  .phone { position:relative; width:310px; height:660px; border-radius:38px; overflow:hidden; border:7px solid #000; box-shadow:0 0 0 1px #2a2f3a; flex:none; background:#000; }
+  .cam { position:absolute; top:12px; left:50%; width:12px; height:12px; margin-left:-6px; border-radius:50%; background:#000; z-index:90; }
+  .sb { position:absolute; top:9px; left:18px; right:18px; display:flex; justify-content:space-between; font-size:11px; font-weight:600; color:#fff; z-index:80; direction:ltr; }
+  .nav { position:absolute; bottom:0; left:0; right:0; height:40px; display:flex; justify-content:space-around; align-items:center; z-index:85; direction:ltr; }
+  .nav span { color:#cfd5df; font-size:17px; cursor:pointer; padding:6px 16px; }
+  .nav .home { width:20px; height:20px; border-radius:50%; border:2px solid #cfd5df; padding:0; }
+  .nav .home.hint { box-shadow:0 0 0 0 rgba(42,212,154,.8); animation:pl 1.4s infinite; border-color:var(--g); }
+  @keyframes pl { 70% { box-shadow:0 0 0 9px rgba(42,212,154,0) } 100% { box-shadow:0 0 0 0 rgba(42,212,154,0) } }
+  .screen { position:absolute; inset:0; transition:opacity .3s; }
+  .hidden { opacity:0; pointer-events:none; }
+
+  /* הגדרות */
+  .settings { background:#0b0e14; padding:46px 14px 50px; overflow:auto; }
+  .scard { background:#141924; border-radius:18px; padding:14px; }
+  .scard h3 { margin:0 0 6px; font-size:15px; }
+  .line { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:13px; padding:9px 0; }
+  .sw { width:42px; height:24px; border-radius:12px; background:#2a3142; position:relative; flex:none; cursor:pointer; transition:background .2s; }
+  .sw::after { content:''; position:absolute; top:3px; right:3px; width:18px; height:18px; border-radius:50%; background:#8b95a7; transition:all .2s; }
+  .sw.on { background:var(--g); } .sw.on::after { right:21px; background:#0b0e14; }
+  .sw.pulse { box-shadow:0 0 0 0 rgba(42,212,154,.7); animation:pl 1.4s infinite; }
+  .hintline { font-size:11.5px; color:var(--muted); margin:-4px 0 4px; line-height:1.45; }
+
+  /* מסך הבית */
+  .homeScr { background:linear-gradient(160deg,#2b3550,#141a28); }
+  .homeScr .apps { position:absolute; top:110px; left:22px; right:22px; display:grid; grid-template-columns:repeat(4,1fr); gap:22px; }
+  .homeScr .apps i { width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,.14); display:block; margin:auto; }
+
+  /* מסך השיחה: עמודה אחת מסודרת, כלום לא עולה על כלום */
+  .call { background:radial-gradient(130% 75% at 50% 30%, #14202a 0%, #07090d 62%); color:#fff; display:flex; flex-direction:column; align-items:center; padding:0 18px 52px; transform-origin:50% 0; }
+  .banner { margin-top:36px; width:100%; background:#1a2030; border:1px solid #2a3346; border-radius:18px; padding:9px 12px; text-align:center; flex:none; }
+  .banner b { font-size:13.5px; }
+  .banner div { font-size:11.5px; color:var(--soft); margin-top:2px; }
+  .banner .bt { display:flex; gap:8px; justify-content:center; margin-top:8px; }
+  .banner .bt span { padding:7px 15px; border-radius:13px; font-size:13px; cursor:pointer; }
+  .gap { flex:1; }
+  .top { color:var(--g); font-size:13px; margin-top:22px; }
+  .avwrap { position:relative; display:flex; align-items:center; justify-content:center; flex:none; }
+  .ring { position:absolute; inset:4px; border-radius:50%; border:2px solid var(--g); animation:breath 1.6s ease-in-out infinite alternate; }
+  .ring.b { animation-direction:alternate-reverse; }
+  @keyframes breath { from { transform:scale(1); opacity:.9 } to { transform:scale(1.14); opacity:.2 } }
+  .av { border-radius:50%; background:linear-gradient(135deg,#3a7bd5,#6a4cff); display:flex; align-items:center; justify-content:center; font-weight:700; }
+  .nm { text-align:center; flex:none; }
+  .nm b { display:block; font-size:26px; }
+  .nm span { font-size:12.5px; color:var(--soft); }
+  .nm i { display:block; font-style:normal; font-size:15px; margin-top:6px; font-variant-numeric:tabular-nums; color:var(--g); }
+  .slide { position:relative; width:100%; height:58px; border-radius:29px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.13); direction:ltr; touch-action:none; flex:none; }
+  .knob { position:absolute; top:3px; left:4px; width:50px; height:50px; border-radius:50%; background:var(--g); color:#000; display:flex; align-items:center; justify-content:center; font-size:21px; cursor:grab; user-select:none; }
+  .knob.nudge { animation:nudge 1.8s ease-in-out infinite; }
+  @keyframes nudge { 0%,60%,100% { transform:translateX(0) } 30% { transform:translateX(14px) } }
+  .slide .h { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12.5px; color:#b8c2d4; direction:rtl; pointer-events:none; }
+  .decline { margin-top:16px; padding:9px 24px; border-radius:22px; background:rgba(255,77,94,.15); border:1.5px solid var(--r); color:var(--r); font-weight:700; font-size:14px; cursor:pointer; flex:none; }
+  .ctl { width:100%; display:grid; grid-template-columns:repeat(3,1fr); row-gap:12px; justify-items:center; flex:none; }
+  .ctl .b { text-align:center; cursor:pointer; }
+  .ctl .b div { width:54px; height:54px; border-radius:50%; background:rgba(255,255,255,.09); display:flex; align-items:center; justify-content:center; font-size:19px; margin:auto; transition:background .2s; }
+  .ctl .b.on div { background:var(--g); color:#000; }
+  .ctl .b span { display:block; font-size:11px; color:var(--soft); margin-top:4px; }
+  .end { margin-top:16px; width:70px; height:56px; border-radius:28px; background:var(--r); display:flex; align-items:center; justify-content:center; font-size:22px; cursor:pointer; flex:none; }
+
+  /* המסך שמתכווץ לגלולה */
+  .shrink { position:absolute; z-index:70; background:radial-gradient(130% 75% at 50% 30%, #14202a 0%, #07090d 62%); border:1.5px solid transparent; pointer-events:none; }
+  .pill { position:absolute; top:3px; left:50%; transform:translateX(-50%); height:30px; width:112px; border-radius:15px; background:#000; border:1.5px solid var(--g); z-index:88; display:flex; align-items:center; justify-content:space-between; padding:0 10px; font-size:12px; font-weight:700; color:#fff; direction:ltr; cursor:pointer; }
+  .pill i { width:18px; height:18px; border-radius:50%; background:var(--g); color:#000; font-style:normal; display:flex; align-items:center; justify-content:center; font-size:10px; }
+
+  .dim { position:absolute; inset:0; background:rgba(0,0,0,.55); z-index:95; display:flex; align-items:flex-end; }
+  .dlg { background:#22252b; color:#eef0f4; margin:10px 10px 50px; border-radius:24px; padding:18px 16px 12px; width:100%; }
+  .dlg b { font-size:15px; display:block; text-align:center; }
+  .dlg p { font-size:12px; color:#b8bdc8; text-align:center; margin:8px 0 12px; }
+  .opt { display:flex; align-items:center; gap:10px; padding:10px; border-radius:14px; font-size:13.5px; }
+  .opt.sel { background:#2f3440; }
+  .opt i { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-style:normal; font-size:14px; }
+  .dlg .row { display:flex; justify-content:space-around; margin-top:10px; font-size:14px; }
+  .dlg .row span { padding:8px 14px; cursor:pointer; color:#8ab4ff; font-weight:600; }
+  .toast { position:absolute; bottom:70px; left:50%; transform:translateX(-50%); background:#2a2f3a; color:#fff; font-size:12px; padding:8px 14px; border-radius:16px; white-space:nowrap; z-index:96; }
+
+  .side { flex:1 1 280px; max-width:440px; background:var(--card); border-radius:18px; padding:14px 16px; }
+  .side ol { margin:0; padding-right:20px; line-height:1.85; font-size:14px; color:var(--muted); }
+  .side li.now { color:var(--text); font-weight:600; }
+  .restart { margin-top:10px; padding:9px 14px; border:0; border-radius:12px; background:#232a38; color:var(--text); font-size:14px; cursor:pointer; }
+</style>
+</head>
+<body>
+<h1>מסך השיחה: תצוגה מקדימה ויציאה לגלולה</h1>
+<p class="sub">אפשר ללחוץ על הכול בטלפון. בזמן שיחה, לחיצה על העיגול למטה (בית) מכווצת את כל המסך לגלולה סביב המצלמה. הקשה על הגלולה מחזירה למסך השיחה.</p>
+<div class="wrap">
+  <div class="phone" id="phone">
+    <div class="cam"></div>
+    <div class="sb" id="sb"><span>14:32</span><span>72%</span></div>
+
+    <div class="screen homeScr" id="sHome"><div class="apps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+
+    <div class="screen settings" id="sSettings">
+      <div class="scard">
+        <h3>התנהגות</h3>
+        <div class="line"><span>📳 רטט קטן בכל נגיעה בחור</span><div class="sw"></div></div>
+        <div class="line"><span>🔒 לעבוד גם במסך הנעילה</span><div class="sw on"></div></div>
+        <div class="line"><span>📞 מסך שיחה בניאון (קיצורים כאפליקציית הטלפון)</span><div class="sw pulse" id="mainSw" onclick="openPreview()"></div></div>
+        <div class="hintline">אנשי קשר והיסטוריה נשארים בטלפון של סמסונג. רק מסך השיחה הוא של קיצורים.</div>
+        <div class="line"><span>🎵 נגן בהקשה על העיגול כשמתנגן שיר</span><div class="sw on"></div></div>
+      </div>
+    </div>
+
+    <div class="screen call hidden" id="sCall">
+      <div class="banner" id="banner">
+        <b>👀 תצוגה מקדימה</b>
+        <div id="bannerText">ככה תיראה שיחה נכנסת. נסה להחליק ימינה</div>
+        <div class="bt"><span style="background:var(--g);color:#000;font-weight:700" onclick="enable()">להפעיל</span><span style="background:rgba(255,255,255,.08)" onclick="closePreview()">לא עכשיו</span></div>
+      </div>
+      <!-- שיחה נכנסת -->
+      <div id="ringing" style="display:contents">
+        <div class="top">שיחה נכנסת</div>
+        <div style="height:16px;flex:none"></div>
+        <div class="avwrap" style="width:140px;height:140px"><div class="ring"></div><div class="ring b"></div><div class="av" style="width:104px;height:104px;font-size:40px">א</div></div>
+        <div style="height:14px;flex:none"></div>
+        <div class="nm"><b>אמא</b><span>050-1234567</span></div>
+        <div class="gap"></div>
+        <div class="slide" id="track"><div class="h" id="hint">החלק ימינה כדי לענות</div><div class="knob nudge" id="knob">✆&#xFE0E;</div></div>
+        <div class="decline" onclick="resetCall()">✕ דחה</div>
+      </div>
+      <!-- בזמן שיחה -->
+      <div id="active" style="display:none">
+        <div style="height:26px;flex:none"></div>
+        <div class="avwrap" style="width:88px;height:88px"><div class="av" style="width:84px;height:84px;font-size:32px">א</div></div>
+        <div style="height:12px;flex:none"></div>
+        <div class="nm"><b>אמא</b><span>050-1234567</span><i id="timer">0:00</i></div>
+        <div class="gap"></div>
+        <div class="ctl">
+          <div class="b" id="bMute" onclick="tog(this,'השתק','בטל השתקה')"><div>🎙&#xFE0E;</div><span>השתק</span></div>
+          <div class="b"><div>⌨&#xFE0E;</div><span>מקלדת</span></div>
+          <div class="b" id="bSpk" onclick="tog(this)"><div>🔊&#xFE0E;</div><span>רמקול</span></div>
+          <div class="b" id="bHold" style="grid-column:2" onclick="hold(this)"><div>⏸&#xFE0E;</div><span>המתנה</span></div>
+        </div>
+        <div class="end" onclick="resetCall()">✆&#xFE0E;</div>
+      </div>
+    </div>
+
+    <div class="pill" id="pill" style="display:none" onclick="expand()"><span id="pillT">0:00</span><i>✆&#xFE0E;</i></div>
+    <div class="nav"><span>▢</span><span class="home" id="homeBtn" onclick="goHome()"></span><span>◁</span></div>
+    <div id="dlg"></div>
+  </div>
+
+  <div class="side">
+    <ol>
+      <li id="st1" class="now">מדליקים בהגדרות את המתג "📞 מסך שיחה בניאון".</li>
+      <li id="st2">נפתחת שיחה לדוגמא. שום דבר עוד לא משתנה בטלפון.</li>
+      <li id="st3">מחליקים ימינה: מסך "בזמן שיחה" עם השניות והכפתורים.</li>
+      <li id="st4">לוחצים על העיגול למטה (בית): כל המסך מתכווץ לגלולה סביב המצלמה.</li>
+      <li id="st5">הקשה על הגלולה: מסך השיחה חוזר וגדל בחזרה.</li>
+      <li id="st6">"להפעיל": הטלפון שואל, בוחרים קיצורים, וזהו.</li>
+    </ol>
+    <button class="restart" onclick="location.reload()">להתחיל מחדש</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let timer = null, start = 0, inCall = false;
+function step(n) { for (let i = 1; i <= 6; i++) $('st' + i).classList.toggle('now', i === n); }
+function openPreview() {
+  $('mainSw').classList.add('on'); $('mainSw').classList.remove('pulse');
+  setTimeout(() => { $('sSettings').classList.add('hidden'); $('sCall').classList.remove('hidden'); step(2); }, 300);
+}
+function closePreview() {
+  $('sCall').classList.add('hidden'); $('sSettings').classList.remove('hidden');
+  $('mainSw').classList.remove('on'); $('mainSw').classList.add('pulse'); resetCall(); step(1);
+}
+function fmt(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function answer() {
+  inCall = true;
+  $('ringing').style.display = 'none'; $('active').style.display = 'contents';
+  $('bannerText').textContent = 'ככה נראית שיחה. נסה ללחוץ על העיגול למטה (בית)';
+  $('homeBtn').classList.add('hint');
+  start = Date.now(); clearInterval(timer);
+  timer = setInterval(() => {
+    if ($('bHold').classList.contains('on')) return;
+    const t = fmt(Math.floor((Date.now() - start) / 1000));
+    $('timer').textContent = t; $('pillT').textContent = t;
+  }, 500);
+  step(3);
+}
+function resetCall() {
+  inCall = false; clearInterval(timer);
+  $('active').style.display = 'none'; $('ringing').style.display = 'contents';
+  $('knob').style.left = '4px'; $('knob').classList.add('nudge'); $('hint').style.opacity = 1;
+  $('bannerText').textContent = 'ככה תיראה שיחה נכנסת. נסה להחליק ימינה';
+  document.querySelectorAll('.ctl .b').forEach(b => b.classList.remove('on'));
+  $('bMute').querySelector('span').textContent = 'השתק'; $('bHold').querySelector('span').textContent = 'המתנה';
+  $('timer').style.color = 'var(--g)'; $('homeBtn').classList.remove('hint'); $('pill').style.display = 'none';
+}
+function tog(el, off, on) { el.classList.toggle('on'); if (off) el.querySelector('span').textContent = el.classList.contains('on') ? on : off; }
+function hold(el) { tog(el, 'המתנה', 'המשך'); const h = el.classList.contains('on'); $('timer').textContent = h ? 'בהמתנה' : $('timer').textContent; $('timer').style.color = h ? 'var(--soft)' : 'var(--g)'; }
+
+// בית בזמן שיחה: כל המסך מתכווץ לגלולה סביב המצלמה
+function goHome() {
+  if (!inCall || $('sCall').classList.contains('hidden')) return;
+  $('homeBtn').classList.remove('hint');
+  const ph = $('phone'), W = ph.clientWidth, H = ph.clientHeight;
+  const sh = document.createElement('div'); sh.className = 'shrink';
+  ph.appendChild(sh);
+  $('sCall').classList.add('hidden'); $('sSettings').classList.add('hidden');
+  sh.animate([
+    { left: '0px', top: '0px', width: W + 'px', height: H + 'px', borderRadius: '32px', borderColor: 'transparent' },
+    { left: (W / 2 - 56) + 'px', top: '3px', width: '112px', height: '30px', borderRadius: '15px', borderColor: '#2ad49a', background: '#000' }
+  ], { duration: 460, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'forwards' }).finished.then(() => {
+    $('pill').style.display = 'flex';
+    setTimeout(() => sh.remove(), 80);
+  });
+  step(4);
+}
+// הקשה על הגלולה: המסך גדל חזרה
+function expand() {
+  const ph = $('phone'), W = ph.clientWidth, H = ph.clientHeight;
+  $('pill').style.display = 'none';
+  const sh = document.createElement('div'); sh.className = 'shrink'; ph.appendChild(sh);
+  sh.animate([
+    { left: (W / 2 - 56) + 'px', top: '3px', width: '112px', height: '30px', borderRadius: '15px', borderColor: '#2ad49a', background: '#000' },
+    { left: '0px', top: '0px', width: W + 'px', height: H + 'px', borderRadius: '32px', borderColor: 'transparent' }
+  ], { duration: 420, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'forwards' }).finished.then(() => {
+    $('sCall').classList.remove('hidden');
+    setTimeout(() => sh.remove(), 200);
+  });
+  step(5);
+}
+function enable() {
+  step(6);
+  $('dlg').innerHTML = '<div class="dim"><div class="dlg"><b>להגדיר את קיצורים כאפליקציית הטלפון?</b><p>האפליקציה תוכל לבצע ולנהל שיחות</p>' +
+    '<div class="opt sel"><i style="background:#2ad49a;color:#000">✆&#xFE0E;</i>קיצורים</div>' +
+    '<div class="opt"><i style="background:#2fa84f;color:#fff">✆&#xFE0E;</i>טלפון</div>' +
+    '<div class="row"><span onclick="$(\'dlg\').innerHTML=\'\'">ביטול</span><span onclick="done()">הגדר כברירת מחדל</span></div></div></div>';
+}
+function done() {
+  $('dlg').innerHTML = '<div class="toast">📞 מעכשיו השיחות במסך הניאון של קיצורים</div>';
+  setTimeout(() => { $('sCall').classList.add('hidden'); $('sSettings').classList.remove('hidden'); resetCall(); }, 600);
+  setTimeout(() => { $('dlg').innerHTML = ''; }, 2600);
+}
+(function () {
+  const k = $('knob'), t = $('track'); let down = false, sx = 0, x = 0;
+  const max = () => t.clientWidth - k.offsetWidth - 8;
+  k.addEventListener('pointerdown', e => { down = true; sx = e.clientX - x; k.classList.remove('nudge'); k.setPointerCapture(e.pointerId); });
+  k.addEventListener('pointermove', e => { if (!down) return; x = Math.max(0, Math.min(max(), e.clientX - sx)); k.style.left = (4 + x) + 'px'; $('hint').style.opacity = 1 - x / max(); });
+  k.addEventListener('pointerup', () => { down = false; if (x > max() * 0.7) { x = 0; answer(); } else { x = 0; k.style.left = '4px'; $('hint').style.opacity = 1; k.classList.add('nudge'); } });
+})();
+</script>
+</body>
+</html>

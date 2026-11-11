@@ -116,6 +116,24 @@ class CallActivity : ComponentActivity() {
                 CallScreenUi(c, v)
             }
         }
+        // "חזור" בזמן שיחה: לא סוגרים את השיחה, רק יוצאים, וכל המסך מתכווץ לגלולה ליד המצלמה
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (Calls.main() != null) {
+                    moveTaskToBack(true)
+                    if (Calls.state(Calls.main()!!) != Call.STATE_RINGING) LivePill.shrinkFromScreen()
+                } else {
+                    finish()
+                }
+            }
+        })
+    }
+
+    /** לחצת על הבית (העיגול למטה) בזמן שיחה: המסך מתכווץ לגלולה ליד המצלמה */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val c = Calls.main()
+        if (!preview && c != null && Calls.state(c) != Call.STATE_RINGING) LivePill.shrinkFromScreen()
     }
 
     /** חזרנו מהשאלה של הטלפון "להפוך לאפליקציית הטלפון?": סוגרים את התצוגה המקדימה */
@@ -321,7 +339,7 @@ private fun PreviewScreen(onEnable: () -> Unit, onClose: () -> Unit) {
         dtmf = {},
     )
     Box(Modifier.fillMaxSize()) {
-        CallFace(view, act)
+        CallFace(view, act, top = 180.dp)
         // למעלה: הסבר וכפתורים
         Column(
             Modifier
@@ -363,7 +381,7 @@ private fun PreviewScreen(onEnable: () -> Unit, onClose: () -> Unit) {
 
 /** המסך עצמה: אותו עיצוב לשיחה אמיתית ולתצוגה המקדימה */
 @Composable
-private fun CallFace(v: CallView, act: CallAct) {
+private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp = 70.dp) {
     var keypad by remember { mutableStateOf(false) }
     NeonBg {
         Column(
@@ -372,7 +390,8 @@ private fun CallFace(v: CallView, act: CallAct) {
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(if (v.ringing) 150.dp else 140.dp))
+            // מקום למעלה (בתצוגה המקדימה יותר, כי שם יש מסגרת הסבר)
+            Spacer(Modifier.height(if (v.ringing) top + 20.dp else top))
             if (v.ringing) Text(v.topText, color = Green, fontSize = 15.sp)
             Spacer(Modifier.height(if (v.ringing) 30.dp else 0.dp))
             Avatar(v.name, v.photo, if (v.ringing) 118 else 92, breathing = v.ringing)

@@ -65,7 +65,7 @@ class ReplyListener : NotificationListenerService() {
         // שיחה נכנסת (רגילה או וואטסאפ): הגלולה עם "ענה" ו"דחה", דרך הכפתורים שכבר בהתראה
         if (n.category == Notification.CATEGORY_CALL && n.fullScreenIntent != null) {
             // שיחה של קיצורים עצמה (כשהיא אפליקציית הטלפון): מסך השיחה בניאון כבר פתוח
-            if (sbn.packageName == packageName) return
+            if (sbn.packageName == packageName && CallActivity.visible) return
             val name = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "שיחה"
             val actions = n.actions?.toList() ?: emptyList()
             fun find(words: List<String>) = actions.firstOrNull { a ->

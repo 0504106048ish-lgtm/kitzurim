@@ -174,8 +174,85 @@ object LivePill {
 
     /** תפריט השיחה: שם, זמן, וכפתורים מההתראה של השיחה (השתקה, ניתוק, רמקול) */
     private fun openCallMenu() {
+        // קיצורים היא אפליקציית הטלפון: הקשה על הגלולה מחזירה למסך השיחה המלא
+        val s = NotchOverlay.service
+        if (s != null && Calls.main() != null) {
+            runCatching {
+                s.startActivity(
+                    android.content.Intent(s, CallActivity::class.java)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                )
+            }
+            return
+        }
         menuOpen = true
         main.postDelayed({ showCallMenu() }, 280)
+    }
+
+    /**
+     * יוצאים ממסך השיחה (בית או חזור): כל המסך מתכווץ לגלולה הקטנה סביב המצלמה,
+     * ואז הגלולה של השיחה נשארת שם.
+     */
+    fun shrinkFromScreen() {
+        val s = NotchOverlay.service ?: return
+        val wm = NotchOverlay.wm ?: return
+        if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return
+        val d = s.resources.displayMetrics.density
+        val dm = s.resources.displayMetrics
+        val screenW = dm.widthPixels
+        val screenH = dm.heightPixels + (80 * d).toInt()
+        val c = NotchOverlay.cutout(s)
+        val cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
+        val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
+        val hole = max(c.width(), c.height())
+        val endH = (max(hole.toFloat(), 22 * d) + 18 * d)
+        val endW = endH + 90 * d
+        val green = Color.rgb(42, 212, 154)
+
+        val root = FrameLayout(s)
+        val bgDrawable = GradientDrawable().apply {
+            cornerRadius = 40 * d
+            colors = intArrayOf(Color.rgb(20, 32, 42), Color.rgb(7, 9, 13))
+            gradientType = GradientDrawable.RADIAL_GRADIENT
+            gradientRadius = screenH * 0.6f
+            setStroke((1.5f * d).toInt(), Color.TRANSPARENT)
+        }
+        val box = View(s).apply { background = bgDrawable }
+        root.addView(box, FrameLayout.LayoutParams(screenW, screenH))
+        val lp = NotchOverlay.params(screenW, screenH, 0, 0, touchable = false)
+        runCatching { wm.addView(root, lp) }.onFailure { return }
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 420
+            interpolator = android.view.animation.DecelerateInterpolator(1.6f)
+            addUpdateListener {
+                val f = it.animatedValue as Float
+                val w = screenW + (endW - screenW) * f
+                val h = screenH + (endH - screenH) * f
+                val left = (screenW / 2f) + (cx - screenW / 2f) * f - w / 2f
+                val top = (screenH / 2f) + (cy - screenH / 2f) * f - h / 2f
+                val p = box.layoutParams as FrameLayout.LayoutParams
+                p.width = w.toInt()
+                p.height = h.toInt()
+                p.leftMargin = left.toInt()
+                p.topMargin = top.toInt()
+                box.layoutParams = p
+                bgDrawable.cornerRadius = 40 * d + (endH / 2f - 40 * d) * f
+                // בסוף: הופך לשחור עם המסגרת הירוקה של הגלולה
+                if (f > 0.7f) {
+                    bgDrawable.colors = intArrayOf(Color.BLACK, Color.BLACK)
+                    bgDrawable.setStroke((1.5f * d).toInt(), green)
+                }
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // הגלולה של השיחה נכנסת למקום, ורק אז המסגרת שהתכווצה נעלמת
+                    inCall(99)
+                    main.postDelayed({ runCatching { wm.removeView(root) } }, 120)
+                }
+            })
+            start()
+        }
     }
 
     private fun showCallMenu() {
