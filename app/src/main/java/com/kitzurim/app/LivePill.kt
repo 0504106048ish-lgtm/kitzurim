@@ -32,6 +32,7 @@ object LivePill {
     private var window: FrameLayout? = null
     private var pill: LinearLayout? = null
     private var bg: View? = null
+    private var strip: View? = null
     private var kind: String? = null
     private var timerText: TextView? = null
     private var collapsedW = 0
@@ -171,7 +172,8 @@ object LivePill {
         val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
         val hole = max(c.width(), c.height())
         val h = (max(hole.toFloat(), 22 * d) + 18 * d).toInt()
-        val maxW = min(widthDp * d, screenW - 16 * d).toInt()
+        // בצדדים נשאר מקום לשעה ולסוללה, שזזות לקצוות בזמן שהגלולה פתוחה
+        val maxW = min(widthDp * d, screenW - 2 * 58 * d).toInt()
         val gapW = hole + (14 * d).toInt()
         val padW = (12 * d).toInt()
         collapsedW = h
@@ -225,12 +227,36 @@ object LivePill {
         p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
         p.addView(right, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
 
-        // החלון רחב קצת יותר מהגלולה, כדי שיהיה מקום לקפיצה של המתיחה
-        val winW = min((targetW * 1.15f).toInt(), screenW)
-        val winH = h + (8 * d).toInt()
-        // לא לחרוג מלמעלה מהמסך: אם החור קרוב לקצה, הגלולה יורדת קצת
-        val winY = max(0, (cy - winH / 2f).toInt())
-        val pillTop = max(0, (cy - h / 2f).toInt() - winY)
+        // החלון ברוחב כל המסך, בשורה העליונה. לא לחרוג מלמעלה: אם החור קרוב לקצה, הגלולה יורדת קצת
+        val pillTop = max(0, (cy - h / 2f).toInt())
+        val barId = s.resources.getIdentifier("status_bar_height", "dimen", "android")
+        val barH = if (barId != 0) s.resources.getDimensionPixelSize(barId) else 0
+        val stripH = if (barH > 0) barH else pillTop + h
+        val winH = max(stripH, pillTop + h)
+
+        // פס שחור מעל שורת המצב, עם השעה והסוללה דחופות לקצוות (אנדרואיד לא נותן להזיז את המקוריות)
+        val strip = FrameLayout(s).apply {
+            setBackgroundColor(Color.BLACK)
+            alpha = 0f
+            setOnClickListener { hide() }
+        }
+        val edge = (8 * d).toInt()
+        strip.addView(
+            label(s, android.text.format.DateFormat.getTimeFormat(s).format(java.util.Date()), 12f, Color.WHITE, bold = true),
+            FrameLayout.LayoutParams(-2, -2, Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin = edge },
+        )
+        val bat = Battery.read(s, null)
+        strip.addView(
+            label(s, (if (bat.charging) "⚡" else "") + "${bat.percent}%", 12f, Color.WHITE, bold = true),
+            FrameLayout.LayoutParams(-2, -2, Gravity.RIGHT or Gravity.CENTER_VERTICAL).apply { rightMargin = edge },
+        )
+        // בזמן שיחה הגלולה קטנה ולא מגיעה לשעה, ולא מכסים את שורת המצב לאורך כל השיחה
+        if (newKind != "incall") root.addView(strip, FrameLayout.LayoutParams(-1, stripH, Gravity.TOP))
+
+        // הגלולה ממורכזת על החור (גם אם הזזת את המיקום בהגדרות)
+        val shift = cx - screenW / 2f
+        b.translationX = shift
+        p.translationX = shift
         root.addView(
             b,
             FrameLayout.LayoutParams(collapsedW, h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
@@ -241,12 +267,11 @@ object LivePill {
         )
 
         runCatching {
-            wm.addView(
-                root,
-                NotchOverlay.params(winW, max(winH, pillTop + h), (cx - winW / 2f).toInt(), winY, touchable = true),
-            )
+            wm.addView(root, NotchOverlay.params(screenW, winH, 0, 0, touchable = newKind != "incall"))
         }.onFailure { return }
+        strip.animate().alpha(1f).setDuration(160).start()
         window = root
+        this.strip = strip
         pill = p
         bg = b
         kind = newKind
@@ -275,6 +300,7 @@ object LivePill {
         val b = bg ?: return removeNow()
         kind = null
         p.animate().alpha(0f).setDuration(120).start()
+        strip?.animate()?.alpha(0f)?.setStartDelay(100)?.setDuration(160)?.start()
         ValueAnimator.ofInt(b.width.coerceAtLeast(collapsedW), collapsedW).apply {
             duration = 240
             interpolator = AccelerateInterpolator()
@@ -293,6 +319,7 @@ object LivePill {
         window = null
         pill = null
         bg = null
+        strip = null
         kind = null
     }
 
