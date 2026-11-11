@@ -88,6 +88,15 @@
             android:name=".PermissionsActivity"
             android:exported="false" />
 
+        <!-- השב מהגלולה: שורת כתיבה מעל המקלדת -->
+        <activity
+            android:name=".QuickReplyActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Kitzurim.Translucent"
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+
         <activity
             android:name=".DriveSummaryActivity"
             android:exported="false" />

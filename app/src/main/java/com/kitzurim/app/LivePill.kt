@@ -59,19 +59,70 @@ object LivePill {
 
     // ---------- מה מציגים ----------
 
-    fun showMessage(sender: String, text: String, color: Int, open: PendingIntent?, fromRing: Boolean = false) {
+    fun showMessage(sender: String, text: String, color: Int, open: PendingIntent?, fromRing: Boolean = false, msg: LastMsg? = null) {
         val s = NotchOverlay.service ?: return
         // הקשה על העיגול הדלוק: מראים גם אם הגלולה של הודעות כבויה
         if (!fromRing && (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s))) return
         if (inCallPill()) return // שיחה חשובה יותר
-        // הודעה ארוכה: נשארת קצת יותר זמן כדי שיספיקו לקרוא
-        show(
-            "msg", 300, color, if (text.length > 40) 5500 else 3500,
-            onTap = { launch(open) }, long = senderAndText(sender, text), longColor = Color.rgb(210, 216, 228),
-        ) { ctx, _, right ->
-            // ליד המצלמה רק העיגול עם האות; השם וההודעה בשורה מתחת, כך שהגודל לפי כמות הטקסט
-            right.addView(letter(ctx, sender, color))
+        // שורה אחת דקה: מימין מי שלח ומה כתב, משמאל השב, נקרא ופתח.
+        // הודעה ארוכה נשארת קצת יותר זמן כדי שיספיקו לקרוא
+        val dark = Color.rgb(42, 47, 58)
+        show("msg", 300, color, if (text.length > 40) 6500 else 5000, onTap = { launch(open) }) { ctx, left, right ->
+            msg?.reply?.let { a ->
+                left.addView(thinBtn(ctx, "↩︎", dark) {
+                    QuickReplyActivity.open(ctx, sender, a)
+                    hide()
+                })
+            }
+            msg?.read?.let { a ->
+                left.addView(thinBtn(ctx, "✓", dark) {
+                    runCatching { a.actionIntent.send() }
+                    msg.key?.let { NotchOverlay.notificationRemoved(it) }
+                    hide()
+                })
+            }
+            left.addView(thinBtn(ctx, "↗︎", dark) {
+                launch(open)
+                hide()
+            })
+            right.addView(twoLines(ctx, sender, text, Color.rgb(210, 216, 228)))
+            right.addView(letter(ctx, sender, color).apply {
+                (layoutParams as LinearLayout.LayoutParams).marginStart = (5 * ctx.resources.displayMetrics.density).toInt()
+            })
         }
+    }
+
+    /** כפתור עגול קטן לשורה הדקה */
+    private fun thinBtn(ctx: Context, symbol: String, bg: Int, wide: Boolean = false, onClick: () -> Unit): TextView {
+        val d = ctx.resources.displayMetrics.density
+        return TextView(ctx).apply {
+            text = symbol
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            background = GradientDrawable().apply {
+                cornerRadius = 15 * d
+                setColor(bg)
+            }
+            layoutParams = LinearLayout.LayoutParams(((if (wide) 38 else 30) * d).toInt(), (30 * d).toInt()).apply {
+                marginStart = (3 * d).toInt()
+                marginEnd = (3 * d).toInt()
+            }
+            setOnClickListener { onClick() }
+        }
+    }
+
+    /** שם מודגש, ומתחתיו שורה קטנה (סטטוס או ההודעה) */
+    private fun twoLines(ctx: Context, top: String, bottom: String, bottomColor: Int) = LinearLayout(ctx).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
+        // שמשאיר מקום לעיגול עם האות שלידו (חצי מהרוחב שבין השעה לסוללה, פחות העיגול)
+        val d = ctx.resources.displayMetrics.density
+        val most = ((ctx.resources.displayMetrics.widthPixels - 2 * 58 * d - 40 * d) / 2 - 34 * d).toInt()
+        addView(label(ctx, top, 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT; maxWidth = most },
+            LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
+        addView(label(ctx, bottom.replace('\n', ' '), 11.5f, bottomColor).apply { gravity = Gravity.RIGHT; maxWidth = most },
+            LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
     }
 
     fun showCall(key: String, name: String, decline: PendingIntent?, answer: PendingIntent?) {
@@ -79,17 +130,17 @@ object LivePill {
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return
         callKey = key
         val blue = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(79, 179, 255))
+        // שורה אחת דקה: מימין מי מתקשר, משמאל דחה וענה
         show("call", 320, blue, null, onTap = null) { ctx, left, right ->
-            left.addView(button(ctx, "✕", Color.rgb(229, 72, 77)) {
+            left.addView(thinBtn(ctx, "✕", Color.rgb(229, 72, 77), true) {
                 runCatching { decline?.send() }
                 hide()
             })
-            left.addView(label(ctx, name, 14.5f, Color.WHITE, bold = true))
-            right.addView(label(ctx, "שיחה נכנסת", 12.5f, blue))
-            right.addView(button(ctx, "✓", Color.rgb(42, 212, 154)) {
+            left.addView(thinBtn(ctx, "✆︎", Color.rgb(42, 212, 154), true) {
                 runCatching { answer?.send() }
                 hide()
             })
+            right.addView(twoLines(ctx, name, "שיחה נכנסת", blue))
         }
     }
 
@@ -1325,8 +1376,15 @@ object LivePill {
             "msg", "long" -> {
                 val green = NotchPrefs.tint(NotchOverlay.service, "msg", Color.rgb(37, 211, 102))
                 val text = if (type == "msg") "מה קורה?" else "אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר?"
-                show("msg", 300, green, if (text.length > 40) 5500 else 3500, onTap = null, long = senderAndText("דני", text), longColor = grey) { ctx, _, right ->
-                    right.addView(letter(ctx, "דני", green))
+                val dark = Color.rgb(42, 47, 58)
+                show("msg", 300, green, if (text.length > 40) 6500 else 5000, onTap = null) { ctx, left, right ->
+                    left.addView(thinBtn(ctx, "↩︎", dark) {})
+                    left.addView(thinBtn(ctx, "✓", dark) {})
+                    left.addView(thinBtn(ctx, "↗︎", dark) {})
+                    right.addView(twoLines(ctx, "דני", text, grey))
+                    right.addView(letter(ctx, "דני", green).apply {
+                        (layoutParams as LinearLayout.LayoutParams).marginStart = (5 * ctx.resources.displayMetrics.density).toInt()
+                    })
                 }
             }
             "charge" -> {

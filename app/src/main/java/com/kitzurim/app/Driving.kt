@@ -10,6 +10,7 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
@@ -148,8 +149,16 @@ class ReplyListener : NotificationListenerService() {
         shown[sbn.key] = sig
         val sent = last?.timestamp?.takeIf { it > 0 } ?: n.`when`
         if (sent > 0 && System.currentTimeMillis() - sent > 60_000) return
-        NotchOverlay.notificationPosted(sbn.key, color, LastMsg(sender, text, color, n.contentIntent))
-        LivePill.showMessage(sender, text, color, n.contentIntent)
+        // הכפתורים של ההתראה: השב (עם שורת כתיבה) וסמן כנקרא
+        val acts = n.actions?.toList() ?: emptyList()
+        val reply = acts.firstOrNull { !it.remoteInputs.isNullOrEmpty() }
+        val read = acts.firstOrNull { a ->
+            (Build.VERSION.SDK_INT >= 28 && a.semanticAction == Notification.Action.SEMANTIC_ACTION_MARK_AS_READ) ||
+                listOf("נקרא", "read").any { a.title?.toString()?.contains(it, ignoreCase = true) == true }
+        }
+        val m = LastMsg(sender, text, color, n.contentIntent, reply, read, sbn.key)
+        NotchOverlay.notificationPosted(sbn.key, color, m)
+        LivePill.showMessage(sender, text, color, n.contentIntent, msg = m)
     }
 
     private val shown = HashMap<String, String>()

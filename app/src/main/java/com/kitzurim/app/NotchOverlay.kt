@@ -657,7 +657,7 @@ object NotchOverlay {
                     if (NotchPrefs.haptic(s)) {
                         v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
                     }
-                    LivePill.showMessage(m.sender, m.text, m.color, m.open, fromRing = true)
+                    LivePill.showMessage(m.sender, m.text, m.color, m.open, fromRing = true, msg = m)
                     return
                 }
             }
@@ -946,4 +946,12 @@ class RingView(
 }
 
 /** הודעה שבגללה העיגול דלוק: מי שלח, מה כתב, הצבע, ומה פותחים בהקשה */
-data class LastMsg(val sender: String, val text: String, val color: Int, val open: android.app.PendingIntent?)
+data class LastMsg(
+    val sender: String,
+    val text: String,
+    val color: Int,
+    val open: android.app.PendingIntent?,
+    val reply: android.app.Notification.Action? = null,
+    val read: android.app.Notification.Action? = null,
+    val key: String? = null,
+)
