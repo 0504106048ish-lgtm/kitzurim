@@ -282,6 +282,10 @@ object NotchPrefs {
     fun notifyLight(c: Context) = sp(c).getBoolean("notify_light", false)
     fun setNotifyLight(c: Context, v: Boolean) = sp(c).edit().putBoolean("notify_light", v).apply()
 
+    /** כמה שניות של מסך דלוק עד שהנורה נכבית לבד (0 = עד שקוראים) */
+    fun pulseSeconds(c: Context) = sp(c).getInt("pulse_secs", 30)
+    fun setPulseSeconds(c: Context, v: Int) = sp(c).edit().putInt("pulse_secs", v).apply()
+
     /** עובי הטבעת בנקודות (dp) */
     fun thickness(c: Context) = sp(c).getFloat("thick", 1.6f)
     fun setThickness(c: Context, v: Float) = sp(c).edit().putFloat("thick", v).apply()

@@ -24,6 +24,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.view.Display
 import android.view.Gravity
@@ -63,6 +64,8 @@ object NotchOverlay {
 
     /** התראות שעוד לא נקראו: מפתח ההתראה ← הצבע שלה */
     private val pulses = LinkedHashMap<String, Int>()
+    /** כמה שניות כל נורה כבר דלקה בזמן שהמסך דלוק */
+    private val pulseSeen = HashMap<String, Int>()
 
     // מצבים זמניים של הטבעת
     private var volume: Float? = null
@@ -173,10 +176,12 @@ object NotchOverlay {
     fun notificationPosted(key: String, color: Int) {
         pulses.remove(key)
         pulses[key] = color
+        pulseSeen.remove(key) // הודעה חדשה: הטיימר מתחיל מחדש
         updateRing()
     }
 
     fun notificationRemoved(key: String) {
+        pulseSeen.remove(key)
         if (pulses.remove(key) != null) updateRing()
     }
 
@@ -215,6 +220,17 @@ object NotchOverlay {
         override fun run() {
             val s = service ?: return
             var changed = false
+
+            // נורת התראות: נעלמת אחרי זמן מסוים שהמסך דלוק (ראית אותה). כשהמסך כבוי לא סופרים, אז היא מחכה לך
+            val limit = NotchPrefs.pulseSeconds(s)
+            if (limit > 0 && pulses.isNotEmpty() && s.getSystemService(PowerManager::class.java)?.isInteractive == true) {
+                pulses.keys.forEach { pulseSeen[it] = (pulseSeen[it] ?: 0) + 1 }
+                val old = pulses.keys.filter { (pulseSeen[it] ?: 0) >= limit }
+                if (old.isNotEmpty()) {
+                    old.forEach { pulses.remove(it); pulseSeen.remove(it) }
+                    changed = true
+                }
+            }
             val wantCalls = NotchPrefs.callRing(s) || (NotchPrefs.pill(s) && NotchPrefs.pillCalls(s))
 
             // שיחה: לפי מצב השמע של הטלפון (עובד גם לשיחות וואטסאפ, בלי הרשאה נוספת)

@@ -259,6 +259,23 @@ fun HomeScreen(resumes: Int) {
                             Text("לנורת ההתראות צריך גישה להתראות ←")
                         }
                     }
+                    if (NotchPrefs.notifyLight(ctx)) {
+                        // נכבית לבד אחרי זמן שהמסך דלוק; כשהמסך כבוי היא מחכה
+                        Text(
+                            "⏱️ נכבית לבד אחרי (רק כשהמסך דלוק):",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp),
+                        )
+                        Row(Modifier.padding(start = 8.dp)) {
+                            listOf(10 to "10 שנ׳", 30 to "30 שנ׳", 60 to "דקה", 0 to "עד שקוראים").forEach { (secs, name) ->
+                                val on = NotchPrefs.pulseSeconds(ctx) == secs
+                                TextButton(onClick = { NotchPrefs.setPulseSeconds(ctx, secs); refresh++ }) {
+                                    Text(name, color = if (on) Neon.GreenSoft else scheme.onSurfaceVariant, fontWeight = if (on) FontWeight.Bold else null)
+                                }
+                            }
+                        }
+                    }
                     HorizontalDivider(color = Neon.Line)
                     SwitchLine("🔊 עוצמת קול (הטבעת מתמלאת כשמשנים ווליום)", NotchPrefs.volumeRing(ctx)) {
                         NotchPrefs.setVolumeRing(ctx, it); NotchOverlay.refresh(); refresh++
