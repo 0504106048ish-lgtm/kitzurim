@@ -151,6 +151,7 @@ fun PermissionsScreen(resumes: Int, onDone: () -> Unit) {
     val scroll = rememberScrollState()
     var wizard by rememberSaveable { mutableStateOf(false) }
     var tried by rememberSaveable { mutableStateOf("") }
+    var retries by rememberSaveable { mutableIntStateOf(0) }
     // "הגדרות מוגבלות": אנדרואיד מראה את "⋮ ← אפשר הגדרות מוגבלות" רק אחרי שניסית פעם אחת להפעיל
     // נגישות וקיבלת "האפליקציה לא תקבל גישה". לכן הסדר: ניסיון ← שחרור ← הפעלה אמיתית.
     // אי אפשר לבדוק אם זה שוחרר, אז זוכרים איפה כבר עברת
@@ -237,10 +238,22 @@ fun PermissionsScreen(resumes: Int, onDone: () -> Unit) {
 
     fun nextStep() {
         val done = tried.split(",").filter { it.isNotBlank() }
+        // חזרת בלי לאשר? פותחים שוב את אותו מקום (עד 2 פעמים, כדי לא להיתקע).
+        // "ניסיון" ו"שחרור" לא נבדקים: הניסיון אמור להיחסם, ואת השחרור אי אפשר לבדוק
+        val last = done.lastOrNull()?.let { id -> steps.firstOrNull { it.id == id } }
+        if (last != null && last.id != "try" && last.id != "unlock" && last.missing() && retries < 2) {
+            retries++
+            Actions.toast(ctx, "עוד לא אושר. פותח שוב")
+            last.launch()
+            return
+        }
+        retries = 0
         val step = steps.firstOrNull { it.missing() && it.id !in done }
         if (step == null) {
             wizard = false
             tried = ""
+            val left = Perms.missingCount(ctx)
+            if (left > 0) Actions.toast(ctx, "נשארו $left אישורים. אפשר ללחוץ שוב על \"לאשר הכול\"")
             refresh++
         } else {
             tried = (done + step.id).joinToString(",")
@@ -297,6 +310,7 @@ fun PermissionsScreen(resumes: Int, onDone: () -> Unit) {
                         onClick = {
                             wizard = true
                             tried = ""
+                            retries = 0
                             nextStep()
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),

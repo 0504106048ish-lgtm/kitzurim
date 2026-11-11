@@ -154,7 +154,7 @@ object NotchOverlay {
     private fun build() {
         val s = service ?: return
         val w = wm ?: return
-        if (!NotchPrefs.enabled(s) && !preview) return
+        if (!NotchPrefs.enabled(s)) return
         // במסך שוכב החור זז לצד: לא מציגים
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return
 
@@ -177,15 +177,14 @@ object NotchOverlay {
 
         // אין אף תנועה עם פעולה: לא שמים אזור נגיעה, כדי לא לחסום את שורת המצב
         val anyGesture = Gesture.entries.any { NotchPrefs.action(s, it).type != ActionType.NONE }
-        if (!anyGesture && !NotchPrefs.showZone(s) && !preview) return
+        if (!anyGesture && !NotchPrefs.showZone(s)) return
 
         // אזור הנגיעה: קצת יותר גדול מהחור, כדי שיהיה נוח לפגוע
         val zs = ((radius + 14 * d) * 2).toInt()
         val z = View(s)
-        if (preview) {
-            z.setBackgroundColor(Color.argb(60, 255, 64, 129))
-        } else if (NotchPrefs.showZone(s)) {
-            z.setBackgroundColor(Color.argb(70, 255, 255, 255))
+        // אזור הנגיעה מסומן רק כשהמתג "להראות את אזור הנגיעה" דלוק (ורוד כשקיצורים פתוחה)
+        if (NotchPrefs.showZone(s)) {
+            z.setBackgroundColor(if (preview) Color.argb(60, 255, 64, 129) else Color.argb(70, 255, 255, 255))
         }
         attachGestures(s, z)
         runCatching {
