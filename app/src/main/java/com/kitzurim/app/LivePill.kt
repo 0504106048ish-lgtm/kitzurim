@@ -221,10 +221,11 @@ object LivePill {
         // שני הצדדים באותו רוחב, כדי שהחור יישאר בדיוק באמצע
         val maxSide = ((maxW - gapW - 2 * padW) / 2).coerceAtLeast(0)
 
-        // טקסט קצר: שורה אחת ליד המצלמה. טקסט ארוך: הגלולה נפתחת גם למטה, והטקסט בשורה רחבה מתחת
+        // תמיד נפתחת גם למטה: למעלה ליד המצלמה מי שלח / אחוזים, ומתחת הטקסט.
+        // הגודל לפי הטקסט: מילה אחת = כרטיס קטן בשורה אחת, הרבה מלל = רחב יותר ועד 3 שורות
         val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         left.measure(free, free)
-        val expanded = long != null && left.measuredWidth > maxSide
+        val expanded = long != null
         if (expanded) left.removeAllViews()
         val body: TextView? = if (!expanded) null else label(s, long!!, 13.5f, longColor).apply {
             maxLines = 3
