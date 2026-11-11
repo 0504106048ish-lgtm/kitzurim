@@ -274,6 +274,40 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
+                // ---------- הגלולה החיה ----------
+                Card {
+                    Text("✨ גלולה חיה", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "הטבעת נמתחת לצדדים ומראה פרטים, והטקסט תמיד בצדדים של המצלמה ולא מאחוריה.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                    SwitchLine("להפעיל את הגלולה החיה", NotchPrefs.pill(ctx)) {
+                        NotchPrefs.setPill(ctx, it); refresh++
+                    }
+                    if (NotchPrefs.pill(ctx)) {
+                        Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            SwitchLine("💬 הודעות (מי שלח ומה כתב)", NotchPrefs.pillMessages(ctx)) {
+                                NotchPrefs.setPillMessages(ctx, it); refresh++
+                            }
+                            SwitchLine("📞 שיחות (ענה / דחה, וזמן השיחה)", NotchPrefs.pillCalls(ctx)) {
+                                NotchPrefs.setPillCalls(ctx, it); refresh++
+                            }
+                            SwitchLine("🎵 שיר חדש", NotchPrefs.pillMusic(ctx)) {
+                                NotchPrefs.setPillMusic(ctx, it); refresh++
+                            }
+                            SwitchLine("⚡ חיבור מטען", NotchPrefs.pillCharging(ctx)) {
+                                NotchPrefs.setPillCharging(ctx, it); refresh++
+                            }
+                        }
+                        if (!Driving.listenerAllowed(ctx)) {
+                            TextButton(onClick = { ctx.startActivity(Intent(ctx, PermissionsActivity::class.java)) }) {
+                                Text("להודעות, שיחות ושירים צריך גישה להתראות ←")
+                            }
+                        }
+                    }
+                }
+
                 // ---------- התנהגות ----------
                 Card {
                     Text("התנהגות", style = MaterialTheme.typography.titleMedium)
