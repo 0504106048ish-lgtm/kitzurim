@@ -53,6 +53,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -198,6 +200,43 @@ private val Green = Color(0xFF2AD49A)
 private val Red = Color(0xFFFF4D5E)
 private val Soft = Color(0xFFA8B0C0)
 
+/** סמלים בקו דק (במקום אימוג'י), מצוירים מנתיב כמו ב-SVG */
+private fun lineIcon(d: String, fill: Boolean = false, stroke: Float = 1.7f) =
+    androidx.compose.ui.graphics.vector.ImageVector.Builder(
+        defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f,
+    ).addPath(
+        pathData = androidx.compose.ui.graphics.vector.PathParser().parsePathString(d).toNodes(),
+        fill = if (fill) androidx.compose.ui.graphics.SolidColor(Color.White) else null,
+        stroke = if (fill) null else androidx.compose.ui.graphics.SolidColor(Color.White),
+        strokeLineWidth = stroke,
+        strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
+        strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
+    ).build()
+
+private object CallIcons {
+    val mute = lineIcon("M9 5.5a3 3 0 0 1 6 0v6a3 3 0 0 1 -6 0z M5 11a7 7 0 0 0 14 0 M12 18v3.5 M8.5 21.5h7")
+    val keys = lineIcon("M6 5h0 M12 5h0 M18 5h0 M6 11h0 M12 11h0 M18 11h0 M6 17h0 M12 17h0 M18 17h0 M12 22h0", stroke = 2.8f)
+    val speaker = lineIcon("M3.5 9.5v5h3.5l5 4.5v-14l-5 4.5z M15.5 9a4 4 0 0 1 0 6 M18.5 6a8 8 0 0 1 0 12")
+    val hold = lineIcon("M8.5 5.5v13 M15.5 5.5v13", stroke = 2.6f)
+    val swap = lineIcon("M5 8h13 M15 5l3 3 -3 3 M19 16h-13 M9 13l-3 3 3 3")
+    val phone = lineIcon(
+        "M5 3.5h3.6a1 1 0 0 1 0.9 0.6l1.8 4.3a1 1 0 0 1 -0.3 1.2L9 11a12 12 0 0 0 4 4l1.4 -2a1 1 0 0 1 1.2 -0.3l4.3 1.8a1 1 0 0 1 0.6 0.9V19a2 2 0 0 1 -2 2A16 16 0 0 1 3 5.5a2 2 0 0 1 2 -2z",
+        fill = true,
+    )
+}
+
+@Composable
+private fun CallIcon(v: androidx.compose.ui.graphics.vector.ImageVector, color: Color, size: androidx.compose.ui.unit.Dp, rotate: Float = 0f) {
+    Image(
+        androidx.compose.ui.graphics.vector.rememberVectorPainter(v),
+        null,
+        Modifier
+            .size(size)
+            .graphicsLayer { rotationZ = rotate },
+        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(color),
+    )
+}
+
 /** מה שמוצג במסך השיחה (משיחה אמיתית או מהתצוגה המקדימה) */
 private class CallView(
     val name: String,
@@ -232,7 +271,7 @@ private fun NeonBg(content: @Composable androidx.compose.foundation.layout.BoxSc
             .fillMaxSize()
             .background(
                 Brush.radialGradient(
-                    listOf(Color(0xFF14202A), Color(0xFF07090D)),
+                    listOf(Color(0xFF0F2A24), Color(0xFF06090C)),
                     radius = 1400f,
                     center = androidx.compose.ui.geometry.Offset(540f, 500f),
                 )
@@ -414,6 +453,10 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                     color = if (v.statusGreen) Green else Soft,
                     fontSize = 16.sp,
                     modifier = Modifier.padding(top = 10.dp),
+                    // הזמן זוהר בירוק, כמו ניאון
+                    style = androidx.compose.ui.text.TextStyle(
+                        shadow = if (v.statusGreen) androidx.compose.ui.graphics.Shadow(Green, blurRadius = 18f) else null,
+                    ),
                 )
             }
             Spacer(Modifier.weight(1f))
@@ -438,14 +481,14 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                 } else {
                     // השתקה, מקלדת, רמקול, המתנה
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        RoundBtn("🎙︎", if (v.muted) "בטל השתקה" else "השתק", v.muted) { act.mute() }
-                        RoundBtn("⌨︎", "מקלדת", false) { keypad = true }
-                        RoundBtn("🔊︎", "רמקול", v.speaker) { act.speaker() }
+                        RoundBtn(CallIcons.mute, if (v.muted) "בטל השתקה" else "השתק", v.muted) { act.mute() }
+                        RoundBtn(CallIcons.keys, "מקלדת", false) { keypad = true }
+                        RoundBtn(CallIcons.speaker, "רמקול", v.speaker) { act.speaker() }
                     }
                     Spacer(Modifier.height(18.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        RoundBtn("⏸︎", if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
-                        if (v.canSwap) RoundBtn("⇄", "החלף", false) { act.swap() }
+                        RoundBtn(CallIcons.hold, if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
+                        if (v.canSwap) RoundBtn(CallIcons.swap, "החלף", false) { act.swap() }
                     }
                 }
                 Spacer(Modifier.height(26.dp))
@@ -462,13 +505,14 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                     }
                     Box(
                         Modifier
-                            .size(width = 76.dp, height = 64.dp)
-                            .clip(RoundedCornerShape(32.dp))
+                            .size(66.dp)
+                            .shadow(18.dp, CircleShape, ambientColor = Red, spotColor = Red)
+                            .clip(CircleShape)
                             .background(Red)
                             .clickable { act.hangup() },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("✆︎", color = Color.White, fontSize = 26.sp)
+                        CallIcon(CallIcons.phone, Color.White, 30.dp, rotate = 135f)
                     }
                 }
                 Spacer(Modifier.height(46.dp))
@@ -505,14 +549,18 @@ private fun Avatar(name: String, photo: android.graphics.Bitmap?, sizeDp: Int, b
                 contentScale = ContentScale.Crop,
             )
         } else {
+            // ניאון: עיגול כהה עם מסגרת ירוקה זוהרת והאות בירוק (בלי גלים)
             Box(
                 Modifier
                     .size(sizeDp.dp)
+                    .shadow(22.dp, CircleShape, ambientColor = Green, spotColor = Green)
                     .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(Color(0xFF3A7BD5), Color(0xFF6A4CFF)))),
+                    .background(Brush.radialGradient(listOf(Green.copy(alpha = 0.22f), Color(0xFF07110E))))
+                    .border(2.dp, Green, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(name.trim().take(1), color = Color.White, fontSize = (sizeDp * 0.38f).sp, fontWeight = FontWeight.Bold)
+                val first = name.trim().firstOrNull { it.isLetterOrDigit() || it == '*' || it == '#' }?.toString() ?: "?"
+                Text(first, color = Green, fontSize = (sizeDp * 0.38f).sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -579,24 +627,26 @@ private fun SlideToAnswer(onAnswer: () -> Unit) {
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("✆︎", color = Color.Black, fontSize = 24.sp)
+                CallIcon(CallIcons.phone, Color.Black, 26.dp)
             }
         }
     }
 }
 
 @Composable
-private fun RoundBtn(icon: String, label: String, on: Boolean, onClick: () -> Unit) {
+private fun RoundBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(84.dp)) {
+        // ניאון: עיגול שקוף עם מסגרת ירוקה וסמל ירוק; דלוק = מלא בירוק
         Box(
             Modifier
                 .size(62.dp)
                 .clip(CircleShape)
-                .background(if (on) Green else Color.White.copy(alpha = 0.09f))
+                .background(if (on) Green else Green.copy(alpha = 0.06f))
+                .border(1.5.dp, Green.copy(alpha = if (on) 1f else 0.45f), CircleShape)
                 .clickable { onClick() },
             contentAlignment = Alignment.Center,
         ) {
-            Text(icon, color = if (on) Color.Black else Color.White, fontSize = 22.sp)
+            CallIcon(icon, if (on) Color.Black else Green, 26.dp)
         }
         Text(label, color = Soft, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp), maxLines = 1)
     }
