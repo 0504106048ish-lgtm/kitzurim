@@ -145,6 +145,8 @@ object LivePill {
         val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
         when {
             // מחייג: גדול עם השם, בלי שניות
+            // התפריט פתוח (גם בזמן חיוג): לא מחליפים אותו, רק מעדכנים את הזמן
+            menuOpen -> if (answered && kind == "callmenu") timerText?.text = t
             // מחייג: 2 שניות גדול עם השם, ואז קטן עם "…" (בלי שניות) עד שעונים
             !answered -> {
                 val now = SystemClock.elapsedRealtime()
@@ -164,8 +166,6 @@ object LivePill {
                     }
                 }
             }
-            // התפריט פתוח: רק מעדכנים את הזמן
-            menuOpen -> if (kind == "callmenu") timerText?.text = t
             // ענו עכשיו: גדול עם השם והזמן
             SystemClock.elapsedRealtime() < bigUntil -> if (kind != "callbig") {
                 show("callbig", 300, green, null, onTap = { openCallMenu() }, long = nameLine(name, "בשיחה · $t")) { ctx, _, right ->
@@ -282,7 +282,7 @@ object LivePill {
         }
         val name = label(s, callName ?: "שיחה", 15f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER }
         val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt() else 0
-        val time = label(s, clock(secs * 1000L), 13f, green).apply { gravity = Gravity.CENTER }
+        val time = label(s, if (answeredAt > 0) clock(secs * 1000L) else "מחייג…", 13f, green).apply { gravity = Gravity.CENTER }
         box.addView(name, LinearLayout.LayoutParams(-1, -2))
         box.addView(time, LinearLayout.LayoutParams(-1, -2))
         val row = LinearLayout(s).apply {
@@ -290,7 +290,8 @@ object LivePill {
             layoutDirection = View.LAYOUT_DIRECTION_LTR
             gravity = Gravity.CENTER
         }
-        fun btn(symbol: String, bg: Int, wide: Boolean, a: Notification.Action) = TextView(s).apply {
+        // כפתור: קודם מה שיש בהתראה של השיחה, ואם אין, קיצורים עושה את זה בעצמה
+        fun btn(symbol: String, bg: Int, wide: Boolean, a: Notification.Action?, own: () -> Unit) = TextView(s).apply {
             text = symbol
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
@@ -304,15 +305,32 @@ object LivePill {
                 marginEnd = (9 * d).toInt()
             }
             setOnClickListener {
-                runCatching { a.actionIntent.send() }
+                val sent = a != null && runCatching { a.actionIntent.send() }.isSuccess
+                if (!sent) runCatching { own() }
                 main.removeCallbacks(autoClose)
                 main.postDelayed(autoClose, 6000)
             }
         }
         val dark = Color.rgb(42, 47, 58)
-        callAction(listOf("השתק", "mute"))?.let { row.addView(btn("🎙︎", dark, false, it)) }
-        callAction(listOf("נתק", "סיים", "סיום", "hang", "end"))?.let { row.addView(btn("✆︎", Color.rgb(229, 72, 77), true, it)) }
-        callAction(listOf("רמקול", "speaker"))?.let { row.addView(btn("🔊︎", dark, false, it)) }
+        val audio = s.getSystemService(android.media.AudioManager::class.java)
+        @Suppress("DEPRECATION")
+        row.addView(btn("🎙︎", dark, false, callAction(listOf("השתק", "mute"))) {
+            audio?.let { it.isMicrophoneMute = !it.isMicrophoneMute }
+        })
+        row.addView(btn("✆︎", Color.rgb(229, 72, 77), true, callAction(listOf("נתק", "סיים", "סיום", "hang", "end"))) {
+            val call = Calls.main()
+            if (call != null) Calls.hangup(call)
+            else if (Build.VERSION.SDK_INT >= 28) {
+                @Suppress("DEPRECATION", "MissingPermission")
+                s.getSystemService(android.telecom.TelecomManager::class.java)?.endCall()
+            }
+            menuOpen = false
+            hide()
+        })
+        @Suppress("DEPRECATION")
+        row.addView(btn("🔊︎", dark, false, callAction(listOf("רמקול", "speaker"))) {
+            audio?.let { it.isSpeakerphoneOn = !it.isSpeakerphoneOn }
+        })
         if (row.childCount > 0) box.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * d).toInt() })
         // הקשה על השורה של המצלמה: חוזרים לגלולה הקטנה
         show("callmenu", 300, green, 6000, onTap = { menuOpen = false }, extra = box) { ctx, _, right ->
@@ -680,6 +698,7 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusicLive(s)) return
         if (navKey != null) return // בזמן ניווט הניווט חשוב יותר
+        if (songWindow != null) return // שיר חדש מוצג עכשיו (הוא יצא מהגלולה הזו)
         if (kind == "musicLive") {
             if (art != null) liveArt?.setImageBitmap(art)
             return
@@ -824,6 +843,10 @@ object LivePill {
      * אל מתחת לשורת המצב, ואחרי 3 שניות חוזרת לתוך העיגול. הקשה פותחת את הנגן המלא.
      */
     private var songWindow: FrameLayout? = null
+    private var songClosing: FrameLayout? = null
+
+    /** הפעם הבאה שהגלולה מופיעה: בלי אנימציה (חוזרת למקום שהיא כבר הייתה בו) */
+    private var instantNext = false
 
     fun showMusic(title: String) {
         val s = NotchOverlay.service ?: return
@@ -846,6 +869,17 @@ object LivePill {
         val barH = if (barId != 0) s.resources.getDimensionPixelSize(barId) else (28 * d).toInt()
         val pillH = 28 * d
         val endTop = barH + 4 * d
+
+        // הגלולה הקטנה של המוזיקה כבר על המסך: השורה צומחת ממנה וחוזרת אליה (ולא שתיהן ביחד)
+        val liveBg = bg
+        val fromLive = kind == "musicLive" && liveBg != null && liveBg.width > 0
+        val sW = if (fromLive) liveBg!!.width.toFloat() else hole
+        val sH = if (fromLive) liveBg!!.height.toFloat() else hole
+        val sTop = if (fromLive) liveBg!!.top.toFloat() else cy - hole / 2f
+        if (fromLive) {
+            main.removeCallbacks(autoClose)
+            removeNow()
+        }
 
         val ctl = NotchOverlay.playingController(s)
         val md = ctl?.metadata
@@ -889,38 +923,42 @@ object LivePill {
         val endW = min(content.measuredWidth.toFloat() + 6 * d, maxW.toFloat())
         if (content.measuredWidth > maxW) tv.maxWidth = (maxW - 40 * d).toInt()
 
-        val winW = max(endW, hole).toInt() + (8 * d).toInt()
+        val winW = max(endW, sW).toInt() + (8 * d).toInt()
         val winX = (cx - winW / 2f).toInt()
         val winH = (endTop + pillH + 6 * d).toInt()
+        val cxIn = cx - winX
         var onSwipe: () -> Unit = {}
         val root = SwipeUpFrame(s) { onSwipe() }
+        // משמאל לימין במכוון: אחרת בעברית המיקום נמדד מצד ימין והשורה "בורחת" לימין
+        root.layoutDirection = View.LAYOUT_DIRECTION_LTR
         val box = FrameLayout(s).apply {
             background = GradientDrawable().apply {
-                cornerRadius = hole / 2f
+                cornerRadius = sH / 2f
                 setColor(Color.BLACK)
                 setStroke((1.5f * d).toInt(), purple)
             }
         }
         box.addView(content, FrameLayout.LayoutParams(-1, -1))
-        root.addView(box, FrameLayout.LayoutParams(hole.toInt(), hole.toInt()))
+        root.addView(box, FrameLayout.LayoutParams(sW.toInt(), sH.toInt(), Gravity.TOP or Gravity.LEFT))
+        val back = SongBack(cxIn, sW, sH, sTop, fromLive, art)
         val openPlayer = View.OnClickListener {
-            hideSong(wm, root, box, content, cx - winX, cy, hole)
+            hideSong(wm, root, box, content, back.copy(toLive = false))
             ctl?.let { cc -> main.postDelayed({ showPlayer(cc) }, 300) }
         }
         box.setOnClickListener(openPlayer)
-        onSwipe = { hideSong(wm, root, box, content, cx - winX, cy, hole) }
+        onSwipe = { hideSong(wm, root, box, content, back) }
         runCatching { wm.addView(root, NotchOverlay.params(winW, winH, winX, 0, touchable = true)) }.onFailure { return }
         songWindow = root
 
-        // יורדת מהעיגול: מעיגול בגודל החור, למטה ולרוחב, עד שורה דקה מתחת לשורת המצב
+        // צומחת מהגלולה הקטנה (או מהעיגול), למטה ולרוחב, עד שורה דקה מתחת לשורת המצב
         fun place(f: Float) {
-            val w = hole + (endW - hole) * f
-            val h = hole + (pillH - hole) * f
-            val top = (cy - hole / 2f) + (endTop - (cy - hole / 2f)) * f
+            val w = sW + (endW - sW) * f
+            val h = sH + (pillH - sH) * f
+            val top = sTop + (endTop - sTop) * f
             val lp = box.layoutParams as FrameLayout.LayoutParams
             lp.width = w.toInt()
             lp.height = h.toInt()
-            lp.leftMargin = ((cx - winX) - w / 2f).toInt()
+            lp.leftMargin = (cxIn - w / 2f).toInt()
             lp.topMargin = top.toInt()
             box.layoutParams = lp
             (box.background as GradientDrawable).cornerRadius = h / 2f
@@ -933,38 +971,50 @@ object LivePill {
             start()
         }
         content.animate().alpha(1f).setStartDelay(300).setDuration(180).start()
-        main.postDelayed({ if (songWindow === root) hideSong(wm, root, box, content, cx - winX, cy, hole) }, 3300)
+        // שתי שניות על המסך, ואז חוזרת
+        main.postDelayed({ if (songWindow === root) hideSong(wm, root, box, content, back) }, 2500)
     }
 
-    /** חוזרת לתוך העיגול ונעלמת */
-    private fun hideSong(wm: android.view.WindowManager, root: FrameLayout, box: FrameLayout, content: View, cxIn: Float, cy: Float, hole: Float) {
-        if (songWindow !== root) return
-        songWindow = null
+    /** לאן השורה חוזרת: לגלולה הקטנה של המוזיקה (ואז היא חוזרת בדיוק כמו שהייתה) או לעיגול */
+    private data class SongBack(val cxIn: Float, val w: Float, val h: Float, val top: Float, val toLive: Boolean, val art: Bitmap?)
+
+    /** מתכווצת חזרה למקום שממנו יצאה */
+    private fun hideSong(wm: android.view.WindowManager, root: FrameLayout, box: FrameLayout, content: View, to: SongBack) {
+        if (songWindow !== root || songClosing === root) return
+        songClosing = root
         val lp0 = box.layoutParams as FrameLayout.LayoutParams
         val w0 = lp0.width.toFloat()
         val h0 = lp0.height.toFloat()
         val top0 = lp0.topMargin.toFloat()
         content.animate().alpha(0f).setDuration(100).start()
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 300
-            interpolator = AccelerateInterpolator()
+            duration = 320
+            interpolator = android.view.animation.DecelerateInterpolator()
             addUpdateListener {
                 val f = it.animatedValue as Float
-                val w = w0 + (hole - w0) * f
-                val h = h0 + (hole - h0) * f
-                val top = top0 + ((cy - hole / 2f) - top0) * f
+                val w = w0 + (to.w - w0) * f
+                val h = h0 + (to.h - h0) * f
+                val top = top0 + (to.top - top0) * f
                 val lp = box.layoutParams as FrameLayout.LayoutParams
                 lp.width = w.toInt()
                 lp.height = h.toInt()
-                lp.leftMargin = (cxIn - w / 2f).toInt()
+                lp.leftMargin = (to.cxIn - w / 2f).toInt()
                 lp.topMargin = top.toInt()
                 box.layoutParams = lp
                 (box.background as GradientDrawable).cornerRadius = h / 2f
-                box.alpha = if (f > 0.8f) (1f - f) * 5f else 1f
+                // לעיגול: נעלמת בסוף. לגלולה הקטנה: נשארת, והגלולה חוזרת בדיוק במקומה
+                if (!to.toLive) box.alpha = if (f > 0.8f) (1f - f) * 5f else 1f
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
-                    runCatching { wm.removeView(root) }
+                    songWindow = null
+                    if (to.toLive) {
+                        instantNext = true
+                        musicLive(to.art)
+                        instantNext = false
+                    }
+                    // רגע אחרי שהגלולה כבר מצוירת, כדי שלא יהיה הבהוב
+                    main.postDelayed({ runCatching { wm.removeView(root) } }, if (to.toLive) 60 else 0)
                 }
             })
             start()
@@ -1001,6 +1051,8 @@ object LivePill {
         val wm = NotchOverlay.wm ?: return
         // באפליקציה שבה קיצורים כבוי: רק שיחה עוברת
         if (newKind !in CALL_KINDS && (NotchOverlay.offHere() || NotchOverlay.pillBlocked(newKind))) return
+        if (kind == "callmenu" && newKind != "callmenu") menuOpen = false
+        val instant = instantNext
         main.removeCallbacks(autoClose)
         removeNow()
         timerText = null
@@ -1174,7 +1226,7 @@ object LivePill {
 
         // מתיחה אלסטית: קודם לצדדים, ואם צריך גם למטה, ועוצרת עם קפיצה קטנה ועדינה
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = if (expanded) 520 else 420
+            duration = if (instant) 0L else if (expanded) 520L else 420L
             interpolator = OvershootInterpolator(0.9f)
             addUpdateListener {
                 val f = it.animatedValue as Float
@@ -1188,8 +1240,9 @@ object LivePill {
             }
             start()
         }
-        left.animate().alpha(1f).setStartDelay(220).setDuration(180).start()
-        right.animate().alpha(1f).setStartDelay(220).setDuration(180).start()
+        val dl = if (instant) 0L else 1L
+        left.animate().alpha(1f).setStartDelay(220 * dl).setDuration(180 * dl).start()
+        right.animate().alpha(1f).setStartDelay(220 * dl).setDuration(180 * dl).start()
         body?.animate()?.alpha(1f)?.setStartDelay(340)?.setDuration(180)?.start()
         extra?.animate()?.alpha(1f)?.setStartDelay(360)?.setDuration(180)?.start()
         this.extra = extra
@@ -1199,6 +1252,7 @@ object LivePill {
 
     /** מתכווצת חזרה לעיגול ונעלמת */
     fun hide() {
+        if (kind == "callmenu") menuOpen = false
         main.removeCallbacks(autoClose)
         val p = pill ?: return removeNow()
         val b = bg ?: return removeNow()

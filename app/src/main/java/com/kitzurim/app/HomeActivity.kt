@@ -349,6 +349,13 @@ fun HomeScreen(resumes: Int) {
                             SwitchLine("📞 שיחות (ענה / דחה, וזמן השיחה)", NotchPrefs.pillCalls(ctx)) {
                                 NotchPrefs.setPillCalls(ctx, it); refresh++
                             }
+                            if (NotchPrefs.pillCalls(ctx) && android.os.Build.VERSION.SDK_INT >= 28 &&
+                                ctx.checkSelfPermission(android.Manifest.permission.ANSWER_PHONE_CALLS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                            ) {
+                                TextButton(onClick = { shotPerm.launch(android.Manifest.permission.ANSWER_PHONE_CALLS) }) {
+                                    Text("לכפתור ניתוק בגלולה צריך הרשאה ←")
+                                }
+                            }
                             SwitchLine("🎵 שיר חדש (עם התמונה של השיר)", NotchPrefs.pillMusic(ctx)) {
                                 NotchPrefs.setPillMusic(ctx, it); refresh++
                             }

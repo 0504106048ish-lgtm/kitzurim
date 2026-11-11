@@ -164,7 +164,7 @@ class CallActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        proximity?.let { if (it.isHeld) it.release() }
+        runCatching { proximity?.let { if (it.isHeld) it.release() } }
         proximity = null
         super.onDestroy()
     }
@@ -175,11 +175,14 @@ class CallActivity : ComponentActivity() {
         val want = c != null && Calls.state(c) != Call.STATE_RINGING && Calls.route != CallAudioState.ROUTE_SPEAKER
         val pm = getSystemService(PowerManager::class.java) ?: return
         if (proximity == null && pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
-            proximity = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "kitzurim:call")
+            proximity = runCatching { pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "kitzurim:call") }.getOrNull()
         }
         val w = proximity ?: return
-        if (want && !w.isHeld) w.acquire(3 * 60 * 60 * 1000L)
-        if (!want && w.isHeld) w.release()
+        // עטוף: תקלה כאן לא תפיל את האפליקציה באמצע שיחה
+        runCatching {
+            if (want && !w.isHeld) w.acquire(3 * 60 * 60 * 1000L)
+            if (!want && w.isHeld) w.release()
+        }
     }
 
     companion object {
