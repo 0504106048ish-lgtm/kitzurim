@@ -276,33 +276,30 @@ object LivePill {
         if (!menuOpen) return
         val d = s.resources.displayMetrics.density
         val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
-        val box = LinearLayout(s).apply {
+        // שורה אחת דקה: מימין לחור השם ומתחתיו "מחייג…" או הזמן, משמאל שלושה כפתורים
+        val who = LinearLayout(s).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
         }
-        val name = label(s, callName ?: "שיחה", 15f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER }
+        val name = label(s, callName ?: "שיחה", 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT }
         val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt() else 0
-        val time = label(s, if (answeredAt > 0) clock(secs * 1000L) else "מחייג…", 13f, green).apply { gravity = Gravity.CENTER }
-        box.addView(name, LinearLayout.LayoutParams(-1, -2))
-        box.addView(time, LinearLayout.LayoutParams(-1, -2))
-        val row = LinearLayout(s).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutDirection = View.LAYOUT_DIRECTION_LTR
-            gravity = Gravity.CENTER
-        }
+        val time = label(s, if (answeredAt > 0) clock(secs * 1000L) else "מחייג…", 11.5f, green).apply { gravity = Gravity.RIGHT }
+        who.addView(name, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
+        who.addView(time, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
+        val row = mutableListOf<View>()
         // כפתור: קודם מה שיש בהתראה של השיחה, ואם אין, קיצורים עושה את זה בעצמה
         fun btn(symbol: String, bg: Int, wide: Boolean, a: Notification.Action?, own: () -> Unit) = TextView(s).apply {
             text = symbol
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             background = GradientDrawable().apply {
-                cornerRadius = 21 * d
+                cornerRadius = 15 * d
                 setColor(bg)
             }
-            layoutParams = LinearLayout.LayoutParams(((if (wide) 54 else 42) * d).toInt(), (42 * d).toInt()).apply {
-                marginStart = (9 * d).toInt()
-                marginEnd = (9 * d).toInt()
+            layoutParams = LinearLayout.LayoutParams(((if (wide) 38 else 30) * d).toInt(), (30 * d).toInt()).apply {
+                marginStart = (3 * d).toInt()
+                marginEnd = (3 * d).toInt()
             }
             setOnClickListener {
                 val sent = a != null && runCatching { a.actionIntent.send() }.isSuccess
@@ -314,10 +311,10 @@ object LivePill {
         val dark = Color.rgb(42, 47, 58)
         val audio = s.getSystemService(android.media.AudioManager::class.java)
         @Suppress("DEPRECATION")
-        row.addView(btn("🎙︎", dark, false, callAction(listOf("השתק", "mute"))) {
+        row.add(btn("🎙︎", dark, false, callAction(listOf("השתק", "mute"))) {
             audio?.let { it.isMicrophoneMute = !it.isMicrophoneMute }
         })
-        row.addView(btn("✆︎", Color.rgb(229, 72, 77), true, callAction(listOf("נתק", "סיים", "סיום", "hang", "end"))) {
+        row.add(btn("✆︎", Color.rgb(229, 72, 77), true, callAction(listOf("נתק", "סיים", "סיום", "hang", "end"))) {
             val call = Calls.main()
             if (call != null) Calls.hangup(call)
             else if (Build.VERSION.SDK_INT >= 28) {
@@ -328,13 +325,13 @@ object LivePill {
             hide()
         })
         @Suppress("DEPRECATION")
-        row.addView(btn("🔊︎", dark, false, callAction(listOf("רמקול", "speaker"))) {
+        row.add(btn("🔊︎", dark, false, callAction(listOf("רמקול", "speaker"))) {
             audio?.let { it.isSpeakerphoneOn = !it.isSpeakerphoneOn }
         })
-        if (row.childCount > 0) box.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * d).toInt() })
-        // הקשה על השורה של המצלמה: חוזרים לגלולה הקטנה
-        show("callmenu", 300, green, 6000, onTap = { menuOpen = false }, extra = box) { ctx, _, right ->
-            right.addView(phoneIcon(ctx, green))
+        // הקשה על השם: חוזרים לגלולה הקטנה
+        show("callmenu", 300, green, 6000, onTap = { menuOpen = false }) { _, left, right ->
+            row.forEach { left.addView(it) }
+            right.addView(who)
         }
         timerText = time
     }

@@ -230,7 +230,7 @@ object CallNotif {
         val ringing = st == Call.STATE_RINGING
         val name = Calls.name(ctx, c)
         val b = NotificationCompat.Builder(ctx, if (ringing) CH_RING else CH_ON)
-            .setSmallIcon(R.drawable.ic_fg)
+            .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(name)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
