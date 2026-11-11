@@ -31,6 +31,7 @@ import kotlin.math.min
 object LivePill {
     private var window: FrameLayout? = null
     private var pill: LinearLayout? = null
+    private var bg: View? = null
     private var kind: String? = null
     private var timerText: TextView? = null
     private var collapsedW = 0
@@ -48,9 +49,10 @@ object LivePill {
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s)) return
         if (kind == "call" || kind == "incall") return // שיחה חשובה יותר
         show("msg", 300, color, 3500, onTap = { runCatching { open?.send() } }) { ctx, left, right ->
-            left.addView(letter(ctx, sender, color))
-            left.addView(label(ctx, sender, 14.5f, Color.WHITE, bold = true))
-            right.addView(label(ctx, text, 13.5f, Color.rgb(210, 216, 228)))
+            // בעברית קוראים מימין: מי ששלח בצד ימין, ההודעה בצד שמאל
+            right.addView(label(ctx, sender, 14.5f, Color.WHITE, bold = true))
+            right.addView(letter(ctx, sender, color))
+            left.addView(label(ctx, text, 13.5f, Color.rgb(210, 216, 228)))
         }
     }
 
@@ -175,15 +177,18 @@ object LivePill {
         collapsedW = h
 
         val root = FrameLayout(s)
-        val p = LinearLayout(s).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutDirection = View.LAYOUT_DIRECTION_LTR
-            gravity = Gravity.CENTER_VERTICAL
+        // רק הרקע נמתח; התוכן כבר בגודל הסופי ורק מופיע, כדי שהטקסט לא יקפוץ בזמן המתיחה
+        val b = View(s).apply {
             background = GradientDrawable().apply {
                 cornerRadius = h / 2f
                 setColor(Color.BLACK)
                 setStroke((1.5f * d).toInt(), color)
             }
+        }
+        val p = LinearLayout(s).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(padW, 0, padW, 0)
         }
         // שני צדדים, ורווח באמצע ברוחב החור (ועוד קצת), כדי שהטקסט לא יוסתר
@@ -199,9 +204,6 @@ object LivePill {
             gravity = Gravity.START or Gravity.CENTER_VERTICAL
             alpha = 0f
         }
-        p.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
-        p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
-        p.addView(right, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
         fill(s, left, right)
         if (onTap != null) {
             p.setOnClickListener {
@@ -219,6 +221,9 @@ object LivePill {
         right.measure(wSpec, hSpec)
         val side = min(max(left.measuredWidth, right.measuredWidth) + (6 * d).toInt(), maxSide)
         val targetW = max(2 * side + gapW + 2 * padW, collapsedW)
+        p.addView(left, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
+        p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
+        p.addView(right, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
 
         // החלון רחב קצת יותר מהגלולה, כדי שיהיה מקום לקפיצה של המתיחה
         val winW = min((targetW * 1.15f).toInt(), screenW)
@@ -227,8 +232,12 @@ object LivePill {
         val winY = max(0, (cy - winH / 2f).toInt())
         val pillTop = max(0, (cy - h / 2f).toInt() - winY)
         root.addView(
-            p,
+            b,
             FrameLayout.LayoutParams(collapsedW, h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
+        )
+        root.addView(
+            p,
+            FrameLayout.LayoutParams(targetW, h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
         )
 
         runCatching {
@@ -239,21 +248,22 @@ object LivePill {
         }.onFailure { return }
         window = root
         pill = p
+        bg = b
         kind = newKind
 
-        // מתיחה אלסטית: נמתחת לצדדים ועוצרת עם קפיצה קטנה
+        // מתיחה אלסטית: נמתחת לצדדים ועוצרת עם קפיצה קטנה ועדינה
         ValueAnimator.ofInt(collapsedW, targetW).apply {
-            duration = 520
-            interpolator = OvershootInterpolator(1.6f)
+            duration = 420
+            interpolator = OvershootInterpolator(0.9f)
             addUpdateListener {
-                val lp = p.layoutParams
+                val lp = b.layoutParams
                 lp.width = it.animatedValue as Int
-                p.layoutParams = lp
+                b.layoutParams = lp
             }
             start()
         }
-        left.animate().alpha(1f).setStartDelay(180).setDuration(200).start()
-        right.animate().alpha(1f).setStartDelay(180).setDuration(200).start()
+        left.animate().alpha(1f).setStartDelay(220).setDuration(180).start()
+        right.animate().alpha(1f).setStartDelay(220).setDuration(180).start()
 
         if (autoMs != null) main.postDelayed(autoClose, autoMs)
     }
@@ -262,15 +272,16 @@ object LivePill {
     fun hide() {
         main.removeCallbacks(autoClose)
         val p = pill ?: return removeNow()
+        val b = bg ?: return removeNow()
         kind = null
-        for (i in 0 until p.childCount) p.getChildAt(i).animate().alpha(0f).setDuration(120).start()
-        ValueAnimator.ofInt(p.width.coerceAtLeast(collapsedW), collapsedW).apply {
+        p.animate().alpha(0f).setDuration(120).start()
+        ValueAnimator.ofInt(b.width.coerceAtLeast(collapsedW), collapsedW).apply {
             duration = 240
             interpolator = AccelerateInterpolator()
             addUpdateListener {
-                val lp = p.layoutParams
+                val lp = b.layoutParams
                 lp.width = it.animatedValue as Int
-                p.layoutParams = lp
+                b.layoutParams = lp
             }
             start()
         }
@@ -281,6 +292,7 @@ object LivePill {
         window?.let { w -> runCatching { NotchOverlay.wm?.removeView(w) } }
         window = null
         pill = null
+        bg = null
         kind = null
     }
 

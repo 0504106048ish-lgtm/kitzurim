@@ -88,8 +88,16 @@ class ReplyListener : NotificationListenerService() {
         val sender = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return
         val text = last?.text?.toString() ?: n.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return
         if (text.isBlank()) return
+        // רק הודעה חדשה באמת: וואטסאפ מפרסם שוב את אותה התראה (למשל כשמחברים מטען)
+        val sig = "$sender|$text"
+        if (shown[sbn.key] == sig) return
+        shown[sbn.key] = sig
+        val sent = last?.timestamp?.takeIf { it > 0 } ?: n.`when`
+        if (sent > 0 && System.currentTimeMillis() - sent > 60_000) return
         LivePill.showMessage(sender, text, color, n.contentIntent)
     }
+
+    private val shown = HashMap<String, String>()
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         NotchOverlay.notificationRemoved(sbn.key)

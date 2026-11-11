@@ -94,6 +94,7 @@ fun HomeScreen(resumes: Int) {
     var pickingApp by remember { mutableStateOf<Target?>(null) }
     var pickingUrl by remember { mutableStateOf<Target?>(null) }
     var addingApp by remember { mutableStateOf(false) }
+    var pickingPopupApp by remember { mutableStateOf(false) }
     var editingApp by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showPos by remember { mutableStateOf(false) }
     var pendingContact by remember { mutableStateOf<Pair<Target, ActionType>?>(null) }
@@ -305,23 +306,37 @@ fun HomeScreen(resumes: Int) {
                                 Text("להודעות, שיחות ושירים צריך גישה להתראות ←")
                             }
                         }
-                        // ההתראה הקופצת של המערכת: אי אפשר להסתיר אותה מבחוץ, אבל אפשר לכבות אותה לוואטסאפ
+                        // ההתראה הקופצת של המערכת: אי אפשר להסתיר אותה מבחוץ, אבל אפשר לכבות אותה בכל אפליקציה
                         Text(
-                            "רואים שתי התראות (של המערכת ושל הגלולה)? מכבים את \"חלון קופץ\" של וואטסאפ, ונשארת רק הגלולה.",
+                            "רואים שתי התראות (של המערכת ושל הגלולה)? מכבים את \"חלון קופץ\" באפליקציה, ונשארת רק הגלולה.",
                             style = MaterialTheme.typography.bodySmall,
                             color = scheme.onSurfaceVariant,
                         )
-                        TextButton(onClick = {
+                        val openPopups = { pkg: String ->
                             Actions.toast(ctx, "התראות ← לכבות \"חלון קופץ\" / \"הצג כחלון קופץ\"")
                             try {
                                 ctx.startActivity(
                                     Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, "com.whatsapp")
+                                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, pkg)
                                 )
                             } catch (_: Exception) {
-                                Actions.toast(ctx, "לא הצלחתי לפתוח את ההגדרות של וואטסאפ")
+                                Actions.toast(ctx, "לא הצלחתי לפתוח את ההגדרות")
                             }
-                        }) { Text("לפתוח את ההתראות של וואטסאפ ←") }
+                        }
+                        val chatApps = listOf(
+                            "com.whatsapp" to "וואטסאפ",
+                            "com.whatsapp.w4b" to "וואטסאפ עסקי",
+                            "org.telegram.messenger" to "טלגרם",
+                            "com.samsung.android.messaging" to "הודעות",
+                            "com.google.android.apps.messaging" to "הודעות",
+                            "com.google.android.gm" to "ג'ימייל",
+                            "com.facebook.orca" to "מסנג'ר",
+                            "com.instagram.android" to "אינסטגרם",
+                        ).filter { ctx.packageManager.getLaunchIntentForPackage(it.first) != null }
+                        chatApps.forEach { (pkg, name) ->
+                            TextButton(onClick = { openPopups(pkg) }) { Text("לכבות חלון קופץ של $name ←") }
+                        }
+                        TextButton(onClick = { pickingPopupApp = true }) { Text("אפליקציה אחרת… ←") }
                     }
                 }
 
@@ -411,6 +426,21 @@ fun HomeScreen(resumes: Int) {
     }
 
     // ---------- חלונות בחירה ----------
+    // לכבות חלון קופץ של אפליקציה אחרת: פותחים את הגדרות ההתראות שלה
+    if (pickingPopupApp) {
+        AppPicker(onDismiss = { pickingPopupApp = false }) { _, pkg ->
+            pickingPopupApp = false
+            Actions.toast(ctx, "התראות ← לכבות \"חלון קופץ\" / \"הצג כחלון קופץ\"")
+            try {
+                ctx.startActivity(
+                    Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, pkg)
+                )
+            } catch (_: Exception) {
+                Actions.toast(ctx, "לא הצלחתי לפתוח את ההגדרות")
+            }
+        }
+    }
     // אפליקציה חדשה ל"תנועות לפי אפליקציה"
     if (addingApp) {
         AppPicker(onDismiss = { addingApp = false }) { name, pkg ->
