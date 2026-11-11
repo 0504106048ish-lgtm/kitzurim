@@ -19,6 +19,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -80,6 +81,8 @@ class AutomationsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // שורת המצב: סמלים כהים על רקע בהיר (ובהירים במצב כהה), כדי שיהיה אפשר לקרוא אותה
+        enableEdgeToEdge()
         setContent { KitzurimTheme { AutomationsScreen(resumes.intValue) } }
     }
 }

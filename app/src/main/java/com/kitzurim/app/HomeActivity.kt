@@ -3,6 +3,7 @@ package com.kitzurim.app
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -64,10 +65,19 @@ class HomeActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumes.intValue++
+        // כל עוד המסך הזה פתוח: עיגול ורוד סביב החור, כדי לראות איפה הוא יושב ולכוון
+        NotchOverlay.setPreview(true)
+    }
+
+    override fun onPause() {
+        NotchOverlay.setPreview(false)
+        super.onPause()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // שורת המצב: סמלים כהים על רקע בהיר (ובהירים במצב כהה), כדי שיהיה אפשר לקרוא אותה
+        enableEdgeToEdge()
         // "פתיחה ישר לפקודה קולית": האייקון (והלחצן הצדדי) פותחים את הדיבור.
         // לאפליקציה עצמה מגיעים בלחיצה על "חזרה" בחלון הדיבור
         val fromShortcut = intent?.getStringExtra("open_home") == "true" ||

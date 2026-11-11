@@ -82,6 +82,15 @@ object NotchOverlay {
 
     fun isRunning() = service != null
 
+    /** מצב כיוון: כל עוד קיצורים פתוחה, מראים עיגול ורוד בולט ואת אזור הנגיעה, כדי לראות איפה הם יושבים */
+    private var preview = false
+
+    fun setPreview(on: Boolean) {
+        if (preview == on) return
+        preview = on
+        refresh()
+    }
+
     // ---------- נורת התראות ----------
     fun notificationPosted(key: String, color: Int) {
         pulses.remove(key)
@@ -145,7 +154,7 @@ object NotchOverlay {
     private fun build() {
         val s = service ?: return
         val w = wm ?: return
-        if (!NotchPrefs.enabled(s)) return
+        if (!NotchPrefs.enabled(s) && !preview) return
         // במסך שוכב החור זז לצד: לא מציגים
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return
 
@@ -156,9 +165,9 @@ object NotchOverlay {
         val radius = max(c.width(), c.height()) / 2f + (4f + NotchPrefs.size(s)) * d
         val thick = NotchPrefs.thickness(s) * d
 
-        if (NotchPrefs.ringOn(s)) {
+        if (NotchPrefs.ringOn(s) || preview) {
             val size = ((radius + thick * 4 + 6 * d) * 2).toInt()
-            val v = RingView(s, radius, thick)
+            val v = RingView(s, radius, thick, preview)
             runCatching {
                 w.addView(v, params(size, size, (cx - size / 2f).toInt(), (cy - size / 2f).toInt(), touchable = false))
                 ring = v
@@ -168,12 +177,16 @@ object NotchOverlay {
 
         // אין אף תנועה עם פעולה: לא שמים אזור נגיעה, כדי לא לחסום את שורת המצב
         val anyGesture = Gesture.entries.any { NotchPrefs.action(s, it).type != ActionType.NONE }
-        if (!anyGesture && !NotchPrefs.showZone(s)) return
+        if (!anyGesture && !NotchPrefs.showZone(s) && !preview) return
 
         // אזור הנגיעה: קצת יותר גדול מהחור, כדי שיהיה נוח לפגוע
         val zs = ((radius + 14 * d) * 2).toInt()
         val z = View(s)
-        if (NotchPrefs.showZone(s)) z.setBackgroundColor(Color.argb(70, 255, 255, 255))
+        if (preview) {
+            z.setBackgroundColor(Color.argb(60, 255, 64, 129))
+        } else if (NotchPrefs.showZone(s)) {
+            z.setBackgroundColor(Color.argb(70, 255, 255, 255))
+        }
         attachGestures(s, z)
         runCatching {
             w.addView(z, params(zs, zs, (cx - zs / 2f).toInt(), (cy - zs / 2f).toInt(), touchable = true))
@@ -222,7 +235,12 @@ object NotchOverlay {
 
 /** הטבעת: דקה וזוהרת. ירוק / כתום / אדום לפי הסוללה, נקודה מסתובבת בטעינה, הבהוב בהתראה */
 @SuppressLint("ViewConstructor")
-class RingView(ctx: Context, private val radius: Float, private val thick: Float) : View(ctx) {
+class RingView(
+    ctx: Context,
+    private val radius: Float,
+    private val thick: Float,
+    private val preview: Boolean = false,
+) : View(ctx) {
     private var level = 100
     private var charging = false
     private var pulse: Int? = null
@@ -278,6 +296,16 @@ class RingView(ctx: Context, private val radius: Float, private val thick: Float
         val cx = width / 2f
         val cy = height / 2f
         val rect = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+
+        // מצב כיוון: עיגול ורוד בולט, כדי לראות בדיוק איפה הטבעת יושבת
+        if (preview) {
+            arc.color = Color.rgb(255, 64, 129)
+            arc.alpha = 255
+            arc.strokeWidth = max(thick, 2.5f * resources.displayMetrics.density)
+            c.drawCircle(cx, cy, radius, arc)
+            arc.strokeWidth = thick
+            return
+        }
 
         // נורת התראות: הבהוב רך בצבע של האפליקציה
         pulse?.let { col ->
