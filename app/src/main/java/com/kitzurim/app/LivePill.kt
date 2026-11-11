@@ -846,22 +846,24 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         val wm = NotchOverlay.wm ?: return
         // באפליקציה שבה קיצורים כבוי: רק שיחה עוברת
-        if (newKind !in CALL_KINDS && (NotchOverlay.offHere() || NotchOverlay.pillBlocked())) return
+        if (newKind !in CALL_KINDS && (NotchOverlay.offHere() || NotchOverlay.pillBlocked(newKind))) return
         main.removeCallbacks(autoClose)
         removeNow()
         timerText = null
 
         val d = s.resources.displayMetrics.density
         val screenW = s.resources.displayMetrics.widthPixels
+        // מסך מסובב: המצלמה בצד, אז הגלולה למעלה באמצע המסך, בלי רווח לחור
+        val landscape = s.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val c = NotchOverlay.cutout(s)
-        val cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
-        val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
-        val hole = max(c.width(), c.height())
+        val cx = if (landscape) screenW / 2f else c.exactCenterX() + NotchPrefs.offsetX(s) * d
+        val hole = if (landscape) 0 else max(c.width(), c.height())
+        val cy = if (landscape) 6 * d + (max(hole.toFloat(), 22 * d) + 18 * d) / 2f else c.exactCenterY() + NotchPrefs.offsetY(s) * d
         // גלולות קטנות (ניווט, מוזיקה, זמן שיחה): דקות כמו הסימן של ספוטיפיי בשורת המצב, צמודות לחור
         val tight = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
         val h = if (tight) max(hole * 0.85f + 2 * d, 24 * d).toInt() else (max(hole.toFloat(), 22 * d) + 18 * d).toInt()
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
-        val maxW = (screenW - 2 * 58 * d).toInt()
+        val maxW = if (landscape) min(screenW - 2 * 58 * d, 380 * d).toInt() else (screenW - 2 * 58 * d).toInt()
         val gapW = hole + ((if (tight) 4 else 14) * d).toInt()
         // גלולת השיחה הקטנה: צמודה ככל האפשר (רק שניות וסמל)
         val compact = newKind == "incall" || newKind == "nav" || newKind == "musicLive"

@@ -99,9 +99,10 @@ object NotchOverlay {
     }
 
     /** מסך שוכב, או מסך מלא כשהמתג "להסתיר במסך מלא" דלוק: לא מראים גלולה (חוץ משיחה) */
-    fun pillBlocked(): Boolean {
+    fun pillBlocked(kind: String? = null): Boolean {
         val s = service ?: return true
-        if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return true
+        // מסך מסובב: רק הודעות (ושיחות, שעוברות תמיד), כגלולה למעלה באמצע
+        if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return kind != "msg"
         if (lockedHidden()) return true
         return fullscreen && NotchPrefs.hideFullscreen(s) && !preview
     }
