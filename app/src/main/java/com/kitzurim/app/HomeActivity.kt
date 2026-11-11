@@ -305,6 +305,23 @@ fun HomeScreen(resumes: Int) {
                                 Text("להודעות, שיחות ושירים צריך גישה להתראות ←")
                             }
                         }
+                        // ההתראה הקופצת של המערכת: אי אפשר להסתיר אותה מבחוץ, אבל אפשר לכבות אותה לוואטסאפ
+                        Text(
+                            "רואים שתי התראות (של המערכת ושל הגלולה)? מכבים את \"חלון קופץ\" של וואטסאפ, ונשארת רק הגלולה.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                        )
+                        TextButton(onClick = {
+                            Actions.toast(ctx, "התראות ← לכבות \"חלון קופץ\" / \"הצג כחלון קופץ\"")
+                            try {
+                                ctx.startActivity(
+                                    Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, "com.whatsapp")
+                                )
+                            } catch (_: Exception) {
+                                Actions.toast(ctx, "לא הצלחתי לפתוח את ההגדרות של וואטסאפ")
+                            }
+                        }) { Text("לפתוח את ההתראות של וואטסאפ ←") }
                     }
                 }
 

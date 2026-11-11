@@ -47,10 +47,10 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s)) return
         if (kind == "call" || kind == "incall") return // שיחה חשובה יותר
-        show("msg", 310, color, 4500, onTap = { runCatching { open?.send() } }) { ctx, left, right ->
+        show("msg", 300, color, 3500, onTap = { runCatching { open?.send() } }) { ctx, left, right ->
             left.addView(letter(ctx, sender, color))
-            left.addView(label(ctx, sender, 13f, Color.WHITE, bold = true))
-            right.addView(label(ctx, text, 12.5f, Color.rgb(200, 208, 220)))
+            left.addView(label(ctx, sender, 14.5f, Color.WHITE, bold = true))
+            right.addView(label(ctx, text, 13.5f, Color.rgb(210, 216, 228)))
         }
     }
 
@@ -64,8 +64,8 @@ object LivePill {
                 runCatching { decline?.send() }
                 hide()
             })
-            left.addView(label(ctx, name, 13f, Color.WHITE, bold = true))
-            right.addView(label(ctx, "שיחה נכנסת", 11.5f, blue))
+            left.addView(label(ctx, name, 14.5f, Color.WHITE, bold = true))
+            right.addView(label(ctx, "שיחה נכנסת", 12.5f, blue))
             right.addView(button(ctx, "✓", Color.rgb(42, 212, 154)) {
                 runCatching { answer?.send() }
                 hide()
@@ -92,7 +92,7 @@ object LivePill {
         val green = Color.rgb(42, 212, 154)
         show("incall", 150, green, null, onTap = null) { ctx, left, right ->
             left.addView(label(ctx, "●", 12f, green))
-            val t = label(ctx, text, 12.5f, Color.WHITE, bold = true)
+            val t = label(ctx, text, 14f, Color.WHITE, bold = true)
             timerText = t
             right.addView(t)
         }
@@ -124,7 +124,7 @@ object LivePill {
                 start()
             }
             left.addView(disc)
-            right.addView(label(ctx, title, 12.5f, Color.WHITE))
+            right.addView(label(ctx, title, 13.5f, Color.WHITE))
         }
     }
 
@@ -134,12 +134,12 @@ object LivePill {
         if (kind == "call" || kind == "incall") return
         val green = Color.rgb(62, 209, 140)
         show("charge", 240, green, 3000, onTap = null) { ctx, left, right ->
-            left.addView(label(ctx, "⚡ $percent%", 13f, green, bold = true))
+            left.addView(label(ctx, "⚡ $percent%", 14.5f, green, bold = true))
             right.addView(
                 label(
                     ctx,
                     minutesToFull?.let { "מלאה בעוד " + Battery.minutesText(it) } ?: "בטעינה",
-                    12f,
+                    13.5f,
                     Color.WHITE,
                 )
             )
@@ -168,12 +168,11 @@ object LivePill {
         val cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
         val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
         val hole = max(c.width(), c.height())
-        val h = (max(hole.toFloat(), 22 * d) + 16 * d).toInt()
-        val targetW = min(widthDp * d, screenW - 16 * d).toInt()
+        val h = (max(hole.toFloat(), 22 * d) + 18 * d).toInt()
+        val maxW = min(widthDp * d, screenW - 16 * d).toInt()
+        val gapW = hole + (14 * d).toInt()
+        val padW = (12 * d).toInt()
         collapsedW = h
-        // החלון רחב קצת יותר מהגלולה, כדי שיהיה מקום לקפיצה של המתיחה
-        val winW = min((targetW * 1.15f).toInt(), screenW)
-        val winH = h + (8 * d).toInt()
 
         val root = FrameLayout(s)
         val p = LinearLayout(s).apply {
@@ -185,7 +184,7 @@ object LivePill {
                 setColor(Color.BLACK)
                 setStroke((1.5f * d).toInt(), color)
             }
-            setPadding((8 * d).toInt(), 0, (8 * d).toInt(), 0)
+            setPadding(padW, 0, padW, 0)
         }
         // שני צדדים, ורווח באמצע ברוחב החור (ועוד קצת), כדי שהטקסט לא יוסתר
         val left = LinearLayout(s).apply {
@@ -201,7 +200,7 @@ object LivePill {
             alpha = 0f
         }
         p.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
-        p.addView(View(s), LinearLayout.LayoutParams(hole + (14 * d).toInt(), 1))
+        p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
         p.addView(right, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
         fill(s, left, right)
         if (onTap != null) {
@@ -210,12 +209,32 @@ object LivePill {
                 hide()
             }
         }
-        root.addView(p, FrameLayout.LayoutParams(collapsedW, h, Gravity.CENTER))
+
+        // רוחב לפי התוכן: כמה שצריך, עם מרווח נוח (לא צמוד), ולא יותר מהמקסימום.
+        // שני הצדדים באותו רוחב, כדי שהחור יישאר בדיוק באמצע
+        val maxSide = ((maxW - gapW - 2 * padW) / 2).coerceAtLeast(0)
+        val wSpec = View.MeasureSpec.makeMeasureSpec(maxSide, View.MeasureSpec.AT_MOST)
+        val hSpec = View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.AT_MOST)
+        left.measure(wSpec, hSpec)
+        right.measure(wSpec, hSpec)
+        val side = min(max(left.measuredWidth, right.measuredWidth) + (6 * d).toInt(), maxSide)
+        val targetW = max(2 * side + gapW + 2 * padW, collapsedW)
+
+        // החלון רחב קצת יותר מהגלולה, כדי שיהיה מקום לקפיצה של המתיחה
+        val winW = min((targetW * 1.15f).toInt(), screenW)
+        val winH = h + (8 * d).toInt()
+        // לא לחרוג מלמעלה מהמסך: אם החור קרוב לקצה, הגלולה יורדת קצת
+        val winY = max(0, (cy - winH / 2f).toInt())
+        val pillTop = max(0, (cy - h / 2f).toInt() - winY)
+        root.addView(
+            p,
+            FrameLayout.LayoutParams(collapsedW, h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
+        )
 
         runCatching {
             wm.addView(
                 root,
-                NotchOverlay.params(winW, winH, (cx - winW / 2f).toInt(), (cy - winH / 2f).toInt(), touchable = true),
+                NotchOverlay.params(winW, max(winH, pillTop + h), (cx - winW / 2f).toInt(), winY, touchable = true),
             )
         }.onFailure { return }
         window = root

@@ -105,7 +105,7 @@ object NotchOverlay {
 
         // שינוי עוצמת קול
         val v = object : BroadcastReceiver() {
-            override fun onReceive(c: Context, i: Intent) = onVolumeChanged()
+            override fun onReceive(c: Context, i: Intent) = onVolumeChanged(i)
         }
         volumeReceiver = v
         runCatching { s.registerReceiver(v, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) }
@@ -167,18 +167,27 @@ object NotchOverlay {
         updateRing()
     }
 
-    private fun onVolumeChanged() {
+    private fun onVolumeChanged(i: Intent) {
         val s = service ?: return
         if (!NotchPrefs.volumeRing(s)) return
         val am = s.getSystemService(AudioManager::class.java) ?: return
-        // אם משהו מתנגן או יש שיחה: עוצמת המדיה. אחרת: עוצמת הצלצול
-        val stream = if (am.isMusicActive) AudioManager.STREAM_MUSIC else AudioManager.STREAM_RING
+        // העוצמה שבאמת השתנתה (מדיה, צלצול או שיחה), כך שהטבעת זזה עם כל לחיצה למעלה או למטה
+        val stream = i.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
+        if (stream != AudioManager.STREAM_MUSIC && stream != AudioManager.STREAM_RING &&
+            stream != AudioManager.STREAM_VOICE_CALL
+        ) {
+            return
+        }
+        val value = i.getIntExtra("android.media.EXTRA_VOLUME_STREAM_VALUE", -1)
+            .takeIf { it >= 0 } ?: am.getStreamVolume(stream)
         val max = am.getStreamMaxVolume(stream).coerceAtLeast(1)
-        volume = am.getStreamVolume(stream).toFloat() / max
+        volume = value.toFloat() / max
         updateRing()
+        // נעלמת שנייה וחצי אחרי הלחיצה האחרונה
         main.removeCallbacks(clearVolume)
         main.postDelayed(clearVolume, 1500)
     }
+
 
     // ---------- שיר ושיחה: בודקים כל שנייה ----------
     private var lastTitle: String? = null
@@ -219,7 +228,8 @@ object NotchOverlay {
             // שיר: מהנגן שמנגן עכשיו (צריך גישה להתראות)
             val wantMusic = NotchPrefs.musicRing(s) || (NotchPrefs.pill(s) && NotchPrefs.pillMusic(s))
             val now = if (wantMusic) nowPlaying(s) else null
-            val m = if (NotchPrefs.musicRing(s)) now?.second else null
+            // אורך השיר לא ידוע: טבעת מלאה, כדי שעדיין יראו שמשהו מתנגן
+            val m = if (NotchPrefs.musicRing(s)) now?.let { it.second ?: 1f } else null
             if (m != music) {
                 music = m
                 changed = true
@@ -511,7 +521,7 @@ data class RingState(
 
 /**
  * הטבעת: דקה וזוהרת. מה שמוצג, לפי סדר החשיבות:
- * צלצול ← זמן שיחה ← עוצמת קול ← התראה ← שיר ← סוללה
+ * צלצול ← זמן שיחה ← עוצמת קול ← שיר ← התראה ← סוללה
  */
 @SuppressLint("ViewConstructor")
 class RingView(
@@ -635,6 +645,13 @@ class RingView(
             return
         }
 
+        // שיר: סגול, מתמלא עד סוף השיר
+        st.music?.let { m ->
+            c.drawCircle(cx, cy, radius, track)
+            glowArc(c, rect, Color.rgb(179, 136, 255), 360f * m)
+            return
+        }
+
         // נורת התראות: הבהוב רך בצבע של האפליקציה
         st.pulse?.let { col ->
             val a = (0.5 + 0.5 * sin(phase * 2 * PI)).toFloat()
@@ -645,13 +662,6 @@ class RingView(
             arc.color = col
             arc.alpha = 255
             c.drawCircle(cx, cy, radius, arc)
-            return
-        }
-
-        // שיר: סגול, מתמלא עד סוף השיר
-        st.music?.let { m ->
-            c.drawCircle(cx, cy, radius, track)
-            glowArc(c, rect, Color.rgb(179, 136, 255), 360f * m)
             return
         }
 
