@@ -305,7 +305,7 @@ private fun SwitchLine(text: String, checked: Boolean, onChange: (Boolean) -> Un
     }
 }
 
-/** מחוון שהשינוי שלו נראה על הטבעת מיד כשמרימים את האצבע */
+/** מחוון שהשינוי שלו נראה על הטבעת תוך כדי הזזה (בזמן אמת) */
 @Composable
 private fun PrefSlider(label: String, initial: Float, range: ClosedFloatingPointRange<Float>, onSave: (Float) -> Unit) {
     var v by remember { mutableFloatStateOf(initial) }
@@ -313,12 +313,12 @@ private fun PrefSlider(label: String, initial: Float, range: ClosedFloatingPoint
         Text(label, Modifier.weight(0.8f))
         Slider(
             value = v,
-            onValueChange = { v = it },
-            valueRange = range,
-            onValueChangeFinished = {
-                onSave(v)
-                NotchOverlay.refresh()
+            onValueChange = {
+                v = it
+                onSave(it)
+                NotchOverlay.live()
             },
+            valueRange = range,
             modifier = Modifier.weight(1.6f),
         )
     }

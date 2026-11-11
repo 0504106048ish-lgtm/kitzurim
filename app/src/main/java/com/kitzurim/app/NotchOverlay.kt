@@ -151,6 +151,51 @@ object NotchOverlay {
         }
     }
 
+    /** איפה ובאיזה גודל לצייר: מרכז, רדיוס, עובי, גודל חלון הטבעת וגודל אזור הנגיעה (בפיקסלים) */
+    private class Geom(val cx: Float, val cy: Float, val radius: Float, val thick: Float, val ringSize: Int, val zoneSize: Int)
+
+    private fun geom(s: Context): Geom {
+        val d = s.resources.displayMetrics.density
+        val c = cutout(s)
+        val cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
+        val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
+        val radius = max(c.width(), c.height()) / 2f + (4f + NotchPrefs.size(s)) * d
+        val thick = NotchPrefs.thickness(s) * d
+        // חלון הטבעת בגודל קבוע לפי הגדלים המקסימליים, כדי שאפשר יהיה לשנות בלי לבנות מחדש
+        val ringSize = ((radius + 4f * d * 4 + 6 * d) * 2).toInt()
+        val zoneSize = ((radius + 14 * d) * 2).toInt()
+        return Geom(cx, cy, radius, thick, ringSize, zoneSize)
+    }
+
+    /**
+     * עדכון חי בזמן הזזת המחוונים: מזיזים ומשנים את הגודל של מה שכבר מצויר,
+     * בלי להסיר ולהוסיף מחדש (כך זה חלק ומהיר)
+     */
+    fun live() {
+        val s = service ?: return
+        val w = wm ?: return
+        val g = geom(s)
+        ring?.let { v ->
+            v.setGeometry(g.radius, g.thick)
+            (v.layoutParams as? WindowManager.LayoutParams)?.let { lp ->
+                lp.width = g.ringSize
+                lp.height = g.ringSize
+                lp.x = (g.cx - g.ringSize / 2f).toInt()
+                lp.y = (g.cy - g.ringSize / 2f).toInt()
+                runCatching { w.updateViewLayout(v, lp) }
+            }
+        }
+        zone?.let { v ->
+            (v.layoutParams as? WindowManager.LayoutParams)?.let { lp ->
+                lp.width = g.zoneSize
+                lp.height = g.zoneSize
+                lp.x = (g.cx - g.zoneSize / 2f).toInt()
+                lp.y = (g.cy - g.zoneSize / 2f).toInt()
+                runCatching { w.updateViewLayout(v, lp) }
+            }
+        }
+    }
+
     private fun build() {
         val s = service ?: return
         val w = wm ?: return
@@ -159,14 +204,14 @@ object NotchOverlay {
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return
 
         val d = s.resources.displayMetrics.density
-        val c = cutout(s)
-        val cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
-        val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
-        val radius = max(c.width(), c.height()) / 2f + (4f + NotchPrefs.size(s)) * d
-        val thick = NotchPrefs.thickness(s) * d
+        val g = geom(s)
+        val cx = g.cx
+        val cy = g.cy
+        val radius = g.radius
+        val thick = g.thick
 
         if (NotchPrefs.ringOn(s) || preview) {
-            val size = ((radius + thick * 4 + 6 * d) * 2).toInt()
+            val size = g.ringSize
             val v = RingView(s, radius, thick, preview)
             runCatching {
                 w.addView(v, params(size, size, (cx - size / 2f).toInt(), (cy - size / 2f).toInt(), touchable = false))
@@ -180,7 +225,7 @@ object NotchOverlay {
         if (!anyGesture && !NotchPrefs.showZone(s)) return
 
         // אזור הנגיעה: קצת יותר גדול מהחור, כדי שיהיה נוח לפגוע
-        val zs = ((radius + 14 * d) * 2).toInt()
+        val zs = g.zoneSize
         val z = View(s)
         // אזור הנגיעה מסומן רק כשהמתג "להראות את אזור הנגיעה" דלוק (ורוד כשקיצורים פתוחה)
         if (NotchPrefs.showZone(s)) {
@@ -236,8 +281,8 @@ object NotchOverlay {
 @SuppressLint("ViewConstructor")
 class RingView(
     ctx: Context,
-    private val radius: Float,
-    private val thick: Float,
+    private var radius: Float,
+    private var thick: Float,
     private val preview: Boolean = false,
 ) : View(ctx) {
     private var level = 100
@@ -272,6 +317,15 @@ class RingView(
             phase = it.animatedValue as Float
             invalidate()
         }
+    }
+
+    /** גודל ועובי חדשים (בזמן הזזת המחוונים) */
+    fun setGeometry(radius: Float, thick: Float) {
+        this.radius = radius
+        this.thick = thick
+        track.strokeWidth = thick
+        arc.strokeWidth = thick
+        invalidate()
     }
 
     fun update(level: Int, charging: Boolean, pulse: Int?, onlyCharging: Boolean, chargeAnim: Boolean) {
