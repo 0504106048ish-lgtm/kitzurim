@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -14,25 +15,33 @@ import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
+import android.media.AudioManager
+import android.media.session.MediaSessionManager
+import android.media.session.PlaybackState
 import android.os.BatteryManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.view.Display
-import android.view.GestureDetector
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.animation.LinearInterpolator
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * מה שמצויר מעל החור של המצלמה: טבעת (סוללה, טעינה, נורת התראות) ואזור נגיעה שקוף.
+ * מה שמצויר מעל החור של המצלמה: טבעת (סוללה, טעינה, התראות, עוצמת קול, שיר, שיחה) ואזור נגיעה שקוף.
  * רץ בתוך שירות הנגישות של קיצורים, כדי שיהיה מעל כל האפליקציות.
  */
 @SuppressLint("StaticFieldLeak")
@@ -42,16 +51,34 @@ object NotchOverlay {
     private var ring: RingView? = null
     private var zone: View? = null
     private var batteryReceiver: BroadcastReceiver? = null
+    private var volumeReceiver: BroadcastReceiver? = null
+    private val main = Handler(Looper.getMainLooper())
+
     private var level = 100
     private var charging = false
 
     /** התראות שעוד לא נקראו: מפתח ההתראה ← הצבע שלה */
     private val pulses = LinkedHashMap<String, Int>()
 
+    // מצבים זמניים של הטבעת
+    private var volume: Float? = null
+    private var music: Float? = null
+    private var callRinging = false
+    private var callStart = 0L
+
+    /** האפליקציה שפתוחה עכשיו (בשביל תנועות לפי אפליקציה) */
+    var currentPackage: String? = null
+
+    /** מסך מלא (סרטון, משחק): מסתירים אם המתג דלוק */
+    private var fullscreen = false
+
+    /** מצב כיוון: כל עוד קיצורים פתוחה, מראים עיגול ורוד כדי לראות איפה הטבעת יושבת */
+    private var preview = false
+
     fun attach(s: AccessibilityService) {
         service = s
         wm = s.getSystemService(WindowManager::class.java)
-        val r = object : BroadcastReceiver() {
+        val b = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
                 val l = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
                 val sc = i.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
@@ -61,15 +88,29 @@ object NotchOverlay {
                 updateRing()
             }
         }
-        batteryReceiver = r
-        s.registerReceiver(r, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        batteryReceiver = b
+        s.registerReceiver(b, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+
+        // שינוי עוצמת קול
+        val v = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) = onVolumeChanged()
+        }
+        volumeReceiver = v
+        runCatching { s.registerReceiver(v, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) }
+
         build()
+        main.post(ticker)
     }
 
     fun detach() {
+        main.removeCallbacks(ticker)
         removeViews()
-        batteryReceiver?.let { r -> service?.let { runCatching { it.unregisterReceiver(r) } } }
+        service?.let { s ->
+            batteryReceiver?.let { runCatching { s.unregisterReceiver(it) } }
+            volumeReceiver?.let { runCatching { s.unregisterReceiver(it) } }
+        }
         batteryReceiver = null
+        volumeReceiver = null
         service = null
     }
 
@@ -82,13 +123,17 @@ object NotchOverlay {
 
     fun isRunning() = service != null
 
-    /** מצב כיוון: כל עוד קיצורים פתוחה, מראים עיגול ורוד בולט ואת אזור הנגיעה, כדי לראות איפה הם יושבים */
-    private var preview = false
-
     fun setPreview(on: Boolean) {
         if (preview == on) return
         preview = on
         refresh()
+    }
+
+    fun setFullscreen(on: Boolean) {
+        if (fullscreen == on) return
+        fullscreen = on
+        val s = service ?: return
+        if (NotchPrefs.hideFullscreen(s)) refresh()
     }
 
     // ---------- נורת התראות ----------
@@ -102,12 +147,97 @@ object NotchOverlay {
         if (pulses.remove(key) != null) updateRing()
     }
 
+    // ---------- עוצמת קול ----------
+    private val clearVolume = Runnable {
+        volume = null
+        updateRing()
+    }
+
+    private fun onVolumeChanged() {
+        val s = service ?: return
+        if (!NotchPrefs.volumeRing(s)) return
+        val am = s.getSystemService(AudioManager::class.java) ?: return
+        // אם משהו מתנגן או יש שיחה: עוצמת המדיה. אחרת: עוצמת הצלצול
+        val stream = if (am.isMusicActive) AudioManager.STREAM_MUSIC else AudioManager.STREAM_RING
+        val max = am.getStreamMaxVolume(stream).coerceAtLeast(1)
+        volume = am.getStreamVolume(stream).toFloat() / max
+        updateRing()
+        main.removeCallbacks(clearVolume)
+        main.postDelayed(clearVolume, 1500)
+    }
+
+    // ---------- שיר ושיחה: בודקים כל שנייה ----------
+    private val ticker = object : Runnable {
+        override fun run() {
+            val s = service ?: return
+            var changed = false
+
+            // שיחה: לפי מצב השמע של הטלפון (עובד גם לשיחות וואטסאפ, בלי הרשאה נוספת)
+            if (NotchPrefs.callRing(s)) {
+                val mode = s.getSystemService(AudioManager::class.java)?.mode ?: AudioManager.MODE_NORMAL
+                val ringingNow = mode == AudioManager.MODE_RINGTONE
+                val inCall = mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION
+                if (ringingNow != callRinging) {
+                    callRinging = ringingNow
+                    changed = true
+                }
+                if (inCall && callStart == 0L) {
+                    callStart = SystemClock.elapsedRealtime()
+                    changed = true
+                } else if (!inCall && callStart != 0L) {
+                    callStart = 0L
+                    changed = true
+                }
+                if (inCall) changed = true // כל שנייה מתקדם
+            } else if (callRinging || callStart != 0L) {
+                callRinging = false
+                callStart = 0L
+                changed = true
+            }
+
+            // שיר: מהנגן שמנגן עכשיו (צריך גישה להתראות)
+            val m = if (NotchPrefs.musicRing(s)) musicProgress(s) else null
+            if (m != music) {
+                music = m
+                changed = true
+            }
+
+            if (changed) updateRing()
+            main.postDelayed(this, 1000)
+        }
+    }
+
+    private fun musicProgress(s: Context): Float? = try {
+        val msm = s.getSystemService(MediaSessionManager::class.java)
+        val controllers = msm?.getActiveSessions(ComponentName(s, ReplyListener::class.java)) ?: emptyList()
+        val c = controllers.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+        val duration = c?.metadata?.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        val st = c?.playbackState
+        if (c == null || st == null || duration <= 0) {
+            null
+        } else {
+            val pos = st.position + ((SystemClock.elapsedRealtime() - st.lastPositionUpdateTime) * st.playbackSpeed).toLong()
+            (pos.toFloat() / duration).coerceIn(0f, 1f)
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     private fun updateRing() {
         val s = service ?: return
         ring?.update(
-            level, charging,
-            if (NotchPrefs.notifyLight(s)) pulses.values.lastOrNull() else null,
-            NotchPrefs.onlyCharging(s), NotchPrefs.chargeAnim(s), NotchPrefs.ringOn(s),
+            RingState(
+                level = level,
+                charging = charging,
+                pulse = if (NotchPrefs.notifyLight(s)) pulses.values.lastOrNull() else null,
+                onlyCharging = NotchPrefs.onlyCharging(s),
+                chargeAnim = NotchPrefs.chargeAnim(s),
+                battery = NotchPrefs.ringOn(s),
+                volume = volume,
+                music = music,
+                ringing = callRinging,
+                callSeconds = if (callStart != 0L) ((SystemClock.elapsedRealtime() - callStart) / 1000).toInt() else null,
+            )
         )
     }
 
@@ -151,7 +281,7 @@ object NotchOverlay {
         }
     }
 
-    /** איפה ובאיזה גודל לצייר: מרכז, רדיוס, עובי, גודל חלון הטבעת וגודל אזור הנגיעה (בפיקסלים) */
+    /** איפה ובאיזה גודל לצייר (בפיקסלים) */
     private class Geom(val cx: Float, val cy: Float, val radius: Float, val thick: Float, val ringSize: Int, val zoneSize: Int)
 
     private fun geom(s: Context): Geom {
@@ -161,16 +291,13 @@ object NotchOverlay {
         val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
         val radius = max(c.width(), c.height()) / 2f + (4f + NotchPrefs.size(s)) * d
         val thick = NotchPrefs.thickness(s) * d
-        // חלון הטבעת בגודל קבוע לפי הגדלים המקסימליים, כדי שאפשר יהיה לשנות בלי לבנות מחדש
-        val ringSize = ((radius + 4f * d * 4 + 6 * d) * 2).toInt()
+        // חלון הטבעת גדול מספיק לעובי המקסימלי ולנקודות של זמן השיחה
+        val ringSize = ((radius + 4f * d * 4 + 10 * d) * 2).toInt()
         val zoneSize = ((radius + NotchPrefs.zoneExtra(s) * d) * 2).toInt()
         return Geom(cx, cy, radius, thick, ringSize, zoneSize)
     }
 
-    /**
-     * עדכון חי בזמן הזזת המחוונים: מזיזים ומשנים את הגודל של מה שכבר מצויר,
-     * בלי להסיר ולהוסיף מחדש (כך זה חלק ומהיר)
-     */
+    /** עדכון חי בזמן הזזת המחוונים: מזיזים את מה שכבר מצויר, בלי לבנות מחדש */
     fun live() {
         val s = service ?: return
         val w = wm ?: return
@@ -202,113 +329,154 @@ object NotchOverlay {
         if (!NotchPrefs.enabled(s)) return
         // במסך שוכב החור זז לצד: לא מציגים
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return
+        // מסך מלא (סרטון, משחק): מסתירים הכול, אם המתג דלוק
+        if (fullscreen && NotchPrefs.hideFullscreen(s) && !preview) return
 
         val d = s.resources.displayMetrics.density
         val g = geom(s)
-        val cx = g.cx
-        val cy = g.cy
-        val radius = g.radius
-        val thick = g.thick
 
-        // חלון הטבעת: לטבעת הסוללה, לנורת ההתראות, או לעיגול הוורוד כשקיצורים פתוחה
-        if (NotchPrefs.ringOn(s) || NotchPrefs.notifyLight(s) || preview) {
-            val size = g.ringSize
-            val v = RingView(s, radius, thick, preview)
+        val needRing = preview || NotchPrefs.ringOn(s) || NotchPrefs.notifyLight(s) ||
+            NotchPrefs.volumeRing(s) || NotchPrefs.musicRing(s) || NotchPrefs.callRing(s)
+        if (needRing) {
+            val v = RingView(s, g.radius, g.thick, preview)
             runCatching {
-                w.addView(v, params(size, size, (cx - size / 2f).toInt(), (cy - size / 2f).toInt(), touchable = false))
+                w.addView(v, params(g.ringSize, g.ringSize, (g.cx - g.ringSize / 2f).toInt(), (g.cy - g.ringSize / 2f).toInt(), touchable = false))
                 ring = v
             }
             updateRing()
         }
 
         // אין אף תנועה עם פעולה: לא שמים אזור נגיעה, כדי לא לחסום את שורת המצב
-        val anyGesture = Gesture.entries.any { NotchPrefs.action(s, it).type != ActionType.NONE }
-        if (!anyGesture && !NotchPrefs.showZone(s)) return
+        if (!NotchPrefs.anyGesture(s) && !NotchPrefs.showZone(s)) return
 
-        // אזור הנגיעה: קצת יותר גדול מהחור, כדי שיהיה נוח לפגוע
-        val zs = g.zoneSize
         val z = View(s)
-        // אזור הנגיעה מסומן רק כשהמתג "להראות את אזור הנגיעה" דלוק
+        // אזור הנגיעה מסומן רק כשהמתג "להראות את אזור הנגיעה" דלוק: עיגול דק בלי מילוי
         if (NotchPrefs.showZone(s)) {
-            // עיגול דק (בלי מילוי), כדי שלא יהיה ריבוע צבעוני על המסך
-            z.background = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL
-                setStroke((1.5f * s.resources.displayMetrics.density).toInt(), if (preview) Color.rgb(255, 64, 129) else Color.argb(160, 255, 255, 255))
+            z.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setStroke((1.5f * d).toInt(), if (preview) Color.rgb(255, 64, 129) else Color.argb(160, 255, 255, 255))
                 setColor(Color.TRANSPARENT)
             }
         }
         attachGestures(s, z)
         runCatching {
-            w.addView(z, params(zs, zs, (cx - zs / 2f).toInt(), (cy - zs / 2f).toInt(), touchable = true))
+            w.addView(z, params(g.zoneSize, g.zoneSize, (g.cx - g.zoneSize / 2f).toInt(), (g.cy - g.zoneSize / 2f).toInt(), touchable = true))
             zone = z
         }
     }
 
+    /**
+     * הנגיעות בחור: הקשה, כפולה, משולשת, לחיצה ארוכה, והחלקות (לפי מרחק, ברגע שהאצבע עברה מספיק).
+     * הקשות נספרות: אם אין פעולה להקשה כפולה ומשולשת, הקשה אחת פועלת מיד בלי לחכות.
+     */
     @SuppressLint("ClickableViewAccessibility")
     private fun attachGestures(s: AccessibilityService, v: View) {
-        fun run(g: Gesture) {
-            val a = NotchPrefs.action(s, g)
+        val d = s.resources.displayMetrics.density
+        val swipeDist = 18 * d
+        val tapWindow = ViewConfiguration.getDoubleTapTimeout().toLong().coerceAtLeast(250)
+        val longTime = ViewConfiguration.getLongPressTimeout().toLong()
+
+        fun action(g: Gesture) = NotchPrefs.actionFor(s, g, currentPackage)
+
+        fun fire(g: Gesture) {
+            val a = action(g)
             if (a.type == ActionType.NONE) return
-            v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            if (NotchPrefs.haptic(s)) {
+                v.performHapticFeedback(
+                    if (g == Gesture.LONG) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.VIRTUAL_KEY,
+                    HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING,
+                )
+            }
             NotchActions.perform(s, a)
         }
-        val detector = GestureDetector(s, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDown(e: MotionEvent) = true
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                run(Gesture.TAP)
-                return true
-            }
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                run(Gesture.DOUBLE)
-                return true
-            }
-            override fun onLongPress(e: MotionEvent) {
-                v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                val a = NotchPrefs.action(s, Gesture.LONG)
-                if (a.type != ActionType.NONE) NotchActions.perform(s, a)
-            }
-        })
-        // החלקה: מזהים לפי המרחק שהאצבע עברה (לא לפי המהירות), וברגע שעברה מספיק,
-        // בלי לחכות שתרים את האצבע. כך גם החלקה איטית עובדת, ולפני שהמערכת "חוטפת"
-        // את ההחלקה למטה לפתיחת שורת ההתראות
-        val d = s.resources.displayMetrics.density
-        val threshold = 18 * d
+
         var downX = 0f
         var downY = 0f
-        var swiped = false
+        var handled = false
+        var taps = 0
+        val resolveTaps = Runnable {
+            val g = when (taps) {
+                1 -> Gesture.TAP
+                2 -> Gesture.DOUBLE
+                else -> Gesture.TRIPLE
+            }
+            taps = 0
+            fire(g)
+        }
+        val longPress = Runnable {
+            handled = true
+            taps = 0
+            main.removeCallbacks(resolveTaps)
+            fire(Gesture.LONG)
+        }
+
         v.setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.rawX
                     downY = e.rawY
-                    swiped = false
+                    handled = false
+                    main.removeCallbacks(resolveTaps)
+                    main.postDelayed(longPress, longTime)
                 }
-                MotionEvent.ACTION_MOVE -> if (!swiped) {
+                MotionEvent.ACTION_MOVE -> if (!handled) {
                     val dx = e.rawX - downX
                     val dy = e.rawY - downY
                     val g = when {
-                        dy > threshold && abs(dy) > abs(dx) -> Gesture.DOWN
-                        dx > threshold && abs(dx) > abs(dy) -> Gesture.RIGHT
-                        dx < -threshold && abs(dx) > abs(dy) -> Gesture.LEFT
+                        dy > swipeDist && abs(dy) > abs(dx) -> Gesture.DOWN
+                        dx > swipeDist && abs(dx) > abs(dy) -> Gesture.RIGHT
+                        dx < -swipeDist && abs(dx) > abs(dy) -> Gesture.LEFT
                         else -> null
                     }
                     if (g != null) {
-                        swiped = true
-                        // שלא ייחשב גם כהקשה או לחיצה ארוכה
-                        val cancel = MotionEvent.obtain(e).apply { action = MotionEvent.ACTION_CANCEL }
-                        detector.onTouchEvent(cancel)
-                        cancel.recycle()
-                        run(g)
+                        handled = true
+                        taps = 0
+                        main.removeCallbacks(longPress)
+                        fire(g)
                     }
                 }
+                MotionEvent.ACTION_UP -> {
+                    main.removeCallbacks(longPress)
+                    if (!handled) {
+                        taps++
+                        val wantDouble = action(Gesture.DOUBLE).type != ActionType.NONE
+                        val wantTriple = action(Gesture.TRIPLE).type != ActionType.NONE
+                        when {
+                            // אין פעולה להקשות נוספות: לא מחכים
+                            taps == 1 && !wantDouble && !wantTriple -> { taps = 0; fire(Gesture.TAP) }
+                            taps == 2 && !wantTriple -> { taps = 0; fire(Gesture.DOUBLE) }
+                            taps >= 3 -> { taps = 0; fire(Gesture.TRIPLE) }
+                            else -> main.postDelayed(resolveTaps, tapWindow)
+                        }
+                    }
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    main.removeCallbacks(longPress)
+                }
             }
-            if (!swiped) detector.onTouchEvent(e)
             true
         }
     }
 }
 
-/** הטבעת: דקה וזוהרת. ירוק / כתום / אדום לפי הסוללה, נקודה מסתובבת בטעינה, הבהוב בהתראה */
+/** כל מה שהטבעת צריכה לדעת כדי לצייר */
+data class RingState(
+    val level: Int,
+    val charging: Boolean,
+    val pulse: Int?,
+    val onlyCharging: Boolean,
+    val chargeAnim: Boolean,
+    val battery: Boolean,
+    val volume: Float?,
+    val music: Float?,
+    val ringing: Boolean,
+    val callSeconds: Int?,
+)
+
+/**
+ * הטבעת: דקה וזוהרת. מה שמוצג, לפי סדר החשיבות:
+ * צלצול ← זמן שיחה ← עוצמת קול ← התראה ← שיר ← סוללה
+ */
 @SuppressLint("ViewConstructor")
 class RingView(
     ctx: Context,
@@ -316,12 +484,7 @@ class RingView(
     private var thick: Float,
     private val preview: Boolean = false,
 ) : View(ctx) {
-    private var level = 100
-    private var charging = false
-    private var pulse: Int? = null
-    private var onlyCharging = false
-    private var chargeAnim = true
-    private var battery = true
+    private var st = RingState(100, false, null, false, false, true, null, null, false, null)
     private var phase = 0f
 
     private val track = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -351,7 +514,6 @@ class RingView(
         }
     }
 
-    /** גודל ועובי חדשים (בזמן הזזת המחוונים) */
     fun setGeometry(radius: Float, thick: Float) {
         this.radius = radius
         this.thick = thick
@@ -360,14 +522,9 @@ class RingView(
         invalidate()
     }
 
-    fun update(level: Int, charging: Boolean, pulse: Int?, onlyCharging: Boolean, chargeAnim: Boolean, battery: Boolean) {
-        this.battery = battery
-        this.level = level
-        this.charging = charging
-        this.pulse = pulse
-        this.onlyCharging = onlyCharging
-        this.chargeAnim = chargeAnim
-        val moving = pulse != null || (battery && charging && chargeAnim)
+    fun update(state: RingState) {
+        st = state
+        val moving = st.ringing || st.pulse != null || (st.battery && st.charging && st.chargeAnim)
         if (moving && !anim.isStarted) anim.start()
         if (!moving && anim.isStarted) anim.cancel()
         invalidate()
@@ -378,23 +535,72 @@ class RingView(
         super.onDetachedFromWindow()
     }
 
+    private fun glowArc(c: Canvas, rect: RectF, col: Int, sweep: Float, glowAlpha: Int = 75) {
+        glow.color = col
+        glow.alpha = glowAlpha
+        glow.strokeWidth = thick * 3.2f
+        c.drawArc(rect, -90f, sweep, false, glow)
+        arc.color = col
+        arc.alpha = 255
+        arc.strokeWidth = thick
+        c.drawArc(rect, -90f, sweep, false, arc)
+    }
+
     override fun onDraw(c: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
         val rect = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+        val density = resources.displayMetrics.density
 
-        // מצב כיוון: עיגול ורוד בולט, כדי לראות בדיוק איפה הטבעת יושבת
+        // מצב כיוון: עיגול ורוד בולט
         if (preview) {
             arc.color = Color.rgb(255, 64, 129)
             arc.alpha = 255
-            arc.strokeWidth = max(thick, 2.5f * resources.displayMetrics.density)
+            arc.strokeWidth = max(thick, 2.5f * density)
             c.drawCircle(cx, cy, radius, arc)
             arc.strokeWidth = thick
             return
         }
 
+        // צלצול: הבהוב כחול חזק
+        if (st.ringing) {
+            val a = (0.5 + 0.5 * sin(phase * 4 * PI)).toFloat()
+            val col = Color.rgb(79, 179, 255)
+            glow.color = col
+            glow.alpha = (80 + 150 * a).toInt()
+            glow.strokeWidth = thick * (3f + 3f * a)
+            c.drawCircle(cx, cy, radius, glow)
+            arc.color = col
+            arc.alpha = 255
+            c.drawCircle(cx, cy, radius, arc)
+            return
+        }
+
+        // בשיחה: קו של השניות, ונקודה לכל דקה שעברה
+        st.callSeconds?.let { secs ->
+            val col = Color.rgb(42, 212, 154)
+            c.drawCircle(cx, cy, radius, track)
+            glowArc(c, rect, col, 360f * (secs % 60) / 60f)
+            val minutes = min(secs / 60, 30)
+            val r2 = radius + thick * 2.5f + 2 * density
+            for (i in 0 until minutes) {
+                val ang = -PI / 2 + i * 2 * PI / 12
+                dot.color = col
+                c.drawCircle(cx + r2 * cos(ang).toFloat(), cy + r2 * sin(ang).toFloat(), thick * 0.8f, dot)
+            }
+            dot.color = Color.WHITE
+            return
+        }
+
+        // עוצמת קול: כחול, לשנייה
+        st.volume?.let { v ->
+            c.drawCircle(cx, cy, radius, track)
+            glowArc(c, rect, Color.rgb(79, 179, 255), 360f * v, 95)
+            return
+        }
+
         // נורת התראות: הבהוב רך בצבע של האפליקציה
-        pulse?.let { col ->
+        st.pulse?.let { col ->
             val a = (0.5 + 0.5 * sin(phase * 2 * PI)).toFloat()
             glow.color = col
             glow.alpha = (60 + 120 * a).toInt()
@@ -406,27 +612,25 @@ class RingView(
             return
         }
 
-        // טבעת הסוללה כבויה (רק נורת התראות), או "רק בזמן טעינה" ולא בטעינה
-        if (!battery) return
-        if (onlyCharging && !charging) return
+        // שיר: סגול, מתמלא עד סוף השיר
+        st.music?.let { m ->
+            c.drawCircle(cx, cy, radius, track)
+            glowArc(c, rect, Color.rgb(179, 136, 255), 360f * m)
+            return
+        }
 
+        // סוללה
+        if (!st.battery) return
+        if (st.onlyCharging && !st.charging) return
         val col = when {
-            level <= 15 -> Color.rgb(226, 75, 74)
-            level <= 40 -> Color.rgb(239, 159, 39)
+            st.level <= 15 -> Color.rgb(226, 75, 74)
+            st.level <= 40 -> Color.rgb(239, 159, 39)
             else -> Color.rgb(62, 209, 140)
         }
         c.drawCircle(cx, cy, radius, track)
-        val sweep = 360f * level / 100f
-        glow.color = col
-        glow.alpha = 75
-        glow.strokeWidth = thick * 3.2f
-        c.drawArc(rect, -90f, sweep, false, glow)
-        arc.color = col
-        arc.alpha = 255
-        c.drawArc(rect, -90f, sweep, false, arc)
-
+        glowArc(c, rect, col, 360f * st.level / 100f)
         // טעינה: נקודה לבנה מסתובבת
-        if (charging && chargeAnim) {
+        if (st.charging && st.chargeAnim) {
             val ang = phase * 2 * PI - PI / 2
             c.drawCircle(cx + radius * cos(ang).toFloat(), cy + radius * sin(ang).toFloat(), thick * 1.1f, dot)
         }

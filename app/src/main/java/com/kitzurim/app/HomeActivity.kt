@@ -89,17 +89,24 @@ fun HomeScreen(resumes: Int) {
     val scroll = rememberScrollState()
     val scheme = MaterialTheme.colorScheme
 
-    // בחירת פעולה לתנועה
-    var picking by remember { mutableStateOf<Gesture?>(null) }
-    var pickingApp by remember { mutableStateOf<Gesture?>(null) }
-    var pickingUrl by remember { mutableStateOf<Gesture?>(null) }
+    // בחירת פעולה: לתנועה בכל מקום (pkg = null), או לתנועה באפליקציה מסוימת
+    var picking by remember { mutableStateOf<Target?>(null) }
+    var pickingApp by remember { mutableStateOf<Target?>(null) }
+    var pickingUrl by remember { mutableStateOf<Target?>(null) }
+    var addingApp by remember { mutableStateOf(false) }
+    var editingApp by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showPos by remember { mutableStateOf(false) }
-    var pendingContact by remember { mutableStateOf<Pair<Gesture, ActionType>?>(null) }
+    var pendingContact by remember { mutableStateOf<Pair<Target, ActionType>?>(null) }
 
-    fun save(g: Gesture, a: NotchAction) {
-        NotchPrefs.setAction(ctx, g, a)
+    /** שומר פעולה. באפליקציה מסוימת, null = "כמו בכל מקום" */
+    fun save(t: Target, a: NotchAction?) {
+        if (t.pkg == null) {
+            NotchPrefs.setAction(ctx, t.g, a ?: NotchAction(ActionType.NONE))
+        } else {
+            NotchPrefs.setAppAction(ctx, t.pkg, t.g, a)
+        }
         NotchOverlay.refresh()
-        Actions.toast(ctx, "${g.label}: ${a.title()}")
+        Actions.toast(ctx, "${t.g.label}: ${a?.title() ?: "כמו בכל מקום"}")
         refresh++
     }
 
@@ -206,7 +213,7 @@ fun HomeScreen(resumes: Int) {
                                             if (none) Neon.Line else Neon.Green.copy(alpha = 0.35f),
                                             RoundedCornerShape(16.dp),
                                         )
-                                        .clickable { picking = g }
+                                        .clickable { picking = Target(g, null) }
                                         .padding(12.dp),
                                     verticalArrangement = Arrangement.spacedBy(3.dp),
                                 ) {
@@ -219,6 +226,7 @@ fun HomeScreen(resumes: Int) {
                                     )
                                 }
                             }
+                            if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }
@@ -249,6 +257,62 @@ fun HomeScreen(resumes: Int) {
                             Text("לנורת ההתראות צריך גישה להתראות ←")
                         }
                     }
+                    HorizontalDivider(color = Neon.Line)
+                    SwitchLine("🔊 עוצמת קול (הטבעת מתמלאת כשמשנים ווליום)", NotchPrefs.volumeRing(ctx)) {
+                        NotchPrefs.setVolumeRing(ctx, it); NotchOverlay.refresh(); refresh++
+                    }
+                    SwitchLine("🎵 התקדמות השיר (בזמן שמוזיקה מתנגנת)", NotchPrefs.musicRing(ctx)) {
+                        NotchPrefs.setMusicRing(ctx, it); NotchOverlay.refresh(); refresh++
+                    }
+                    if (NotchPrefs.musicRing(ctx) && !Driving.listenerAllowed(ctx)) {
+                        TextButton(onClick = { ctx.startActivity(Intent(ctx, PermissionsActivity::class.java)) }) {
+                            Text("לשיר צריך גישה להתראות ←")
+                        }
+                    }
+                    SwitchLine("📞 שיחות (הבהוב בצלצול, וזמן השיחה)", NotchPrefs.callRing(ctx)) {
+                        NotchPrefs.setCallRing(ctx, it); NotchOverlay.refresh(); refresh++
+                    }
+                }
+
+                // ---------- התנהגות ----------
+                Card {
+                    Text("התנהגות", style = MaterialTheme.typography.titleMedium)
+                    SwitchLine("📳 רטט קטן בכל נגיעה בחור", NotchPrefs.haptic(ctx)) {
+                        NotchPrefs.setHaptic(ctx, it); refresh++
+                    }
+                    SwitchLine("🙈 להסתיר במסך מלא (סרטון, משחק, תמונה)", NotchPrefs.hideFullscreen(ctx)) {
+                        NotchPrefs.setHideFullscreen(ctx, it); NotchOverlay.refresh(); refresh++
+                    }
+                }
+
+                // ---------- תנועות לפי אפליקציה ----------
+                Card {
+                    Text("תנועות לפי אפליקציה", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "בתוך אפליקציה מסוימת התנועות יכולות לעשות משהו אחר. למשל ביוטיוב הקשה = השהיה.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                    NotchPrefs.apps(ctx).forEach { (pkg, name) ->
+                        val count = Gesture.entries.count { NotchPrefs.appAction(ctx, pkg, it) != null }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { editingApp = pkg to name }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("📱 $name", Modifier.weight(1f))
+                            Text(
+                                if (count == 0) "כמו בכל מקום" else "$count תנועות משלה",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (count == 0) scheme.onSurfaceVariant else Neon.GreenSoft,
+                            )
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null, tint = scheme.onSurfaceVariant)
+                        }
+                    }
+                    TextButton(onClick = { addingApp = true }) { Text("+ הוספת אפליקציה") }
                 }
 
                 // ---------- גודל ומיקום (נפתח בלחיצה) ----------
@@ -296,30 +360,63 @@ fun HomeScreen(resumes: Int) {
     }
 
     // ---------- חלונות בחירה ----------
-    picking?.let { g ->
-        ActionPicker(g, onDismiss = { picking = null }) { type ->
+    // אפליקציה חדשה ל"תנועות לפי אפליקציה"
+    if (addingApp) {
+        AppPicker(onDismiss = { addingApp = false }) { name, pkg ->
+            addingApp = false
+            NotchPrefs.addApp(ctx, pkg, name)
+            editingApp = pkg to name
+            refresh++
+        }
+    }
+    // התנועות של אפליקציה מסוימת
+    editingApp?.let { (pkg, name) ->
+        AppGesturesDialog(
+            pkg = pkg,
+            name = name,
+            version = refresh,
+            onDismiss = { editingApp = null },
+            onPick = { g -> picking = Target(g, pkg) },
+            onRemove = {
+                NotchPrefs.removeApp(ctx, pkg)
+                editingApp = null
+                NotchOverlay.refresh()
+                refresh++
+            },
+        )
+    }
+    picking?.let { t ->
+        ActionPicker(
+            t.g,
+            appName = t.pkg?.let { p -> NotchPrefs.apps(ctx).firstOrNull { it.first == p }?.second },
+            onDismiss = { picking = null },
+            onDefault = {
+                picking = null
+                save(t, null)
+            },
+        ) { type ->
             picking = null
             when (type.arg) {
-                ArgKind.NONE -> save(g, NotchAction(type))
-                ArgKind.APP -> pickingApp = g
+                ArgKind.NONE -> save(t, NotchAction(type))
+                ArgKind.APP -> pickingApp = t
                 ArgKind.CONTACT -> {
-                    pendingContact = g to type
+                    pendingContact = t to type
                     contactLauncher.launch(null)
                 }
-                ArgKind.URL -> pickingUrl = g
+                ArgKind.URL -> pickingUrl = t
             }
         }
     }
-    pickingApp?.let { g ->
+    pickingApp?.let { t ->
         AppPicker(onDismiss = { pickingApp = null }) { name, pkg ->
             pickingApp = null
-            save(g, NotchAction(ActionType.APP, pkg, name))
+            save(t, NotchAction(ActionType.APP, pkg, name))
         }
     }
-    pickingUrl?.let { g ->
+    pickingUrl?.let { t ->
         UrlDialog(onDismiss = { pickingUrl = null }) { url ->
             pickingUrl = null
-            save(g, NotchAction(ActionType.URL, url, url.removePrefix("https://").removePrefix("http://")))
+            save(t, NotchAction(ActionType.URL, url, url.removePrefix("https://").removePrefix("http://")))
         }
     }
 }
@@ -389,16 +486,35 @@ private fun Tile(icon: ImageVector, label: String, modifier: Modifier, onClick: 
 
 /** רשימת כל הפעולות */
 @Composable
-private fun ActionPicker(g: Gesture, onDismiss: () -> Unit, onPick: (ActionType) -> Unit) {
+private fun ActionPicker(
+    g: Gesture,
+    appName: String?,
+    onDismiss: () -> Unit,
+    onDefault: () -> Unit,
+    onPick: (ActionType) -> Unit,
+) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.padding(vertical = 16.dp)) {
                 Text(
-                    "${g.label}: מה לעשות?",
+                    if (appName != null) "$appName · ${g.label}: מה לעשות?" else "${g.label}: מה לעשות?",
                     Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.titleMedium,
                 )
                 LazyColumn(Modifier.heightIn(max = 480.dp)) {
+                    // באפליקציה מסוימת: אפשר לחזור לפעולה הרגילה
+                    if (appName != null) {
+                        item {
+                            Text(
+                                "↩️  כמו בכל מקום",
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onDefault() }
+                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                color = Neon.GreenSoft,
+                            )
+                        }
+                    }
                     items(ActionType.entries) { t ->
                         Text(
                             t.emoji + "  " + t.label,
@@ -413,6 +529,60 @@ private fun ActionPicker(g: Gesture, onDismiss: () -> Unit, onPick: (ActionType)
         }
     }
 }
+
+/** התנועות של אפליקציה אחת: מה שונה בה מהרגיל */
+@Composable
+private fun AppGesturesDialog(
+    pkg: String,
+    name: String,
+    version: Int,
+    onDismiss: () -> Unit,
+    onPick: (Gesture) -> Unit,
+    onRemove: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("📱 $name", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "מה כל נגיעה עושה כש$name פתוחה",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // version: כדי שהחלון יתעדכן אחרי כל שינוי
+                key(version) {
+                    Gesture.entries.forEach { g ->
+                        val a = NotchPrefs.appAction(ctx, pkg, g)
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onPick(g) }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(g.label, Modifier.weight(0.9f), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                a?.title() ?: "↩️ כמו בכל מקום",
+                                Modifier.weight(1.4f),
+                                color = if (a != null) Neon.GreenSoft else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Row {
+                    TextButton(onClick = onDismiss) { Text("סיום") }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onRemove) { Text("להסיר את האפליקציה", color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        }
+    }
+}
+
+/** תנועה בכל מקום (pkg = null), או תנועה באפליקציה מסוימת */
+private data class Target(val g: Gesture, val pkg: String?)
 
 /** רשימת האפליקציות שבטלפון */
 @Composable

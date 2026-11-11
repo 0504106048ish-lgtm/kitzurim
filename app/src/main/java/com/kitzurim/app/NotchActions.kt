@@ -20,6 +20,7 @@ import org.json.JSONObject
 enum class Gesture(val label: String) {
     TAP("הקשה"),
     DOUBLE("הקשה כפולה"),
+    TRIPLE("הקשה משולשת"),
     LONG("לחיצה ארוכה"),
     DOWN("החלקה למטה"),
     RIGHT("החלקה ימינה"),
@@ -57,6 +58,7 @@ enum class ActionType(val emoji: String, val label: String, val arg: ArgKind = A
     NAV_HOME("🧭", "ניווט הביתה"),
     DRIVING("🚗", "מצב נהיגה (הדלקה / כיבוי)"),
     BATTERY_INFO("🔋", "מידע על הסוללה"),
+    ROTATE("🔄", "סיבוב מסך אוטומטי (הדלקה / כיבוי)"),
     APP("📱", "פתיחת אפליקציה…", ArgKind.APP),
     WHATSAPP("💬", "צ'אט בוואטסאפ עם…", ArgKind.CONTACT),
     CALL("📞", "התקשרות ל…", ArgKind.CONTACT),
@@ -215,6 +217,22 @@ object NotchActions {
                 b.tempC?.let { parts += "${"%.1f".format(it)}°C" }
                 Actions.toast(s, parts.joinToString(" · "))
             }
+            ActionType.ROTATE -> {
+                // צריך אישור "שינוי הגדרות מערכת" (פעם אחת)
+                if (!android.provider.Settings.System.canWrite(s)) {
+                    Actions.toast(s, "צריך לאשר לקיצורים \"שינוי הגדרות מערכת\", ואז לנסות שוב")
+                    start(
+                        s,
+                        Intent(android.provider.Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + s.packageName)),
+                        "לא הצלחתי לפתוח את ההגדרות",
+                    )
+                } else {
+                    val key = android.provider.Settings.System.ACCELEROMETER_ROTATION
+                    val on = android.provider.Settings.System.getInt(s.contentResolver, key, 0) == 1
+                    android.provider.Settings.System.putInt(s.contentResolver, key, if (on) 0 else 1)
+                    Actions.toast(s, if (on) "🔒 הסיבוב ננעל" else "🔄 סיבוב אוטומטי דלוק")
+                }
+            }
             ActionType.APP -> {
                 val i = s.packageManager.getLaunchIntentForPackage(a.value)
                 if (i == null) Actions.toast(s, "האפליקציה לא נמצאה") else start(s, i, "לא הצלחתי לפתוח")
@@ -287,4 +305,67 @@ object NotchPrefs {
     /** להראות את אזור הנגיעה (כדי לכוון) */
     fun showZone(c: Context) = sp(c).getBoolean("show_zone", false)
     fun setShowZone(c: Context, v: Boolean) = sp(c).edit().putBoolean("show_zone", v).apply()
+
+    // ---------- עוד דברים שהטבעת מראה (כולם מתחילים כבויים) ----------
+    /** עוצמת קול: כשמשנים ווליום, הטבעת מתמלאת לפי העוצמה לשנייה */
+    fun volumeRing(c: Context) = sp(c).getBoolean("volume_ring", false)
+    fun setVolumeRing(c: Context, v: Boolean) = sp(c).edit().putBoolean("volume_ring", v).apply()
+
+    /** התקדמות השיר: קו שמתמלא עד סוף השיר */
+    fun musicRing(c: Context) = sp(c).getBoolean("music_ring", false)
+    fun setMusicRing(c: Context, v: Boolean) = sp(c).edit().putBoolean("music_ring", v).apply()
+
+    /** שיחות: הבהוב בזמן צלצול, וזמן השיחה בזמן שמדברים */
+    fun callRing(c: Context) = sp(c).getBoolean("call_ring", false)
+    fun setCallRing(c: Context, v: Boolean) = sp(c).edit().putBoolean("call_ring", v).apply()
+
+    // ---------- התנהגות ----------
+    /** רטט קטן בכל נגיעה בחור */
+    fun haptic(c: Context) = sp(c).getBoolean("haptic", false)
+    fun setHaptic(c: Context, v: Boolean) = sp(c).edit().putBoolean("haptic", v).apply()
+
+    /** להסתיר את הטבעת ואת אזור הנגיעה בסרטון, משחק או תמונה במסך מלא */
+    fun hideFullscreen(c: Context) = sp(c).getBoolean("hide_full", false)
+    fun setHideFullscreen(c: Context, v: Boolean) = sp(c).edit().putBoolean("hide_full", v).apply()
+
+    // ---------- תנועות לפי אפליקציה ----------
+    private fun appsJson(c: Context): JSONObject =
+        try { JSONObject(sp(c).getString("apps", "{}") ?: "{}") } catch (_: Exception) { JSONObject() }
+
+    /** האפליקציות שיש להן תנועות משלהן: חבילה ← שם */
+    fun apps(c: Context): List<Pair<String, String>> {
+        val o = appsJson(c)
+        return o.keys().asSequence().map { it to o.getString(it) }.sortedBy { it.second }.toList()
+    }
+
+    fun addApp(c: Context, pkg: String, name: String) {
+        sp(c).edit().putString("apps", appsJson(c).put(pkg, name).toString()).apply()
+    }
+
+    fun removeApp(c: Context, pkg: String) {
+        val o = appsJson(c)
+        o.remove(pkg)
+        val e = sp(c).edit().putString("apps", o.toString())
+        Gesture.entries.forEach { e.remove("a_${pkg}_${it.name}") }
+        e.apply()
+    }
+
+    /** הפעולה של תנועה באפליקציה מסוימת, או null = כמו בכל מקום */
+    fun appAction(c: Context, pkg: String, g: Gesture): NotchAction? =
+        NotchAction.fromJson(sp(c).getString("a_${pkg}_${g.name}", null))
+
+    fun setAppAction(c: Context, pkg: String, g: Gesture, a: NotchAction?) {
+        val e = sp(c).edit()
+        if (a == null) e.remove("a_${pkg}_${g.name}") else e.putString("a_${pkg}_${g.name}", a.toJson())
+        e.apply()
+    }
+
+    /** מה התנועה עושה עכשיו: לפי האפליקציה הפתוחה אם הוגדר לה, ואחרת הרגיל */
+    fun actionFor(c: Context, g: Gesture, pkg: String?): NotchAction =
+        pkg?.let { appAction(c, it, g) } ?: action(c, g)
+
+    /** האם יש בכלל תנועה כלשהי עם פעולה (בכל מקום או באפליקציה כלשהי) */
+    fun anyGesture(c: Context): Boolean =
+        Gesture.entries.any { action(c, it).type != ActionType.NONE } ||
+            apps(c).any { (pkg, _) -> Gesture.entries.any { appAction(c, pkg, it)?.let { a -> a.type != ActionType.NONE } == true } }
 }

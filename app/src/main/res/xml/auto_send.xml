@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- שליחה אוטומטית: רואה רק את וואטסאפ, ולוחץ "שלח" רק אחרי שקיצורים פתחה צ'אט עם הודעה -->
+<!-- קיצורים: החור של המצלמה (טבעת ונגיעות), איזו אפליקציה פתוחה ומסך מלא, ושליחה אוטומטית בוואטסאפ -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeWindowsChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagReportViewIds"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
     android:canRetrieveWindowContent="true"
     android:description="@string/auto_send_desc"
-    android:notificationTimeout="100"
-    android:packageNames="com.whatsapp,com.whatsapp.w4b" />
+    android:notificationTimeout="100" />

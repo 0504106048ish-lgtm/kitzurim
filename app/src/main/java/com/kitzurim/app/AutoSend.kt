@@ -34,7 +34,24 @@ class AutoSendService : AccessibilityService() {
     private val sendIds = listOf("com.whatsapp:id/send", "com.whatsapp.w4b:id/send")
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        val type = event?.eventType ?: 0
+        // איזו אפליקציה פתוחה (בשביל תנועות לפי אפליקציה)
+        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val pkg = event?.packageName?.toString()
+            // לא מחליפים בגלל שורת ההתראות, המקלדת או קיצורים עצמה
+            if (pkg != null && pkg != "com.android.systemui" && pkg != packageName && !pkg.contains("inputmethod") &&
+                !pkg.contains("honeyboard")
+            ) {
+                NotchOverlay.currentPackage = pkg
+            }
+        }
+        // מסך מלא: שורת המצב נעלמה מהמסך
+        if (type == AccessibilityEvent.TYPE_WINDOWS_CHANGED || type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            checkFullscreen()
+        }
+
         if (!AutoSend.armed(this)) return
+        if (event?.packageName?.toString()?.startsWith("com.whatsapp") != true) return
         val root = rootInActiveWindow ?: return
         val button: AccessibilityNodeInfo = sendIds.firstNotNullOfOrNull { id ->
             root.findAccessibilityNodeInfosByViewId(id)?.firstOrNull()
@@ -46,6 +63,20 @@ class AutoSendService : AccessibilityService() {
     }
 
     override fun onInterrupt() {}
+
+    /** מסך מלא = אין חלון מערכת דק למעלה (שורת המצב) */
+    private fun checkFullscreen() {
+        val d = resources.displayMetrics.density
+        val screenW = resources.displayMetrics.widthPixels
+        val list = try { windows } catch (_: Exception) { return }
+        val bounds = android.graphics.Rect()
+        val statusBarShown = list.any { w ->
+            w.getBoundsInScreen(bounds)
+            w.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_SYSTEM &&
+                bounds.top <= 0 && bounds.height() in 1..(80 * d).toInt() && bounds.width() > screenW / 2
+        }
+        NotchOverlay.setFullscreen(!statusBarShown)
+    }
 
     // החור של המצלמה: הטבעת ואזור הנגיעה רצים כל עוד השירות פעיל
     override fun onServiceConnected() {
