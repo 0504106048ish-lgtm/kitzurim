@@ -52,12 +52,10 @@ object LivePill {
         // הודעה ארוכה: נשארת קצת יותר זמן כדי שיספיקו לקרוא
         show(
             "msg", 300, color, if (text.length > 40) 5500 else 3500,
-            onTap = { runCatching { open?.send() } }, long = text, longColor = Color.rgb(210, 216, 228),
-        ) { ctx, left, right ->
-            // בעברית קוראים מימין: מי ששלח בצד ימין, ההודעה בצד שמאל
-            right.addView(label(ctx, sender, 14.5f, Color.WHITE, bold = true))
+            onTap = { runCatching { open?.send() } }, long = senderAndText(sender, text), longColor = Color.rgb(210, 216, 228),
+        ) { ctx, _, right ->
+            // ליד המצלמה רק העיגול עם האות; השם וההודעה בשורה מתחת, כך שהגודל לפי כמות הטקסט
             right.addView(letter(ctx, sender, color))
-            left.addView(label(ctx, text, 13.5f, Color.rgb(210, 216, 228)))
         }
     }
 
@@ -156,7 +154,7 @@ object LivePill {
         color: Int,
         autoMs: Long?,
         onTap: (() -> Unit)?,
-        long: String? = null,
+        long: CharSequence? = null,
         longColor: Int = Color.WHITE,
         fill: (Context, LinearLayout, LinearLayout) -> Unit,
     ) {
@@ -249,14 +247,14 @@ object LivePill {
             val lineW = body.measuredWidth
             val cardMax = maxW - 2 * padW
             val lines = ((lineW + cardMax - 1) / cardMax).coerceIn(1, 3)
-            val bodyW = min(cardMax, lineW / lines + (24 * d).toInt())
+            val bodyW = min(cardMax, lineW / lines + (16 * d).toInt())
             side = max(side, (bodyW + 2 * padW - gapW - 2 * padW) / 2).coerceAtMost(maxSide)
             val cardInner = 2 * side + gapW
             body.measure(
                 View.MeasureSpec.makeMeasureSpec(cardInner, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
             )
-            bodyH = body.measuredHeight + (8 * d).toInt()
+            bodyH = body.measuredHeight + (2 * d).toInt()
         }
         val targetW = max(2 * side + gapW + 2 * padW, collapsedW)
         val targetH = h + bodyH
@@ -281,7 +279,7 @@ object LivePill {
             root.addView(
                 body,
                 FrameLayout.LayoutParams(2 * side + gapW, bodyH, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-                    .apply { topMargin = pillTop + h - (4 * d).toInt() },
+                    .apply { topMargin = pillTop + h - (6 * d).toInt() },
             )
             if (onTap != null) body.setOnClickListener { onTap(); hide() }
         }
@@ -394,10 +392,8 @@ object LivePill {
             "msg", "long" -> {
                 val green = Color.rgb(37, 211, 102)
                 val text = if (type == "msg") "מה קורה?" else "אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר?"
-                show("msg", 300, green, if (text.length > 40) 5500 else 3500, onTap = null, long = text, longColor = grey) { ctx, left, right ->
-                    right.addView(label(ctx, "דני", 14.5f, Color.WHITE, bold = true))
+                show("msg", 300, green, if (text.length > 40) 5500 else 3500, onTap = null, long = senderAndText("דני", text), longColor = grey) { ctx, _, right ->
                     right.addView(letter(ctx, "דני", green))
-                    left.addView(label(ctx, text, 13.5f, grey))
                 }
             }
             "charge" -> {
@@ -427,7 +423,17 @@ object LivePill {
 
     // ---------- רכיבים קטנים ----------
 
-    private fun label(ctx: Context, text: String, sp: Float, color: Int, bold: Boolean = false) = TextView(ctx).apply {
+    /** "דני: מה קורה?" עם השם מודגש ולבן, כדי שהשם לא ייחתך ויהיה צמוד למצלמה */
+    private fun senderAndText(sender: String, text: String): CharSequence =
+        android.text.SpannableStringBuilder().apply {
+            append(sender.trim())
+            setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.ForegroundColorSpan(Color.WHITE), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            append(": ")
+            append(text.trim())
+        }
+
+    private fun label(ctx: Context, text: CharSequence, sp: Float, color: Int, bold: Boolean = false) = TextView(ctx).apply {
         this.text = text
         setTextColor(color)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, sp)
