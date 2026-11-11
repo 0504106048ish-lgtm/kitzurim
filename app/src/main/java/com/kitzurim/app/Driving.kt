@@ -72,7 +72,12 @@ class ReplyListener : NotificationListenerService() {
             }
             val answer = find(listOf("ענה", "מענה", "קבל", "answer", "accept")) ?: actions.lastOrNull()
             val decline = find(listOf("דחה", "דחיי", "נתק", "decline", "reject", "dismiss")) ?: actions.firstOrNull()
-            LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent)
+            // מסך השיחה בניאון (מעל סמסונג). אם כבוי או לא הצליח: הגלולה הרגילה
+            val sub = n.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+            val photo = runCatching { n.getLargeIcon()?.loadDrawable(this) }.getOrNull()
+            if (!CallScreen.show(sbn.key, name, sub, photo, decline?.actionIntent, answer?.actionIntent)) {
+                LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent)
+            }
             return
         }
 
@@ -109,6 +114,7 @@ class ReplyListener : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         NotchOverlay.notificationRemoved(sbn.key)
         LivePill.callNotificationRemoved(sbn.key)
+        CallScreen.removed(sbn.key)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {

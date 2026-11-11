@@ -379,6 +379,14 @@ fun HomeScreen(resumes: Int) {
                     SwitchLine("🔒 לעבוד גם במסך הנעילה (טבעת, התראות וגלולה)", NotchPrefs.onLockScreen(ctx)) {
                         NotchPrefs.setOnLockScreen(ctx, it); NotchOverlay.refresh(); refresh++
                     }
+                    SwitchLine("📞 מסך שיחה נכנסת בניאון (מעל המסך של סמסונג)", NotchPrefs.callScreen(ctx)) {
+                        NotchPrefs.setCallScreen(ctx, it); refresh++
+                    }
+                    if (NotchPrefs.callScreen(ctx) && !Driving.listenerAllowed(ctx)) {
+                        TextButton(onClick = { ctx.startActivity(Intent(ctx, PermissionsActivity::class.java)) }) {
+                            Text("למסך השיחה צריך גישה להתראות ←")
+                        }
+                    }
                     // נגן: הקשה על העיגול כשמתנגן שיר
                     SwitchLine("🎵 נגן בהקשה על העיגול כשמתנגן שיר", NotchPrefs.musicTap(ctx)) {
                         NotchPrefs.setMusicTap(ctx, it); NotchOverlay.refresh(); refresh++
