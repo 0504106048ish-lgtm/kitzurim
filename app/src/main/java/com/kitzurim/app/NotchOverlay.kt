@@ -57,6 +57,7 @@ object NotchOverlay {
     private var zone: View? = null
     private var batteryReceiver: BroadcastReceiver? = null
     private var volumeReceiver: BroadcastReceiver? = null
+    private var lockReceiver: BroadcastReceiver? = null
     private val main = Handler(Looper.getMainLooper())
 
     private var level = 100
@@ -90,10 +91,18 @@ object NotchOverlay {
         if (wasOff != nowOff) refresh()
     }
 
+    /** המסך נעול והמתג "להראות גם במסך הנעילה" כבוי */
+    private fun lockedHidden(): Boolean {
+        val s = service ?: return false
+        if (preview || NotchPrefs.onLockScreen(s)) return false
+        return s.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+    }
+
     /** מסך שוכב, או מסך מלא כשהמתג "להסתיר במסך מלא" דלוק: לא מראים גלולה (חוץ משיחה) */
     fun pillBlocked(): Boolean {
         val s = service ?: return true
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return true
+        if (lockedHidden()) return true
         return fullscreen && NotchPrefs.hideFullscreen(s) && !preview
     }
 
@@ -138,6 +147,24 @@ object NotchOverlay {
             override fun onReceive(c: Context, i: Intent) = onVolumeChanged(i)
         }
         volumeReceiver = v
+
+        // נעילה ופתיחה: מסתירים או מחזירים לפי המתג "להראות גם במסך הנעילה"
+        val l = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                if (!NotchPrefs.onLockScreen(c)) refresh()
+            }
+        }
+        lockReceiver = l
+        runCatching {
+            s.registerReceiver(
+                l,
+                IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_ON)
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_USER_PRESENT)
+                },
+            )
+        }
         runCatching { s.registerReceiver(v, IntentFilter("android.media.VOLUME_CHANGED_ACTION")) }
 
         build()
@@ -152,9 +179,11 @@ object NotchOverlay {
         service?.let { s ->
             batteryReceiver?.let { runCatching { s.unregisterReceiver(it) } }
             volumeReceiver?.let { runCatching { s.unregisterReceiver(it) } }
+            lockReceiver?.let { runCatching { s.unregisterReceiver(it) } }
         }
         batteryReceiver = null
         volumeReceiver = null
+        lockReceiver = null
         service = null
     }
 
@@ -448,6 +477,8 @@ object NotchOverlay {
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return
         // מסך מלא (סרטון, משחק): מסתירים הכול, אם המתג דלוק
         if (fullscreen && NotchPrefs.hideFullscreen(s) && !preview) return
+        // מסך נעילה: אם כיבית "להראות גם במסך הנעילה"
+        if (lockedHidden()) return
         // אפליקציה שבחרת שבה קיצורים כבוי
         if (offHere()) return
 

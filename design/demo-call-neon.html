@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מסך שיחה ניאון</title>
+<style>
+  :root { --bg:#0b0d12; --card:#151922; --text:#e9edf5; --muted:#8b94a7; --g:#2ad49a; --r:#ff4d5e; --b:#4fb3ff; --p:#b388ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui, "Segoe UI", Arial, sans-serif; padding:16px; }
+  h1 { font-size:21px; margin:0 0 4px; }
+  h3 { font-size:18px; margin:28px 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 16px; font-size:14px; max-width:820px; line-height:1.55; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; max-width:1150px; }
+  .card { background:var(--card); border-radius:20px; padding:14px; }
+  .card h2 { font-size:16px; margin:0 0 2px; }
+  .why { color:var(--muted); font-size:13px; margin:0 0 10px; min-height:38px; }
+  .tag { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; margin-bottom:6px; background:#2a2440; color:#c9b6ff; }
+  .phone { position:relative; width:230px; height:480px; margin:0 auto; border-radius:32px; overflow:hidden; border:6px solid #000; box-shadow:0 0 0 1px #2a2f3a; color:#fff; }
+  .cam { position:absolute; top:10px; left:50%; width:11px; height:11px; margin-left:-5.5px; border-radius:50%; background:#000; z-index:30; }
+  .sb { position:absolute; top:8px; left:16px; right:16px; display:flex; justify-content:space-between; font-size:10.5px; font-weight:600; z-index:10; direction:ltr; }
+  .center { position:absolute; left:0; right:0; text-align:center; }
+  .nm { font-size:25px; font-weight:700; }
+  .sm { font-size:12.5px; opacity:.75; }
+  .av { position:absolute; left:50%; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; }
+  .dark { background:radial-gradient(120% 70% at 50% 25%, #14202a 0%, #07090d 60%); }
+
+  /* 1: טבעות נושמות */
+  .glow { position:absolute; top:94px; left:50%; width:134px; height:134px; margin-left:-67px; border-radius:50%; border:2px solid var(--g); box-shadow:0 0 18px var(--g); animation:breath 1.6s ease-in-out infinite; }
+  .glow.b { animation-delay:.8s; }
+  @keyframes breath { 0%,100% { transform:scale(1); opacity:.9 } 50% { transform:scale(1.14); opacity:.2 } }
+  .slide { position:absolute; bottom:56px; left:20px; right:20px; height:56px; border-radius:28px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); direction:ltr; }
+  .slide .k { position:absolute; top:4px; left:4px; width:48px; height:48px; border-radius:50%; background:var(--g); color:#000; display:flex; align-items:center; justify-content:center; font-size:20px; box-shadow:0 0 16px var(--g); animation:nudge 1.8s ease-in-out infinite; }
+  @keyframes nudge { 0%,60%,100% { transform:translateX(0) } 30% { transform:translateX(14px) } }
+  .slide .h { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12.5px; color:#b8c2d4; direction:rtl; }
+
+  /* 2: גל סאונד */
+  .wave { position:absolute; top:250px; left:0; right:0; height:60px; display:flex; align-items:center; justify-content:center; gap:4px; }
+  .wave i { width:4px; border-radius:2px; background:var(--b); box-shadow:0 0 8px var(--b); animation:eq 1s ease-in-out infinite; }
+  @keyframes eq { 0%,100% { height:8px } 50% { height:46px } }
+  .btn2 { position:absolute; bottom:46px; left:0; right:0; display:flex; justify-content:space-around; }
+  .btn2 div { width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:24px; }
+  .btn2 span { position:absolute; bottom:-20px; font-size:11px; color:#9aa4b6; width:64px; text-align:center; }
+
+  /* 3: מסגרת זוהרת שרצה סביב המסך */
+  .edge { position:absolute; inset:0; border-radius:26px; padding:3px; background:conic-gradient(from var(--a), transparent 0 70%, var(--p) 85%, #fff 90%, var(--p) 95%, transparent); -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude; animation:spin 2.2s linear infinite; }
+  @property --a { syntax:'<angle>'; inherits:false; initial-value:0deg; }
+  @keyframes spin { to { --a:360deg } }
+  .pillbtn { position:absolute; bottom:44px; left:18px; right:18px; display:flex; gap:10px; }
+  .pillbtn div { flex:1; height:54px; border-radius:27px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:14px; font-weight:600; }
+
+  /* 4: חלקיקים */
+  .orb { position:absolute; top:84px; left:50%; width:150px; height:150px; margin-left:-75px; }
+  .orb b { position:absolute; left:50%; top:50%; width:6px; height:6px; margin:-3px; border-radius:50%; background:var(--g); box-shadow:0 0 10px var(--g); animation:orbit 3s linear infinite; }
+  @keyframes orbit { from { transform:rotate(0deg) translateX(70px) } to { transform:rotate(360deg) translateX(70px) } }
+  .swipeup { position:absolute; bottom:40px; left:0; right:0; text-align:center; }
+  .swipeup .k { width:60px; height:60px; margin:0 auto; border-radius:50%; background:var(--g); color:#000; display:flex; align-items:center; justify-content:center; font-size:24px; box-shadow:0 0 20px var(--g); animation:up 1.6s ease-in-out infinite; }
+  @keyframes up { 0%,60%,100% { transform:translateY(0) } 30% { transform:translateY(-12px) } }
+  .swipeup .sides { display:flex; justify-content:space-between; padding:0 22px; margin-top:-40px; font-size:20px; }
+
+  /* ---------- מעל סמסונג ---------- */
+  .flow { display:flex; flex-wrap:wrap; gap:16px; max-width:1150px; align-items:flex-start; }
+  .flow .card { flex:1 1 300px; max-width:560px; }
+  .sam { position:absolute; inset:0; background:linear-gradient(180deg,#1f3b5c,#0e1a2a); }
+  .sam .nm2 { font-size:22px; font-weight:400; }
+  .sam .bt { position:absolute; bottom:60px; left:0; right:0; display:flex; justify-content:space-around; }
+  .sam .bt div { width:58px; height:58px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; }
+  .layer { position:absolute; inset:0; transition:transform .5s cubic-bezier(.2,.9,.3,1), opacity .4s; z-index:5; }
+  .layer.hide { transform:translateY(100%); opacity:0; }
+  .lbl { position:absolute; top:34px; left:50%; transform:translateX(-50%); font-size:10.5px; padding:3px 9px; border-radius:99px; z-index:25; white-space:nowrap; }
+  .steps { display:flex; gap:6px; justify-content:center; margin-top:10px; flex-wrap:wrap; }
+  .steps button { padding:8px 12px; border:0; border-radius:10px; background:#232a38; color:var(--text); font-size:13px; cursor:pointer; }
+  .steps button.on { background:#3a3260; }
+  .exp { color:var(--muted); font-size:13.5px; line-height:1.6; margin:10px 4px 0; min-height:64px; }
+  .exp b { color:var(--text); }
+  .mini { position:absolute; top:2px; left:50%; transform:translateX(-50%); height:26px; width:92px; border-radius:13px; background:#000; border:1.5px solid var(--g); z-index:26; display:flex; align-items:center; justify-content:space-between; padding:0 9px; font-size:11px; font-weight:700; direction:ltr; }
+  .mini i { width:16px; height:16px; border-radius:50%; background:var(--g); color:#000; font-style:normal; display:flex; align-items:center; justify-content:center; font-size:9px; }
+  .home { position:absolute; inset:0; background:linear-gradient(160deg,#2b3550,#141a28); }
+  .home .apps { position:absolute; top:90px; left:22px; right:22px; display:grid; grid-template-columns:repeat(4,1fr); gap:18px; }
+  .home .apps i { width:38px; height:38px; border-radius:11px; background:rgba(255,255,255,.14); display:block; margin:auto; }
+</style>
+</head>
+<body>
+<h1>מסך שיחה בסגנון ניאון: עוד דוגמאות</h1>
+<p class="sub">ארבע גרסאות של אותו סגנון כהה וזוהר. כולן מסך של שיחה נכנסת.</p>
+
+<div class="grid">
+  <div class="card">
+    <span class="tag">1 · אני ממליץ</span>
+    <h2>טבעות נושמות</h2>
+    <p class="why">שתי טבעות ירוקות נושמות סביב התמונה, ומחליקים ימינה כדי לענות.</p>
+    <div class="phone dark"><div class="cam"></div><div class="sb"><span>14:32</span><span>72%</span></div>
+      <div class="center sm" style="top:60px;color:var(--g);opacity:1">שיחה נכנסת · נייד</div>
+      <div class="glow"></div><div class="glow b"></div>
+      <div class="av" style="top:108px;width:106px;height:106px;margin-left:-53px;font-size:42px;background:linear-gradient(135deg,#3a7bd5,#6a4cff)">א</div>
+      <div class="center" style="top:240px"><div class="nm">אמא</div><div class="sm" style="margin-top:4px">050-1234567</div></div>
+      <div class="slide"><div class="k">✆&#xFE0E;</div><div class="h">החלק ימינה כדי לענות</div></div>
+      <div class="center" style="bottom:20px;font-size:12px;color:#ff8a94">✕ דחה &nbsp;·&nbsp; 💬 דחה עם הודעה</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="tag" style="background:#1a2a3a;color:#9fd4ff">2</span>
+    <h2>גל צלצול כחול</h2>
+    <p class="why">פסים כחולים שקופצים בקצב הצלצול, ושני כפתורים עגולים וזוהרים.</p>
+    <div class="phone dark"><div class="cam"></div><div class="sb"><span>14:32</span><span>72%</span></div>
+      <div class="av" style="top:76px;width:96px;height:96px;margin-left:-48px;font-size:38px;background:#10202e;border:2px solid var(--b);box-shadow:0 0 22px var(--b)">ד</div>
+      <div class="center" style="top:188px"><div class="nm">דני כהן</div><div class="sm" style="margin-top:4px">מתקשר אליך…</div></div>
+      <div class="wave"><i style="animation-delay:0s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.4s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:0s"></i></div>
+      <div class="btn2">
+        <div style="background:var(--r);box-shadow:0 0 20px rgba(255,77,94,.7);position:relative">✕<span>דחה</span></div>
+        <div style="background:var(--g);color:#000;box-shadow:0 0 20px var(--g);position:relative">✆&#xFE0E;<span style="color:#9aa4b6">ענה</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="tag" style="background:#2a2040;color:#d6c2ff">3</span>
+    <h2>מסגרת שרצה סביב המסך</h2>
+    <p class="why">אור סגול רץ סביב כל קצוות המסך כל עוד מצלצל. כפתורים רחבים למטה.</p>
+    <div class="phone dark"><div class="edge"></div><div class="cam"></div><div class="sb"><span>14:32</span><span>72%</span></div>
+      <div class="center" style="top:96px"><div class="sm" style="color:var(--p);opacity:1">שיחה נכנסת</div><div class="nm" style="font-size:32px;margin-top:10px">שרה לוי</div><div class="sm" style="margin-top:6px">עבודה · 03-5551234</div></div>
+      <div class="av" style="top:230px;width:84px;height:84px;margin-left:-42px;font-size:34px;background:#1b1530;border:1.5px solid var(--p)">ש</div>
+      <div class="pillbtn"><div style="background:rgba(255,77,94,.15);border:1.5px solid var(--r);color:#ff8a94">✕ דחה</div><div style="background:rgba(42,212,154,.15);border:1.5px solid var(--g);color:var(--g)">✆&#xFE0E; ענה</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <span class="tag" style="background:#173026;color:#8fe3b7">4</span>
+    <h2>נקודות מסתובבות</h2>
+    <p class="why">נקודות אור מסתובבות סביב התמונה. מחליקים למעלה לענות, או לוחצים על ✕ בצד.</p>
+    <div class="phone dark"><div class="cam"></div><div class="sb"><span>14:32</span><span>72%</span></div>
+      <div class="orb"><b></b><b style="animation-delay:-.75s"></b><b style="animation-delay:-1.5s"></b><b style="animation-delay:-2.25s"></b></div>
+      <div class="av" style="top:114px;width:90px;height:90px;margin-left:-45px;font-size:36px;background:linear-gradient(135deg,#0f8a5f,#2ad49a);color:#000">י</div>
+      <div class="center" style="top:250px"><div class="nm">יוסי</div><div class="sm" style="margin-top:4px">נייד</div></div>
+      <div class="swipeup"><div class="sm" style="margin-bottom:10px">החלק למעלה כדי לענות</div><div class="k">✆&#xFE0E;</div><div class="sides"><span style="color:var(--r)">✕</span><span>💬</span></div></div>
+    </div>
+  </div>
+</div>
+
+<h3>מה זה "מעל סמסונג"?</h3>
+<p class="sub">הטלפון של סמסונג ממשיך לעבוד כרגיל, וקיצורים רק מכסה את המסך שלו ביפה. לחץ על השלבים:</p>
+<div class="flow">
+  <div class="card">
+    <div class="phone" id="ov">
+      <div class="cam"></div>
+      <div class="home" id="home"><div class="sb"><span>14:32</span><span>72%</span></div><div class="apps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+      <div class="sam" id="sam"><div class="sb"><span>14:32</span><span>72%</span></div>
+        <div class="center" style="top:110px"><div class="nm2" id="samName">אמא</div><div class="sm" id="samSub" style="margin-top:6px">שיחה נכנסת</div></div>
+        <div class="bt" id="samBt"><div style="background:#d93b3b">✕</div><div style="background:#2fa84f">✆&#xFE0E;</div></div>
+      </div>
+      <div class="layer dark" id="ours">
+        <div class="sb"><span>14:32</span><span>72%</span></div>
+        <div class="center sm" style="top:60px;color:var(--g);opacity:1">שיחה נכנסת · נייד</div>
+        <div class="glow"></div><div class="glow b"></div>
+        <div class="av" style="top:108px;width:106px;height:106px;margin-left:-53px;font-size:42px;background:linear-gradient(135deg,#3a7bd5,#6a4cff)">א</div>
+        <div class="center" style="top:240px"><div class="nm">אמא</div><div class="sm" style="margin-top:4px">050-1234567</div></div>
+        <div class="slide" onclick="go(2)" style="cursor:pointer"><div class="k">✆&#xFE0E;</div><div class="h">החלק ימינה כדי לענות</div></div>
+        <div class="center" style="bottom:20px;font-size:12px;color:#ff8a94">✕ דחה</div>
+      </div>
+      <div class="mini" id="mini" style="display:none"><span id="mt">0:00</span><i>✆&#xFE0E;</i></div>
+      <div class="lbl" id="lbl" style="background:#2a2440;color:#c9b6ff">קיצורים</div>
+    </div>
+    <div class="steps">
+      <button onclick="go(0)" id="s0">1 · מצלצלים</button>
+      <button onclick="go(1)" id="s1">2 · קיצורים מכסה</button>
+      <button onclick="go(2)" id="s2">3 · ענית</button>
+      <button onclick="go(3)" id="s3">4 · יצאת למסך הבית</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="exp" id="exp"></div>
+    <p class="exp" style="border-top:1px solid #262c38;padding-top:10px">
+      <b>יתרון:</b> כל השיחות עוברות דרך הטלפון של סמסונג כרגיל, אז אם יש תקלה בקיצורים, השיחה עדיין עובדת.<br>
+      <b>חיסרון:</b> לחלקיק שנייה בהתחלה אפשר לראות את המסך של סמסונג לפני שקיצורים מכסה אותו. ובזמן השיחה עצמה רואים את המסך של סמסונג (או את הגלולה ליד המצלמה כשיוצאים ממנו).
+    </p>
+  </div>
+</div>
+
+<script>
+const texts = [
+  '<b>1 · מצלצלים:</b> סמסונג מראה את מסך השיחה הרגיל שלו, כמו תמיד.',
+  '<b>2 · קיצורים מכסה:</b> מיד אחרי, קיצורים מניח מעליו את מסך הניאון. כשמחליקים "ענה" או לוחצים "דחה", קיצורים לוחץ בשבילך על הכפתור של סמסונג.',
+  '<b>3 · ענית:</b> המסך של קיצורים נעלם, ורואים את מסך השיחה של סמסונג (השתקה, רמקול, מקלדת, ניתוק).',
+  '<b>4 · יצאת למסך הבית:</b> בזמן השיחה מופיעה הגלולה הקטנה ליד המצלמה עם השניות. הקשה עליה פותחת את התפריט עם ניתוק.'
+];
+let t = 0, tm = null;
+function go(n) {
+  for (let i = 0; i < 4; i++) document.getElementById('s' + i).classList.toggle('on', i === n);
+  document.getElementById('exp').innerHTML = texts[n];
+  const ours = document.getElementById('ours'), sam = document.getElementById('sam'), mini = document.getElementById('mini'), lbl = document.getElementById('lbl');
+  ours.classList.toggle('hide', n !== 1);
+  sam.style.display = n === 3 ? 'none' : '';
+  mini.style.display = n === 3 ? '' : 'none';
+  lbl.textContent = n === 1 ? 'קיצורים' : (n === 3 ? 'קיצורים (גלולה)' : 'סמסונג');
+  lbl.style.background = (n === 1 || n === 3) ? '#2a2440' : '#1f3b5c';
+  lbl.style.color = (n === 1 || n === 3) ? '#c9b6ff' : '#cfe3ff';
+  lbl.style.top = n === 3 ? '34px' : '34px';
+  document.getElementById('samSub').textContent = n >= 2 ? '0:0' + Math.min(9, t) : 'שיחה נכנסת';
+  document.getElementById('samBt').innerHTML = n >= 2
+    ? '<div style="background:rgba(255,255,255,.15)">🎙&#xFE0E;</div><div style="background:#d93b3b">✆&#xFE0E;</div><div style="background:rgba(255,255,255,.15)">🔊&#xFE0E;</div>'
+    : '<div style="background:#d93b3b">✕</div><div style="background:#2fa84f">✆&#xFE0E;</div>';
+  clearInterval(tm);
+  if (n >= 2) { t = 0; tm = setInterval(() => { t++; const s = Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); document.getElementById('samSub').textContent = s; document.getElementById('mt').textContent = s; }, 1000); }
+}
+go(0);
+</script>
+</body>
+</html>

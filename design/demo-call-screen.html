@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מסך שיחה</title>
+<style>
+  :root { --bg:#0b0d12; --card:#151922; --text:#e9edf5; --muted:#8b94a7; --g:#2ad49a; --r:#ff4d5e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui, "Segoe UI", Arial, sans-serif; padding:16px; }
+  h1 { font-size:21px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 16px; font-size:14px; max-width:820px; line-height:1.55; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(270px, 1fr)); gap:16px; max-width:1150px; }
+  .card { background:var(--card); border-radius:20px; padding:14px; }
+  .card h2 { font-size:16px; margin:0 0 2px; }
+  .card .why { color:var(--muted); font-size:13px; margin:0 0 10px; min-height:38px; }
+  .tag { display:inline-block; font-size:12px; padding:2px 8px; border-radius:99px; margin-bottom:6px; background:#2a2440; color:#c9b6ff; }
+  .phone { position:relative; width:240px; height:500px; margin:0 auto; border-radius:34px; overflow:hidden; border:6px solid #000; box-shadow:0 0 0 1px #2a2f3a; }
+  .cam { position:absolute; top:10px; left:50%; width:11px; height:11px; margin-left:-5.5px; border-radius:50%; background:#000; z-index:20; }
+  .sb { position:absolute; top:8px; left:16px; right:16px; display:flex; justify-content:space-between; font-size:10.5px; font-weight:600; z-index:10; direction:ltr; }
+  .tabs { display:flex; gap:6px; justify-content:center; margin-top:10px; }
+  .tabs button { padding:7px 12px; border:0; border-radius:10px; background:#232a38; color:var(--text); font-size:13px; cursor:pointer; }
+  .tabs button.on { background:#3a3260; }
+  .st { position:absolute; inset:0; transition:opacity .35s; }
+  .st.off { opacity:0; pointer-events:none; }
+  .nm { font-size:26px; font-weight:700; }
+  .sm { font-size:13px; opacity:.75; }
+  .t { font-variant-numeric:tabular-nums; }
+  .center { position:absolute; left:0; right:0; text-align:center; }
+
+  /* ---------- א: ניאון ---------- */
+  .neon { background:radial-gradient(120% 70% at 50% 25%, #14202a 0%, #07090d 60%); color:#fff; }
+  .neon .av { position:absolute; top:110px; left:50%; width:110px; height:110px; margin-left:-55px; border-radius:50%; background:linear-gradient(135deg,#3a7bd5,#6a4cff); display:flex; align-items:center; justify-content:center; font-size:44px; font-weight:700; }
+  .neon .glow { position:absolute; top:96px; left:50%; width:138px; height:138px; margin-left:-69px; border-radius:50%; border:2px solid var(--g); box-shadow:0 0 18px var(--g), inset 0 0 12px rgba(42,212,154,.4); animation:breath 1.6s ease-in-out infinite; }
+  .neon .glow.b { animation-delay:.8s; opacity:.5; }
+  @keyframes breath { 0%,100% { transform:scale(1); opacity:.9 } 50% { transform:scale(1.12); opacity:.25 } }
+  .slide { position:absolute; bottom:56px; left:22px; right:22px; height:58px; border-radius:29px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); direction:ltr; }
+  .slide .k { position:absolute; top:5px; left:5px; width:48px; height:48px; border-radius:50%; background:var(--g); display:flex; align-items:center; justify-content:center; font-size:20px; color:#000; box-shadow:0 0 16px var(--g); animation:nudge 1.8s ease-in-out infinite; }
+  @keyframes nudge { 0%,60%,100% { transform:translateX(0) } 30% { transform:translateX(14px) } }
+  .slide .h { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:#b8c2d4; direction:rtl; }
+  .dec { position:absolute; bottom:20px; left:0; right:0; text-align:center; font-size:12px; color:#ff8a94; }
+  .ctl { position:absolute; bottom:40px; left:0; right:0; display:grid; grid-template-columns:repeat(3,1fr); gap:14px 0; justify-items:center; }
+  .ctl div { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.08); display:flex; align-items:center; justify-content:center; font-size:19px; }
+  .ctl .end { grid-column:2; background:var(--r); box-shadow:0 0 18px rgba(255,77,94,.6); }
+  .ctl span { display:block; font-size:10px; color:#9aa4b6; text-align:center; margin-top:4px; }
+
+  /* ---------- ב: זכוכית ---------- */
+  .glass { background:linear-gradient(160deg,#ff8a6b 0%,#c94b9b 45%,#4b3bb5 100%); color:#fff; }
+  .glass::before { content:''; position:absolute; inset:0; background:radial-gradient(50% 35% at 30% 30%, rgba(255,255,255,.35), transparent 70%); }
+  .glass .ph { position:absolute; top:70px; left:50%; width:96px; height:96px; margin-left:-48px; border-radius:30px; background:rgba(255,255,255,.25); border:1px solid rgba(255,255,255,.45); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; font-size:40px; font-weight:700; }
+  .glass .panel { position:absolute; left:14px; right:14px; bottom:22px; border-radius:26px; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35); backdrop-filter:blur(14px); padding:16px 14px; }
+  .glass .two { display:flex; justify-content:space-around; }
+  .glass .two div { width:62px; height:62px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:24px; }
+  .glass .lbl { display:flex; justify-content:space-around; font-size:11px; margin-top:6px; opacity:.85; }
+  .glass .quick { display:flex; gap:6px; margin-top:12px; }
+  .glass .quick span { flex:1; text-align:center; font-size:11px; padding:7px 4px; border-radius:12px; background:rgba(255,255,255,.18); }
+  .glass .ctl div { background:rgba(255,255,255,.2); }
+
+  /* ---------- ג: נקי ---------- */
+  .clean { background:#f5f6f8; color:#14161b; }
+  .clean .sb { color:#14161b; }
+  .clean .top { position:absolute; top:58px; left:20px; right:20px; }
+  .clean .badge { display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:4px 10px; border-radius:99px; background:#e7f8f0; color:#0f8a5f; }
+  .clean .badge i { width:7px; height:7px; border-radius:50%; background:#16b07a; animation:blink 1s infinite; }
+  @keyframes blink { 50% { opacity:.2 } }
+  .clean .nm { font-size:34px; margin-top:14px; line-height:1.1; }
+  .clean .av { position:absolute; top:220px; left:50%; width:150px; height:150px; margin-left:-75px; border-radius:50%; background:#e3e6ec; display:flex; align-items:center; justify-content:center; font-size:60px; font-weight:700; color:#6b7385; }
+  .clean .two { position:absolute; bottom:34px; left:18px; right:18px; display:flex; gap:12px; }
+  .clean .two div { flex:1; height:56px; border-radius:18px; display:flex; align-items:center; justify-content:center; gap:6px; font-size:15px; font-weight:600; color:#fff; }
+  .clean .ctl div { background:#e8ebf0; color:#14161b; }
+  .clean .ctl span { color:#6b7385; }
+  .note { max-width:1150px; margin-top:18px; background:var(--card); border-radius:18px; padding:14px 16px; font-size:14px; color:var(--muted); line-height:1.65; }
+  .note b { color:var(--text); }
+</style>
+</head>
+<body>
+<h1>מסך שיחה של קיצורים</h1>
+<p class="sub">שלושה סגנונות. בכל אחד יש מסך של שיחה נכנסת ומסך בזמן שיחה: לחץ על הכפתורים מתחת לטלפון כדי לעבור ביניהם.</p>
+
+<div class="grid">
+  <!-- א -->
+  <div class="card">
+    <span class="tag">א · אני ממליץ</span>
+    <h2>ניאון זוהר</h2>
+    <p class="why">באותו סגנון של קיצורים: כהה, טבעת ירוקה נושמת סביב התמונה, ומחליקים כדי לענות.</p>
+    <div class="phone">
+      <div class="cam"></div>
+      <div class="st neon" data-g="a" data-s="in">
+        <div class="sb" style="color:#fff"><span>14:32</span><span>72%</span></div>
+        <div class="center sm" style="top:62px;color:var(--g)">שיחה נכנסת · נייד</div>
+        <div class="glow"></div><div class="glow b"></div><div class="av">א</div>
+        <div class="center" style="top:246px"><div class="nm">אמא</div><div class="sm" style="margin-top:4px">050-1234567</div></div>
+        <div class="slide"><div class="k">✆&#xFE0E;</div><div class="h">החלק ימינה כדי לענות</div></div>
+        <div class="dec">✕ דחה &nbsp;·&nbsp; 💬 דחה עם הודעה</div>
+      </div>
+      <div class="st neon off" data-g="a" data-s="on">
+        <div class="sb" style="color:#fff"><span>14:32</span><span>72%</span></div>
+        <div class="av" style="top:90px;width:84px;height:84px;margin-left:-42px;font-size:34px">א</div>
+        <div class="center" style="top:190px"><div class="nm">אמא</div><div class="sm t" style="color:var(--g);margin-top:4px" id="ta">0:00</div></div>
+        <div class="ctl">
+          <div>🎙&#xFE0E;<span></span></div><div>⌨&#xFE0E;</div><div>🔊&#xFE0E;</div>
+          <div class="end" style="grid-column:2">✆&#xFE0E;</div>
+        </div>
+      </div>
+    </div>
+    <div class="tabs"><button class="on" onclick="sw('a','in',this)">שיחה נכנסת</button><button onclick="sw('a','on',this)">בזמן שיחה</button></div>
+  </div>
+
+  <!-- ב -->
+  <div class="card">
+    <span class="tag" style="background:#3b2030;color:#ffb3c7">ב</span>
+    <h2>זכוכית צבעונית</h2>
+    <p class="why">רקע צבעוני (או התמונה של איש הקשר), ולוח שקוף כמו זכוכית עם הכפתורים ותשובות מהירות.</p>
+    <div class="phone">
+      <div class="cam"></div>
+      <div class="st glass" data-g="b" data-s="in">
+        <div class="sb" style="color:#fff"><span>14:32</span><span>72%</span></div>
+        <div class="ph">ד</div>
+        <div class="center" style="top:182px"><div class="nm">דני כהן</div><div class="sm" style="margin-top:4px">מתקשר אליך…</div></div>
+        <div class="panel">
+          <div class="two"><div style="background:var(--r)">✕</div><div style="background:var(--g);color:#000">✆&#xFE0E;</div></div>
+          <div class="lbl"><span>דחה</span><span>ענה</span></div>
+          <div class="quick"><span>אחזור אליך</span><span>בנהיגה</span><span>מה קרה?</span></div>
+        </div>
+      </div>
+      <div class="st glass off" data-g="b" data-s="on">
+        <div class="sb" style="color:#fff"><span>14:32</span><span>72%</span></div>
+        <div class="ph">ד</div>
+        <div class="center" style="top:182px"><div class="nm">דני כהן</div><div class="sm t" style="margin-top:4px" id="tb">0:00</div></div>
+        <div class="panel" style="padding-bottom:12px">
+          <div class="ctl" style="position:static;gap:10px 0">
+            <div>🎙&#xFE0E;</div><div>⌨&#xFE0E;</div><div>🔊&#xFE0E;</div>
+            <div class="end" style="grid-column:2">✆&#xFE0E;</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tabs"><button class="on" onclick="sw('b','in',this)">שיחה נכנסת</button><button onclick="sw('b','on',this)">בזמן שיחה</button></div>
+  </div>
+
+  <!-- ג -->
+  <div class="card">
+    <span class="tag" style="background:#1d2a22;color:#8fe3b7">ג</span>
+    <h2>נקי ובהיר</h2>
+    <p class="why">שם גדול למעלה, הרבה מקום, ושני כפתורים גדולים למטה. הכי קל לקריאה ולחיצה.</p>
+    <div class="phone">
+      <div class="cam"></div>
+      <div class="st clean" data-g="c" data-s="in">
+        <div class="sb"><span>14:32</span><span>72%</span></div>
+        <div class="top"><span class="badge"><i></i>שיחה נכנסת</span><div class="nm">שרה<br>לוי</div><div class="sm" style="margin-top:6px">עבודה · 03-5551234</div></div>
+        <div class="av">ש</div>
+        <div class="two"><div style="background:var(--r)">✕ דחה</div><div style="background:#16b07a">✆&#xFE0E; ענה</div></div>
+      </div>
+      <div class="st clean off" data-g="c" data-s="on">
+        <div class="sb"><span>14:32</span><span>72%</span></div>
+        <div class="top"><span class="badge"><i></i><span class="t" id="tc">0:00</span></span><div class="nm">שרה<br>לוי</div></div>
+        <div class="ctl" style="bottom:36px">
+          <div>🎙&#xFE0E;</div><div>⌨&#xFE0E;</div><div>🔊&#xFE0E;</div>
+          <div class="end" style="grid-column:2;color:#fff">✆&#xFE0E;</div>
+        </div>
+      </div>
+    </div>
+    <div class="tabs"><button class="on" onclick="sw('c','in',this)">שיחה נכנסת</button><button onclick="sw('c','on',this)">בזמן שיחה</button></div>
+  </div>
+</div>
+
+<div class="note">
+<b>חשוב לדעת לפני שבוחרים:</b> כדי שהמסך הזה יחליף את מסך השיחה של סמסונג, צריך להגדיר את קיצורים כ"אפליקציית הטלפון" של המכשיר (בדיוק כמו שבוחרים אפליקציית ברירת מחדל). אז היא מטפלת בכל השיחות: נכנסות, יוצאות, המתנה, ושיחה שנייה. זו עבודה גדולה ויותר רגישה, כי אם יש בה תקלה, שיחות נפגעות.<br>
+<b>אפשרות קלה יותר:</b> להשאיר את הטלפון של סמסונג, ורק להוסיף מעליו את המסך היפה בשיחה נכנסת (עם ענה / דחה שעובדים דרך ההתראה של השיחה). בזמן שיחה נשארת הגלולה ליד המצלמה עם התפריט.
+</div>
+
+<script>
+function sw(g, s, btn) {
+  document.querySelectorAll('.st[data-g="' + g + '"]').forEach(e => e.classList.toggle('off', e.dataset.s !== s));
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+}
+let sec = 0;
+setInterval(() => { sec++; const t = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); ['ta', 'tb', 'tc'].forEach(id => document.getElementById(id).textContent = t); }, 1000);
+</script>
+</body>
+</html>

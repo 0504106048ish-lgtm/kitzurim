@@ -286,6 +286,10 @@ object NotchPrefs {
     fun pulseSeconds(c: Context) = sp(c).getInt("pulse_secs", 30)
     fun setPulseSeconds(c: Context, v: Int) = sp(c).edit().putInt("pulse_secs", v).apply()
 
+    /** להראות את הטבעת, הנגיעות והגלולה גם כשהמסך נעול (דלוק כברירת מחדל) */
+    fun onLockScreen(c: Context) = sp(c).getBoolean("on_lock", true)
+    fun setOnLockScreen(c: Context, v: Boolean) = sp(c).edit().putBoolean("on_lock", v).apply()
+
     // ---------- נגן בהקשה על העיגול (דלוק כברירת מחדל) ----------
     fun musicTap(c: Context) = sp(c).getBoolean("music_tap", true)
     fun setMusicTap(c: Context, v: Boolean) = sp(c).edit().putBoolean("music_tap", v).apply()

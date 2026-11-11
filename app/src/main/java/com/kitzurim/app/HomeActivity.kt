@@ -376,6 +376,9 @@ fun HomeScreen(resumes: Int) {
                     SwitchLine("🙈 להסתיר במסך מלא (סרטון, משחק, תמונה)", NotchPrefs.hideFullscreen(ctx)) {
                         NotchPrefs.setHideFullscreen(ctx, it); NotchOverlay.refresh(); refresh++
                     }
+                    SwitchLine("🔒 לעבוד גם במסך הנעילה (טבעת, התראות וגלולה)", NotchPrefs.onLockScreen(ctx)) {
+                        NotchPrefs.setOnLockScreen(ctx, it); NotchOverlay.refresh(); refresh++
+                    }
                     // נגן: הקשה על העיגול כשמתנגן שיר
                     SwitchLine("🎵 נגן בהקשה על העיגול כשמתנגן שיר", NotchPrefs.musicTap(ctx)) {
                         NotchPrefs.setMusicTap(ctx, it); NotchOverlay.refresh(); refresh++
