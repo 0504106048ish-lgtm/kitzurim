@@ -82,7 +82,12 @@ class ReplyListener : NotificationListenerService() {
         if (n.category == Notification.CATEGORY_CALL && n.flags and Notification.FLAG_ONGOING_EVENT != 0) {
             val name = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "שיחה"
             val counting = n.extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false)
-            LivePill.ongoingCall(name, if (counting && n.`when` > 0) n.`when` else null, n.actions?.toList() ?: emptyList())
+            // לא כל טלפון מסמן "סופר זמן": אם כבר לא כתוב "מחייג" / "מתקשר", סימן שענו
+            val status = n.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.lowercase() ?: ""
+            val dialing = listOf("מחייג", "מתקשר", "מחבר", "חיוג", "dialing", "calling", "connecting", "outgoing").any { status.contains(it) }
+            val answered = counting || (status.isNotBlank() && !dialing)
+            val at = if (n.`when` in 1..System.currentTimeMillis()) n.`when` else System.currentTimeMillis()
+            LivePill.ongoingCall(name, if (answered) at else null, n.actions?.toList() ?: emptyList())
             return
         }
 
