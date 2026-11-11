@@ -292,8 +292,6 @@ object NotchOverlay {
                 val inCall = mode == AudioManager.MODE_IN_CALL || mode == AudioManager.MODE_IN_COMMUNICATION
                 if (ringingNow != callRinging) {
                     callRinging = ringingNow
-                    // הפסיק לצלצל (ענו, דחו או שהמתקשר ניתק): סוגרים את מסך השיחה
-                    if (!ringingNow) CallScreen.hide()
                     changed = true
                 }
                 if (inCall && callStart == 0L) {

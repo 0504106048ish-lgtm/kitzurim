@@ -290,10 +290,6 @@ object NotchPrefs {
     fun onLockScreen(c: Context) = sp(c).getBoolean("on_lock", true)
     fun setOnLockScreen(c: Context, v: Boolean) = sp(c).edit().putBoolean("on_lock", v).apply()
 
-    /** מסך שיחה נכנסת בניאון, מעל המסך של סמסונג (דלוק כברירת מחדל) */
-    fun callScreen(c: Context) = sp(c).getBoolean("call_screen", true)
-    fun setCallScreen(c: Context, v: Boolean) = sp(c).edit().putBoolean("call_screen", v).apply()
-
     // ---------- נגן בהקשה על העיגול (דלוק כברירת מחדל) ----------
     fun musicTap(c: Context) = sp(c).getBoolean("music_tap", true)
     fun setMusicTap(c: Context, v: Boolean) = sp(c).edit().putBoolean("music_tap", v).apply()

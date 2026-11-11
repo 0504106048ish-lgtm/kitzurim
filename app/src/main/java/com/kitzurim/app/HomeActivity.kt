@@ -379,14 +379,22 @@ fun HomeScreen(resumes: Int) {
                     SwitchLine("🔒 לעבוד גם במסך הנעילה (טבעת, התראות וגלולה)", NotchPrefs.onLockScreen(ctx)) {
                         NotchPrefs.setOnLockScreen(ctx, it); NotchOverlay.refresh(); refresh++
                     }
-                    SwitchLine("📞 מסך שיחה נכנסת בניאון (מעל המסך של סמסונג)", NotchPrefs.callScreen(ctx)) {
-                        NotchPrefs.setCallScreen(ctx, it); refresh++
-                    }
-                    if (NotchPrefs.callScreen(ctx) && !Driving.listenerAllowed(ctx)) {
-                        TextButton(onClick = { ctx.startActivity(Intent(ctx, PermissionsActivity::class.java)) }) {
-                            Text("למסך השיחה צריך גישה להתראות ←")
+                    // קיצורים כאפליקציית הטלפון: כל השיחות במסך הניאון. כבוי כברירת מחדל
+                    SwitchLine("📞 מסך שיחה בניאון (קיצורים כאפליקציית הטלפון)", Calls.isDefault(ctx)) { on ->
+                        if (on) {
+                            (ctx as? android.app.Activity)?.let { Calls.requestDefault(it) }
+                        } else {
+                            Actions.toast(ctx, "בחר שוב את \"טלפון\" של סמסונג באפליקציית השיחות")
+                            Calls.openDefaultApps(ctx)
                         }
+                        refresh++
                     }
+                    Text(
+                        "אנשי קשר והיסטוריה נשארים בטלפון של סמסונג. רק מסך השיחה (נכנסת, יוצאת ובזמן שיחה) הוא של קיצורים.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp),
+                    )
                     // נגן: הקשה על העיגול כשמתנגן שיר
                     SwitchLine("🎵 נגן בהקשה על העיגול כשמתנגן שיר", NotchPrefs.musicTap(ctx)) {
                         NotchPrefs.setMusicTap(ctx, it); NotchOverlay.refresh(); refresh++

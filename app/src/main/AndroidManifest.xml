@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- "תתקשר לדוד": חיוג מיד, אחרי ספירה של 3 שניות שאפשר לבטל -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- קיצורים כאפליקציית הטלפון: מסך השיחה נפתח גם כשהמסך נעול -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- פעולת "סיבוב מסך": לשנות את הגדרת הסיבוב האוטומטי -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
@@ -130,6 +132,54 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/auto_send" />
         </service>
+
+        <!-- קיצורים כאפליקציית הטלפון: מסך השיחה בניאון -->
+        <activity
+            android:name=".CallActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.kitzurim.app.call"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
+
+        <!-- מקלדת חיוג (אנדרואיד דורש אותה מאפליקציית טלפון) -->
+        <activity
+            android:name=".DialActivity"
+            android:exported="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="tel" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tel" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".KitzInCallService"
+            android:exported="true"
+            android:permission="android.permission.BIND_INCALL_SERVICE">
+            <meta-data
+                android:name="android.telecom.IN_CALL_SERVICE_UI"
+                android:value="true" />
+            <intent-filter>
+                <action android:name="android.telecom.InCallService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false" />
 
         <!-- מספרים לא מוכרים בלילה -->
         <service

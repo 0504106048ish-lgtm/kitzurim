@@ -129,6 +129,11 @@ object LivePill {
     fun inCall(secondsFromAudio: Int) {
         val s = NotchOverlay.service ?: return
         if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return
+        // מסך השיחה של קיצורים פתוח: אין צורך בגלולה
+        if (CallActivity.visible) {
+            if (inCallPill()) hide()
+            return
+        }
         // ההתראה של השיחה עוד לא הגיעה: מחכים רגע, כדי לא להראות שניות לפני שענו
         if (!callInfoKnown && secondsFromAudio < 3) return
         val answered = !callInfoKnown || answeredAt > 0

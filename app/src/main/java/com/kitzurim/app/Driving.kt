@@ -64,6 +64,8 @@ class ReplyListener : NotificationListenerService() {
 
         // שיחה נכנסת (רגילה או וואטסאפ): הגלולה עם "ענה" ו"דחה", דרך הכפתורים שכבר בהתראה
         if (n.category == Notification.CATEGORY_CALL && n.fullScreenIntent != null) {
+            // שיחה של קיצורים עצמה (כשהיא אפליקציית הטלפון): מסך השיחה בניאון כבר פתוח
+            if (sbn.packageName == packageName) return
             val name = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "שיחה"
             val actions = n.actions?.toList() ?: emptyList()
             fun find(words: List<String>) = actions.firstOrNull { a ->
@@ -72,12 +74,7 @@ class ReplyListener : NotificationListenerService() {
             }
             val answer = find(listOf("ענה", "מענה", "קבל", "answer", "accept")) ?: actions.lastOrNull()
             val decline = find(listOf("דחה", "דחיי", "נתק", "decline", "reject", "dismiss")) ?: actions.firstOrNull()
-            // מסך השיחה בניאון (מעל סמסונג). אם כבוי או לא הצליח: הגלולה הרגילה
-            val sub = n.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
-            val photo = runCatching { n.getLargeIcon()?.loadDrawable(this) }.getOrNull()
-            if (!CallScreen.show(sbn.key, name, sub, photo, decline?.actionIntent, answer?.actionIntent)) {
-                LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent)
-            }
+            LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent)
             return
         }
 
@@ -114,7 +111,6 @@ class ReplyListener : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         NotchOverlay.notificationRemoved(sbn.key)
         LivePill.callNotificationRemoved(sbn.key)
-        CallScreen.removed(sbn.key)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
