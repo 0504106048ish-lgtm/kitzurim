@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>עיצוב קיצורים</title>
+<style>
+:root{--bg:#f3f2ee;--text:#1f1f1d;--muted:#6b6a65;--border:rgba(0,0,0,.12);--accent:#185FA5;--accentBg:#E6F1FB;--card:#fff;--frame:#1f1f1d}
+@media (prefers-color-scheme: dark){:root{--bg:#1a1a19;--text:#f1efe8;--muted:#b4b2a9;--border:rgba(255,255,255,.14);--accent:#85B7EB;--accentBg:#0C447C;--card:#262624;--frame:#d3d1c7}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;padding:16px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:20px;font-weight:500;margin:4px 0;text-align:center}
+.sub{font-size:14px;color:var(--muted);text-align:center;margin:0 0 14px;line-height:1.6}
+.pages{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:18px}
+.pg{padding:8px 13px;border-radius:10px;font-size:13px;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text)}
+.pg.on{background:var(--accentBg);color:var(--accent);border-color:var(--accent)}
+.grid{display:flex;flex-wrap:wrap;gap:24px;justify-content:center}
+.opt{display:flex;flex-direction:column;align-items:center;gap:8px;width:300px}
+.lbl{font-size:15px;font-weight:500}.desc{font-size:12.5px;color:var(--muted);text-align:center;min-height:36px;line-height:1.5}
+.rec{font-size:11px;background:#E1F5EE;color:#085041;padding:2px 8px;border-radius:7px}
+.ph{position:relative;width:286px;height:590px;border:6px solid var(--frame);border-radius:40px;overflow:hidden;font-size:13px}
+.scr{position:absolute;inset:0;overflow-y:auto;padding:38px 14px 18px}
+.scr::-webkit-scrollbar{width:0}
+.hole{position:absolute;top:12px;left:50%;width:13px;height:13px;margin-left:-6.5px;border-radius:50%;background:#000;z-index:5}
+.sring{position:absolute;top:5px;left:50%;width:27px;height:27px;margin-left:-13.5px;border-radius:50%;z-index:4}
+.t1{font-size:21px;margin:2px 0 0}.t2{font-size:12px;margin-bottom:12px}
+.card{border-radius:20px;padding:13px;margin-bottom:11px}
+.ct{font-size:14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.gg{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.gt{border-radius:14px;padding:9px;display:flex;flex-direction:column;gap:3px}
+.gt .a{font-size:12.5px}.gt .g{font-size:10.5px}
+.row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;gap:8px}
+.sw{width:36px;height:21px;border-radius:11px;position:relative;flex-shrink:0}
+.sw::after{content:"";position:absolute;top:3px;width:15px;height:15px;border-radius:50%;transition:.2s}
+.sw.off::after{right:3px}.sw.on::after{right:18px}
+.btns{display:flex;gap:7px}.btn{flex:1;border-radius:14px;padding:11px 6px;text-align:center;font-size:12.5px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;padding:5px 10px;border-radius:12px}
+.hero{border-radius:24px;height:118px;position:relative;margin-bottom:11px;overflow:hidden}
+.hero .cam{position:absolute;top:22px;left:50%;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:#000}
+.hero .r{position:absolute;top:12px;left:50%;width:36px;height:36px;margin-left:-18px;border-radius:50%}
+.hero .cap{position:absolute;bottom:12px;width:100%;text-align:center;font-size:12px}
+.sl{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:12px}
+.sl .tr{flex:1;height:4px;border-radius:2px;position:relative}
+.sl .tr i{position:absolute;top:-6px;width:16px;height:16px;border-radius:50%}
+.li{display:flex;align-items:center;gap:10px;padding:10px 4px;font-size:13px}
+.li .ic{width:30px;height:30px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}.chips span{font-size:11px;padding:5px 9px;border-radius:10px}
+.prog{height:7px;border-radius:4px;overflow:hidden;margin:6px 0 12px}.prog i{display:block;height:100%;width:50%}
+.step{display:flex;gap:10px;align-items:flex-start;padding:9px 0}
+.step .n{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11.5px;flex-shrink:0}
+.step .w{font-size:11px;margin-top:2px;line-height:1.45}
+.foot{font-size:13px;color:var(--muted);text-align:center;margin-top:20px;line-height:1.7}
+
+/* --- א. נקי --- */
+.clean .ph{background:#f7f8fc;color:#1b1d22}
+.clean .t2,.clean .gt .g,.clean .step .w,.clean .hero .cap{color:#5d6370}
+.clean .card{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.clean .gt{background:#eef3fb}.clean .gt .a{color:#174f94}
+.clean .sw.on{background:#2b5ea7}.clean .sw.off{background:#d8dce3}.clean .sw::after{background:#fff}
+.clean .btn{background:#eef3fb;color:#174f94}
+.clean .pill{background:#e2f4ea;color:#17683f}
+.clean .hero{background:linear-gradient(160deg,#dfe8f7,#f4f7fd)}
+.clean .hero .r{border:2px solid #3ec98a;box-shadow:0 0 8px rgba(62,201,138,.5)}
+.clean .sring{border:1.5px solid #3ec98a}
+.clean .sl .tr{background:#d8dce3}.clean .sl .tr i{background:#2b5ea7}
+.clean .li .ic{background:#eef3fb}.clean .chips span{background:#eef3fb;color:#174f94}.clean .chips span.on{background:#2b5ea7;color:#fff}
+.clean .prog{background:#e3e6ec}.clean .prog i{background:#2b5ea7}
+.clean .step .n{background:#e3ebf8;color:#174f94}.clean .li+.li,.clean .row+.row{border-top:1px solid #eef0f4}
+
+/* --- ב. כהה זוהר --- */
+.neon .ph{background:#0b0e14;color:#e8edf5}
+.neon .t2,.neon .gt .g,.neon .step .w,.neon .hero .cap{color:#8b95a7}
+.neon .card{background:#141924;border:1px solid #1f2633}
+.neon .gt{background:#1a2030;border:1px solid #252d40}.neon .gt .a{color:#7ef0c0}
+.neon .sw.on{background:#2ad49a;box-shadow:0 0 10px rgba(42,212,154,.5)}.neon .sw.off{background:#2a3142}.neon .sw::after{background:#0b0e14}
+.neon .btn{background:#1a2030;color:#7ef0c0;border:1px solid #252d40}
+.neon .pill{background:rgba(42,212,154,.12);color:#5ff0b6;border:1px solid rgba(42,212,154,.3)}
+.neon .hero{background:radial-gradient(circle at 50% 25%,#16202f,#0b0e14 70%)}
+.neon .hero .r{border:2px solid #2ad49a;box-shadow:0 0 14px #2ad49a,0 0 30px rgba(42,212,154,.35)}
+.neon .sring{border:1.5px solid #2ad49a;box-shadow:0 0 8px #2ad49a}
+.neon .sl .tr{background:#2a3142}.neon .sl .tr i{background:#2ad49a;box-shadow:0 0 8px #2ad49a}
+.neon .li .ic{background:#1a2030}.neon .chips span{background:#1a2030;color:#9fb0c8}.neon .chips span.on{background:#2ad49a;color:#0b0e14}
+.neon .prog{background:#1f2633}.neon .prog i{background:linear-gradient(90deg,#2ad49a,#4fb3ff);box-shadow:0 0 10px #2ad49a}
+.neon .step .n{background:#1a2030;color:#7ef0c0;border:1px solid #2ad49a}.neon .li+.li,.neon .row+.row{border-top:1px solid #1f2633}
+
+/* --- ג. זכוכית --- */
+.glass .ph{background:linear-gradient(155deg,#5b6cf0,#a65ef0 55%,#f06aa8);color:#fff}
+.glass .t2,.glass .gt .g,.glass .step .w,.glass .hero .cap{color:rgba(255,255,255,.75)}
+.glass .card{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(10px)}
+.glass .gt{background:rgba(255,255,255,.14)}.glass .gt .a{color:#fff}
+.glass .sw.on{background:#fff}.glass .sw.on::after{background:#8a5cf0}.glass .sw.off{background:rgba(255,255,255,.3)}.glass .sw.off::after{background:#fff}
+.glass .btn{background:rgba(255,255,255,.2);color:#fff}
+.glass .pill{background:rgba(255,255,255,.22);color:#fff}
+.glass .hero{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25)}
+.glass .hero .r{border:2px solid #fff;box-shadow:0 0 12px rgba(255,255,255,.8)}
+.glass .sring{border:1.5px solid #fff}
+.glass .sl .tr{background:rgba(255,255,255,.3)}.glass .sl .tr i{background:#fff}
+.glass .li .ic{background:rgba(255,255,255,.2)}.glass .chips span{background:rgba(255,255,255,.18);color:#fff}.glass .chips span.on{background:#fff;color:#7a4fe0}
+.glass .prog{background:rgba(255,255,255,.25)}.glass .prog i{background:#fff}
+.glass .step .n{background:rgba(255,255,255,.25);color:#fff}.glass .li+.li,.glass .row+.row{border-top:1px solid rgba(255,255,255,.18)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>איך קיצורים יכולה להיראות</h1>
+<p class="sub">שלושה סגנונות, אותו תוכן. בוחרים למעלה איזה מסך לראות.</p>
+<div class="pages" id="pages"></div>
+<div class="grid">
+<div class="opt"><div class="lbl">א. נקי ובהיר</div><div class="desc">לבן ורך, כרטיסים מרווחים. כמו ההגדרות של סמסונג.</div><div class="ph clean"><div class="sring"></div><div class="hole"></div><div class="scr"></div></div></div>
+<div class="opt"><div class="lbl">ב. כהה וזוהר <span class="rec">מומלץ</span></div><div class="desc">רקע כהה, ירוק זוהר כמו הטבעת. נראה מתקדם וטכנולוגי.</div><div class="ph neon"><div class="sring"></div><div class="hole"></div><div class="scr"></div></div></div>
+<div class="opt"><div class="lbl">ג. זכוכית צבעונית</div><div class="desc">רקע צבעוני עם כרטיסים שקופים. הכי ססגוני.</div><div class="ph glass"><div class="sring"></div><div class="hole"></div><div class="scr"></div></div></div>
+</div>
+<p class="foot"><b>ההמלצה שלי: ב. כהה וזוהר.</b> כל האפליקציה סובבת סביב טבעת זוהרת על רקע כהה של המצלמה, אז העיצוב ממשיך את אותה תחושה. הירוק הזוהר מסמן מה דלוק, ככה רואים מיד מה פעיל.<br>בכל הסגנונות: מסך הבית מראה את החור עם הטבעת בגדול, התנועות ככרטיסים שתיים בשורה, ו"גודל ומיקום" במסך נפרד במקום רשימה ארוכה.</p>
+</div>
+<script>
+const SW=(on)=>`<span class="sw ${on?'on':'off'}"></span>`;
+const pages={
+home:{name:'🏠 בית',html:`
+<div class="t1">קיצורים</div><div class="t2">החור של המצלמה הוא כפתור</div>
+<div class="hero"><div class="r"></div><div class="cam"></div><div class="cap">87% · נוגעים בחור כדי להפעיל</div></div>
+<div style="margin-bottom:11px"><span class="pill">● פעיל · 4 תנועות מוגדרות</span></div>
+<div class="card"><div class="ct">מה כל נגיעה עושה <span style="font-size:11px">עריכה</span></div>
+<div class="gg">
+<div class="gt"><span class="g">הקשה</span><span class="a">📸 צילום מסך</span></div>
+<div class="gt"><span class="g">הקשה כפולה</span><span class="a">🔦 פנס</span></div>
+<div class="gt"><span class="g">לחיצה ארוכה</span><span class="a">💬 צ'אט עם אמא</span></div>
+<div class="gt"><span class="g">החלקה למטה</span><span class="a">🔔 התראות</span></div>
+<div class="gt"><span class="g">ימינה</span><span class="a">⏭️ שיר הבא</span></div>
+<div class="gt"><span class="g">שמאלה</span><span class="a">🚫 כבוי</span></div>
+</div></div>
+<div class="card"><div class="ct">הטבעת</div>
+<div class="row"><span>🔋 טבעת סוללה</span>${SW(1)}</div>
+<div class="row"><span>💬 נורת התראות</span>${SW(1)}</div></div>
+<div class="btns"><div class="btn">📐 גודל ומיקום</div><div class="btn">⚙️ אוטומציות</div><div class="btn">🎙️ קולי</div></div>`},
+pick:{name:'👆 בחירת פעולה',html:`
+<div class="t1">הקשה כפולה</div><div class="t2">מה לעשות כשמקישים פעמיים על החור?</div>
+<div class="chips"><span class="on">הכול</span><span>מערכת</span><span>מוזיקה</span><span>כלים</span><span>שלי</span></div>
+<div class="card">
+<div class="li"><span class="ic">📸</span>צילום מסך</div>
+<div class="li"><span class="ic">🔦</span>פנס ✓</div>
+<div class="li"><span class="ic">🔔</span>התראות</div>
+<div class="li"><span class="ic">🔒</span>נעילת מסך</div>
+<div class="li"><span class="ic">⏯️</span>מוזיקה: הפעלה / השהיה</div>
+<div class="li"><span class="ic">⏭️</span>מוזיקה: השיר הבא</div>
+<div class="li"><span class="ic">📱</span>פתיחת אפליקציה…</div>
+<div class="li"><span class="ic">💬</span>צ'אט בוואטסאפ עם…</div>
+<div class="li"><span class="ic">📞</span>התקשרות ל…</div>
+</div>`},
+ring:{name:'💍 הטבעת',html:`
+<div class="t1">הטבעת</div><div class="t2">מה מופיע סביב המצלמה</div>
+<div class="hero"><div class="r"></div><div class="cam"></div><div class="cap">ככה זה ייראה</div></div>
+<div class="card">
+<div class="row"><span>🔋 טבעת סוללה</span>${SW(1)}</div>
+<div style="padding-right:14px">
+<div class="row"><span>רק בזמן טעינה</span>${SW(0)}</div>
+<div class="row"><span>נקודה מסתובבת בטעינה</span>${SW(1)}</div></div></div>
+<div class="card">
+<div class="row"><span>💬 נורת התראות</span>${SW(1)}</div>
+<div class="t2" style="margin:2px 0 0">וואטסאפ ירוק, טלגרם כחול, ג'ימייל אדום</div></div>`},
+pos:{name:'📐 גודל ומיקום',html:`
+<div class="t1">גודל ומיקום</div><div class="t2">מזיזים, והטבעת זזה תוך כדי</div>
+<div class="hero"><div class="r"></div><div class="cam"></div><div class="cap">העיגול יושב על החור?</div></div>
+<div class="card">
+<div class="sl">גודל<span class="tr"><i style="right:40%"></i></span></div>
+<div class="sl">עובי<span class="tr"><i style="right:25%"></i></span></div>
+<div class="sl">ימינה/שמאלה<span class="tr"><i style="right:50%"></i></span></div>
+<div class="sl">למעלה/למטה<span class="tr"><i style="right:50%"></i></span></div>
+<div class="sl">אזור נגיעה<span class="tr"><i style="right:35%"></i></span></div>
+<div class="row"><span>להראות את אזור הנגיעה</span>${SW(0)}</div></div>
+<div class="btns"><div class="btn">↺ איפוס</div></div>`},
+auto:{name:'⚙️ אוטומציות',html:`
+<div class="t1">אוטומציות</div><div class="t2">דברים שקורים לבד</div>
+<div class="card">
+<div class="li"><span class="ic">🚗</span><div style="flex:1">נהיגה<div class="t2" style="margin:0">פעיל · Toyota</div></div>›</div>
+<div class="li"><span class="ic">🤫</span><div style="flex:1">שקט<div class="t2" style="margin:0">2 מקומות · 1 טווח שעות</div></div>›</div>
+<div class="li"><span class="ic">📵</span><div style="flex:1">שיחות בלילה<div class="t2" style="margin:0">כבוי</div></div>›</div>
+<div class="li"><span class="ic">📍</span><div style="flex:1">מקומות<div class="t2" style="margin:0">3 התראות · 1 תזכורת</div></div>›</div>
+</div>`},
+perm:{name:'✓ אישורים',html:`
+<div class="t1">אישורים</div><div class="t2">3 מתוך 6 מאושרים</div>
+<div class="prog"><i></i></div>
+<div class="btns" style="margin-bottom:12px"><div class="btn" style="font-size:14px;padding:13px">✓ לאשר הכול</div></div>
+<div class="card">
+<div class="step"><span class="n">1</span><div>החור של המצלמה: ניסיון ראשון<div class="w">אם כתוב "האפליקציה לא תקבל גישה": סוגרים וחוזרים</div></div></div>
+<div class="step"><span class="n">2</span><div>שחרור "הגדרות מוגבלות"<div class="w">⋮ למעלה ← "אפשר הגדרות מוגבלות"</div></div></div>
+<div class="step"><span class="n">3</span><div>החור של המצלמה<div class="w">להפעיל את המתג ולחזור</div></div></div>
+</div>`},
+};
+const pg=document.getElementById('pages');let cur='home';
+function render(){document.querySelectorAll('.scr').forEach(s=>s.innerHTML=pages[cur].html);document.querySelectorAll('.pg').forEach(b=>b.classList.toggle('on',b.dataset.p===cur))}
+Object.entries(pages).forEach(([k,v])=>{const b=document.createElement('span');b.className='pg';b.dataset.p=k;b.textContent=v.name;b.onclick=()=>{cur=k;render()};pg.appendChild(b)});
+render();
+</script>
+</body>
+</html>

@@ -40,15 +40,24 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Kitzurim">
 
-        <!-- המסך הראשי: מה שנפתח כשנכנסים לאפליקציה -->
+        <!-- הכניסה מהאייקון ומהלחצן הצדדי: שקופה ומעבירה מיד הלאה (כמו בגרסה הראשונה, שעבדה עם הלחצן הצדדי) -->
         <activity
-            android:name=".HomeActivity"
-            android:exported="true">
+            android:name=".LaunchActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Kitzurim.Translucent">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- המסך הראשי -->
+        <activity
+            android:name=".HomeActivity"
+            android:exported="false" />
 
         <activity
             android:name=".SettingsActivity"

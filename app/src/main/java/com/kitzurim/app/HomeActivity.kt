@@ -3,10 +3,10 @@ package com.kitzurim.app
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,18 +76,8 @@ class HomeActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // שורת המצב: סמלים כהים על רקע בהיר (ובהירים במצב כהה), כדי שיהיה אפשר לקרוא אותה
-        enableEdgeToEdge()
-        // "פתיחה ישר לפקודה קולית": האייקון (והלחצן הצדדי) פותחים את הדיבור.
-        // לאפליקציה עצמה מגיעים בלחיצה על "חזרה" בחלון הדיבור
-        val fromShortcut = intent?.getStringExtra("open_home") == "true" ||
-            intent?.getBooleanExtra("open_home", false) == true
-        val fromLauncher = intent?.action == Intent.ACTION_MAIN
-        if (savedInstanceState == null && fromLauncher && !fromShortcut && Prefs.voiceFirst(this)) {
-            startActivity(Intent(this, VoiceActivity::class.java).putExtra(VoiceActivity.BACK_TO_HOME, true))
-            finish()
-            return
-        }
+        // שורת המצב: סמלים בהירים על הרקע הכהה
+        neonBars()
         setContent { KitzurimTheme { HomeScreen(resumes.intValue) } }
     }
 }
@@ -103,6 +93,7 @@ fun HomeScreen(resumes: Int) {
     var picking by remember { mutableStateOf<Gesture?>(null) }
     var pickingApp by remember { mutableStateOf<Gesture?>(null) }
     var pickingUrl by remember { mutableStateOf<Gesture?>(null) }
+    var showPos by remember { mutableStateOf(false) }
     var pendingContact by remember { mutableStateOf<Pair<Gesture, ActionType>?>(null) }
 
     fun save(g: Gesture, a: NotchAction) {
@@ -144,11 +135,11 @@ fun HomeScreen(resumes: Int) {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("קיצורים", style = MaterialTheme.typography.headlineSmall)
+                        Text("קיצורים", style = MaterialTheme.typography.headlineMedium)
                         Text("החור של המצלמה הוא כפתור", color = scheme.onSurfaceVariant)
                     }
                     IconButton(onClick = { ctx.startActivity(Intent(ctx, SettingsActivity::class.java)) }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "הגדרות")
+                        Icon(Icons.Filled.Settings, contentDescription = "הגדרות", tint = scheme.onSurfaceVariant)
                     }
                 }
 
@@ -165,7 +156,7 @@ fun HomeScreen(resumes: Int) {
                     ) {
                         Text("החור של המצלמה עוד לא פעיל", style = MaterialTheme.typography.titleMedium, color = scheme.onErrorContainer)
                         Text(
-                            "צריך להפעיל את \"קיצורים: החור של המצלמה\" בנגישות. אם זה חסום: קודם \"אפשר הגדרות מוגבלות\".",
+                            "צריך להפעיל את \"קיצורים: החור של המצלמה\" בנגישות.",
                             color = scheme.onErrorContainer,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -174,32 +165,61 @@ fun HomeScreen(resumes: Int) {
                         }
                     }
                 } else {
-                    Card {
-                        SwitchLine("החור של המצלמה פעיל", NotchPrefs.enabled(ctx)) {
+                    val set = Gesture.entries.count { NotchPrefs.action(ctx, it).type != ActionType.NONE }
+                    val on = NotchPrefs.enabled(ctx)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // תווית מצב: "● פעיל · 4 תנועות מוגדרות"
+                        Text(
+                            if (on) "● פעיל · $set תנועות מוגדרות" else "○ כבוי",
+                            Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (on) Neon.Green.copy(alpha = 0.12f) else scheme.surfaceVariant)
+                                .border(1.dp, if (on) Neon.Green.copy(alpha = 0.35f) else scheme.outline, RoundedCornerShape(14.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            color = if (on) Neon.Green else scheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Switch(checked = on, onCheckedChange = {
                             NotchPrefs.setEnabled(ctx, it)
                             NotchOverlay.refresh()
                             refresh++
-                        }
+                        })
                     }
                 }
 
-                // ---------- תנועות ----------
+                // ---------- תנועות: כרטיסים שתיים בשורה ----------
                 Card {
                     Text("מה כל נגיעה בחור עושה", style = MaterialTheme.typography.titleMedium)
-                    Gesture.entries.forEach { g ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { picking = g }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(g.label, Modifier.weight(0.9f), color = scheme.onSurfaceVariant)
-                            Text(NotchPrefs.action(ctx, g).title(), Modifier.weight(1.4f), fontWeight = FontWeight.Medium)
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
+                    Gesture.entries.chunked(2).forEach { pair ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            pair.forEach { g ->
+                                val a = NotchPrefs.action(ctx, g)
+                                val none = a.type == ActionType.NONE
+                                Column(
+                                    Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(Neon.Tile)
+                                        .border(
+                                            1.dp,
+                                            if (none) Neon.Line else Neon.Green.copy(alpha = 0.35f),
+                                            RoundedCornerShape(16.dp),
+                                        )
+                                        .clickable { picking = g }
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                                ) {
+                                    Text(g.label, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+                                    Text(
+                                        if (none) "🚫 כבוי" else a.title(),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (none) scheme.onSurfaceVariant else Neon.GreenSoft,
+                                        maxLines = 2,
+                                    )
+                                }
+                            }
                         }
-                        if (g != Gesture.entries.last()) HorizontalDivider()
                     }
                 }
 
@@ -220,7 +240,7 @@ fun HomeScreen(resumes: Int) {
                             }
                         }
                     }
-                    HorizontalDivider()
+                    HorizontalDivider(color = Neon.Line)
                     SwitchLine("💬 נורת התראות (מהבהבת בצבע של האפליקציה)", NotchPrefs.notifyLight(ctx)) {
                         NotchPrefs.setNotifyLight(ctx, it); NotchOverlay.refresh(); refresh++
                     }
@@ -231,36 +251,42 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
-                // ---------- כיוון ----------
-                Card {
-                    Text("גודל ומיקום", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "העיגול הוורוד מראה איפה הטבעת יושבת. מזיזים, והשינוי נראה תוך כדי.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant,
-                    )
-                    PrefSlider("גודל הטבעת", NotchPrefs.size(ctx), -6f..14f) { NotchPrefs.setSize(ctx, it) }
-                    PrefSlider("עובי", NotchPrefs.thickness(ctx), 0.8f..4f) { NotchPrefs.setThickness(ctx, it) }
-                    PrefSlider("ימינה / שמאלה", NotchPrefs.offsetX(ctx), -40f..40f) { NotchPrefs.setOffsetX(ctx, it) }
-                    PrefSlider("למעלה / למטה", NotchPrefs.offsetY(ctx), -30f..30f) { NotchPrefs.setOffsetY(ctx, it) }
-                    PrefSlider("גודל אזור הנגיעה", NotchPrefs.zoneExtra(ctx), 0f..40f) { NotchPrefs.setZoneExtra(ctx, it) }
-                    SwitchLine("להראות את אזור הנגיעה", NotchPrefs.showZone(ctx)) {
-                        NotchPrefs.setShowZone(ctx, it); NotchOverlay.refresh(); refresh++
+                // ---------- גודל ומיקום (נפתח בלחיצה) ----------
+                if (showPos) {
+                    Card {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("📐 גודל ומיקום", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                            TextButton(onClick = { showPos = false }) { Text("סגירה") }
+                        }
+                        Text(
+                            "העיגול הוורוד למעלה מראה איפה הטבעת יושבת. מזיזים, והוא זז תוך כדי.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                        )
+                        PrefSlider("גודל הטבעת", NotchPrefs.size(ctx), -6f..14f) { NotchPrefs.setSize(ctx, it) }
+                        PrefSlider("עובי", NotchPrefs.thickness(ctx), 0.8f..4f) { NotchPrefs.setThickness(ctx, it) }
+                        PrefSlider("ימינה / שמאלה", NotchPrefs.offsetX(ctx), -40f..40f) { NotchPrefs.setOffsetX(ctx, it) }
+                        PrefSlider("למעלה / למטה", NotchPrefs.offsetY(ctx), -30f..30f) { NotchPrefs.setOffsetY(ctx, it) }
+                        PrefSlider("אזור נגיעה", NotchPrefs.zoneExtra(ctx), 0f..40f) { NotchPrefs.setZoneExtra(ctx, it) }
+                        SwitchLine("להראות את אזור הנגיעה", NotchPrefs.showZone(ctx)) {
+                            NotchPrefs.setShowZone(ctx, it); NotchOverlay.refresh(); refresh++
+                        }
+                        TextButton(onClick = {
+                            NotchPrefs.resetPosition(ctx)
+                            NotchOverlay.refresh()
+                            Actions.toast(ctx, "המיקום והגודל חזרו להתחלה")
+                            refresh++
+                        }) { Text("↺ איפוס מיקום וגודל") }
                     }
-                    TextButton(onClick = {
-                        NotchPrefs.resetPosition(ctx)
-                        NotchOverlay.refresh()
-                        Actions.toast(ctx, "המיקום והגודל חזרו להתחלה")
-                        refresh++
-                    }) { Text("↺ איפוס מיקום וגודל") }
                 }
 
-                // ---------- עוד ----------
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Tile(Icons.Filled.AutoMode, "אוטומציות", Modifier.weight(1f)) {
+                // ---------- כפתורים ----------
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NeonButton("📐", "גודל ומיקום", Modifier.weight(1f)) { showPos = !showPos }
+                    NeonButton("⚙️", "אוטומציות", Modifier.weight(1f)) {
                         ctx.startActivity(Intent(ctx, AutomationsActivity::class.java))
                     }
-                    Tile(Icons.Filled.Mic, "פקודה קולית", Modifier.weight(1f)) {
+                    NeonButton("🎙️", "קולי", Modifier.weight(1f)) {
                         ctx.startActivity(Intent(ctx, VoiceActivity::class.java))
                     }
                 }
@@ -304,7 +330,8 @@ private fun Card(content: @Composable () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .background(Neon.Card)
+            .border(1.dp, Neon.Line, RoundedCornerShape(20.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) { content() }
@@ -447,5 +474,23 @@ private fun UrlDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** כפתור בסגנון הזוהר: סמל ומילה, מסגרת דקה */
+@Composable
+private fun NeonButton(emoji: String, label: String, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Neon.Tile)
+            .border(1.dp, Neon.Line, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(emoji)
+        Text(label, color = Neon.GreenSoft, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center)
     }
 }

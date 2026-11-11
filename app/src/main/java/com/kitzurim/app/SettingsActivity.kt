@@ -3,7 +3,6 @@ package com.kitzurim.app
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,8 +39,8 @@ import androidx.compose.ui.unit.dp
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // שורת המצב: סמלים כהים על רקע בהיר (ובהירים במצב כהה), כדי שיהיה אפשר לקרוא אותה
-        enableEdgeToEdge()
+        // שורת המצב: סמלים בהירים על הרקע הכהה
+        neonBars()
         setContent {
             KitzurimTheme {
                 SettingsScreen(
