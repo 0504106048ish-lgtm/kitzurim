@@ -230,32 +230,63 @@ object CallNotif {
         val ringing = st == Call.STATE_RINGING
         // סימן כיוון מימין לשמאל בהתחלה: מספר כמו *8787 לא בורח הצידה ולא נכנס מתחת לסמל
         val name = "‏" + Calls.name(ctx, c)
-        val b = NotificationCompat.Builder(ctx, if (ringing) CH_RING else CH_ON)
+        val pic = avatar(ctx, Calls.name(ctx, c))
+        fun base() = NotificationCompat.Builder(ctx, if (ringing) CH_RING else CH_ON)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(name)
-            .setLargeIcon(avatar(ctx, Calls.name(ctx, c)))
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
             .setContentIntent(open)
             .setOnlyAlertOnce(true)
-        if (ringing) {
-            b.setContentText("שיחה נכנסת")
-                .setFullScreenIntent(open, true)
-                .addAction(0, "דחה", pi(ctx, "decline", 2))
-                .addAction(0, "ענה", pi(ctx, "answer", 3))
-        } else {
-            val at = Calls.answeredAt[c]
-            if (at != null) {
-                b.setWhen(at).setShowWhen(true).setUsesChronometer(true)
-                    .setContentText(if (st == Call.STATE_HOLDING) "בהמתנה" else "בשיחה")
-            } else {
-                b.setContentText("מחייג…")
+            .apply {
+                if (ringing) setContentText("שיחה נכנסת")
+                else {
+                    val at = Calls.answeredAt[c]
+                    if (at != null) {
+                        setWhen(at).setShowWhen(true).setUsesChronometer(true)
+                            .setContentText(if (st == Call.STATE_HOLDING) "בהמתנה" else "בשיחה")
+                    } else {
+                        setContentText("מחייג…")
+                    }
+                }
             }
-            b.addAction(0, if (Calls.muted) "בטל השתקה" else "השתק", pi(ctx, "mute", 4))
-                .addAction(0, "רמקול", pi(ctx, "speaker", 5))
-                .addAction(0, "נתק", pi(ctx, "hangup", 6))
+
+        // התראת שיחה של אנדרואיד: עיגול עם האות, כפתור נתק אדום גדול, וזמן השיחה ליד השעה
+        val styled = runCatching {
+            val who = androidx.core.app.Person.Builder()
+                .setName(name)
+                .setIcon(androidx.core.graphics.drawable.IconCompat.createWithBitmap(pic))
+                .setImportant(true)
+                .build()
+            val b = base()
+                // אנדרואיד דורש מסך מלא בהתראת שיחה; בשיחה פעילה הערוץ שקט, אז הוא לא קופץ
+                .setFullScreenIntent(open, ringing)
+            if (ringing) {
+                b.setStyle(NotificationCompat.CallStyle.forIncomingCall(who, pi(ctx, "decline", 2), pi(ctx, "answer", 3)))
+            } else {
+                b.setStyle(NotificationCompat.CallStyle.forOngoingCall(who, pi(ctx, "hangup", 6)))
+                    .addAction(0, if (Calls.muted) "בטל השתקה" else "השתק", pi(ctx, "mute", 4))
+                    .addAction(0, "רמקול", pi(ctx, "speaker", 5))
+            }
+            b.build()
+        }.getOrNull()
+
+        // אם הטלפון לא תומך: ההתראה הרגילה עם שלושה כפתורים
+        fun plain() = base().setLargeIcon(pic).apply {
+            if (ringing) {
+                setFullScreenIntent(open, true)
+                    .addAction(0, "דחה", pi(ctx, "decline", 2))
+                    .addAction(0, "ענה", pi(ctx, "answer", 3))
+            } else {
+                addAction(0, if (Calls.muted) "בטל השתקה" else "השתק", pi(ctx, "mute", 4))
+                    .addAction(0, "רמקול", pi(ctx, "speaker", 5))
+                    .addAction(0, "נתק", pi(ctx, "hangup", 6))
+            }
+        }.build()
+        runCatching { nm.notify(ID, styled ?: plain()) }.onFailure {
+            // אם אנדרואיד דחה את התראת השיחה המיוחדת: שולחים את הרגילה
+            if (styled != null) runCatching { nm.notify(ID, plain()) }
         }
-        runCatching { nm.notify(ID, b.build()) }
     }
 
 
