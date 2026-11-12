@@ -102,7 +102,10 @@ fun HomeScreen(resumes: Int) {
     var pickingPopupApp by remember { mutableStateOf(false) }
     var addingOffApp by remember { mutableStateOf(false) }
     var editingApp by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var showPos by remember { mutableStateOf(false) }
+    // התפריט: null = מסך הבית עם האריחים; אחרת הדף של נושא אחד
+    var page by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
+    androidx.activity.compose.BackHandler(enabled = page != null) { page = null }
     var pendingContact by remember { mutableStateOf<Pair<Target, ActionType>?>(null) }
 
     /** שומר פעולה. באפליקציה מסוימת, null = "כמו בכל מקום" */
@@ -148,7 +151,17 @@ fun HomeScreen(resumes: Int) {
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                val current = HomePages.firstOrNull { it.id == page }
+                if (current != null) {
+                    // דף של נושא: חץ חזרה והשם
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { page = null }) {
+                            // חץ חזרה (בעברית הוא מצביע ימינה)
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "חזרה", tint = scheme.onSurface)
+                        }
+                        Text("${current.emoji} ${current.title}", style = MaterialTheme.typography.headlineSmall)
+                    }
+                } else Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("קיצורים", style = MaterialTheme.typography.headlineMedium)
                         Text("החור של המצלמה הוא כפתור", color = scheme.onSurfaceVariant)
@@ -158,9 +171,11 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
-                // ---------- מצב ----------
+                // ---------- מצב (רק במסך הבית) ----------
                 val serviceOn = AutoSend.allowed(ctx)
-                if (!serviceOn) {
+                if (page != null) {
+                    // בדף של נושא לא מראים את המצב
+                } else if (!serviceOn) {
                     Column(
                         Modifier
                             .fillMaxWidth()
@@ -203,8 +218,66 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
+                // ---------- מסך הבית: חיפוש ואריחים ----------
+                if (page == null) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text("🔍 חיפוש הגדרה…") },
+                        shape = RoundedCornerShape(16.dp),
+                    )
+                    if (query.isBlank()) {
+                        // שני אריחים בשורה; כל אריח פותח דף קצר רק עם ההגדרות שלו
+                        HomePages.chunked(2).forEach { pair ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                pair.forEach { p ->
+                                    Column(
+                                        Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 92.dp)
+                                            .clip(RoundedCornerShape(18.dp))
+                                            .background(Neon.Tile)
+                                            .border(1.dp, Neon.Line, RoundedCornerShape(18.dp))
+                                            .clickable { page = p.id }
+                                            .padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Text(p.emoji, style = MaterialTheme.typography.titleLarge)
+                                        Text(p.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                        Text(p.sub, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, maxLines = 1)
+                                    }
+                                }
+                                if (pair.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                        }
+                    } else {
+                        // תוצאות חיפוש: כל הגדרה שמתאימה, ולחיצה פותחת את הדף שלה
+                        val q = query.trim()
+                        val hits = HomePages.flatMap { p -> p.items.filter { it.contains(q) || p.title.contains(q) }.map { p to it } }
+                        if (hits.isEmpty()) {
+                            Text("לא נמצא כלום עם \"$q\"", color = scheme.onSurfaceVariant)
+                        }
+                        hits.forEach { (p, item) ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Neon.Tile)
+                                    .clickable { page = p.id; query = "" }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(item, Modifier.weight(1f))
+                                Text("${p.emoji} ${p.title}", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+
                 // ---------- תנועות: כרטיסים שתיים בשורה ----------
-                Card {
+                if (page == "touch") Card {
                     Text("מה כל נגיעה בחור עושה", style = MaterialTheme.typography.titleMedium)
                     Gesture.entries.chunked(2).forEach { pair ->
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -240,7 +313,7 @@ fun HomeScreen(resumes: Int) {
                 }
 
                 // ---------- הטבעת ----------
-                Card {
+                if (page == "ring") Card {
                     Text("הטבעת סביב המצלמה", style = MaterialTheme.typography.titleMedium)
                     SwitchLine("🔋 טבעת סוללה (מראה כמה סוללה נשארה)", NotchPrefs.ringOn(ctx)) {
                         NotchPrefs.setRingOn(ctx, it); NotchOverlay.refresh(); refresh++
@@ -303,7 +376,7 @@ fun HomeScreen(resumes: Int) {
                 }
 
                 // ---------- צבעים ----------
-                Card {
+                if (page == "colors") Card {
                     Text("🎨 צבעים", style = MaterialTheme.typography.titleMedium)
                     Text(
                         "לכל סוג התראה אפשר לבחור צבע מכל הקשת, בעיגול ובגלולה. הקש על שורה כדי לבחור.",
@@ -322,31 +395,21 @@ fun HomeScreen(resumes: Int) {
                 }
 
                 // ---------- הגלולה החיה ----------
-                Card {
-                    Text("✨ גלולה חיה", style = MaterialTheme.typography.titleMedium)
+                if (page == "pill") Card {
                     Text(
-                        "הטבעת נמתחת לצדדים ומראה פרטים, והטקסט תמיד בצדדים של המצלמה ולא מאחוריה.",
+                        "הטבעת נמתחת לצדדים ומראה פרטים, והטקסט תמיד בצדדים של המצלמה ולא מאחוריה. ▶ ליד כל אפשרות מראה איך היא נראית, עכשיו למעלה.",
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant,
                     )
                     SwitchLine("להפעיל את הגלולה החיה", NotchPrefs.pill(ctx)) {
                         NotchPrefs.setPill(ctx, it); refresh++
                     }
-                    // דוגמא: מראה את הגלולה עכשיו, בלי לחכות להודעה אמיתית
-                    Text("👀 לראות דוגמא:", style = MaterialTheme.typography.bodyMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                        listOf("msg" to "💬 קצרה", "long" to "💬 ארוכה", "charge" to "⚡ מטען", "music" to "🎵 שיר").forEach { (type, name) ->
-                            TextButton(onClick = {
-                                if (!LivePill.demo(type)) Actions.toast(ctx, "קודם צריך להדליק את קיצורים בנגישות")
-                            }) { Text(name) }
-                        }
-                    }
                     if (NotchPrefs.pill(ctx)) {
-                        Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SwitchLine("💬 הודעות (מי שלח ומה כתב)", NotchPrefs.pillMessages(ctx)) {
+                        Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            PillLine("💬 הודעות (מי שלח ומה כתב)", NotchPrefs.pillMessages(ctx), "long") {
                                 NotchPrefs.setPillMessages(ctx, it); refresh++
                             }
-                            SwitchLine("📞 שיחות (ענה / דחה, וזמן השיחה)", NotchPrefs.pillCalls(ctx)) {
+                            PillLine("📞 שיחות (ענה / דחה, וזמן השיחה)", NotchPrefs.pillCalls(ctx), "call") {
                                 NotchPrefs.setPillCalls(ctx, it); refresh++
                             }
                             if (NotchPrefs.pillCalls(ctx) && android.os.Build.VERSION.SDK_INT >= 28 &&
@@ -356,10 +419,10 @@ fun HomeScreen(resumes: Int) {
                                     Text("לכפתור ניתוק בגלולה צריך הרשאה ←")
                                 }
                             }
-                            SwitchLine("🎵 שיר חדש (עם התמונה של השיר)", NotchPrefs.pillMusic(ctx)) {
+                            PillLine("🎵 שיר חדש (עם התמונה של השיר)", NotchPrefs.pillMusic(ctx), "song") {
                                 NotchPrefs.setPillMusic(ctx, it); refresh++
                             }
-                            SwitchLine("💿 מוזיקה כל הזמן בעיגול (תמונת האלבום וגלי צליל)", NotchPrefs.pillMusicLive(ctx)) {
+                            PillLine("💿 מוזיקה כל הזמן בעיגול (תמונת האלבום וגלי צליל)", NotchPrefs.pillMusicLive(ctx), "live") {
                                 NotchPrefs.setPillMusicLive(ctx, it)
                                 if (!it) LivePill.musicStopped()
                                 refresh++
@@ -381,19 +444,19 @@ fun HomeScreen(resumes: Int) {
                                     Actions.toast(ctx, "לא הצלחתי לפתוח את ההגדרות")
                                 }
                             }) { Text("🙈 להסתיר את סמל המוזיקה משורת המצב ←") }
-                            SwitchLine("⚡ חיבור מטען", NotchPrefs.pillCharging(ctx)) {
+                            PillLine("⚡ חיבור מטען", NotchPrefs.pillCharging(ctx), "charge") {
                                 NotchPrefs.setPillCharging(ctx, it); refresh++
                             }
-                            SwitchLine("🧭 ניווט (וויז / גוגל מפות: הפנייה הבאה והמרחק)", NotchPrefs.pillNav(ctx)) {
+                            PillLine("🧭 ניווט (וויז / גוגל מפות: הפנייה הבאה והמרחק)", NotchPrefs.pillNav(ctx), "nav") {
                                 NotchPrefs.setPillNav(ctx, it); refresh++
                             }
-                            SwitchLine("🎧 אוזניות התחברו (שם וסוללה)", NotchPrefs.pillEarbuds(ctx)) {
+                            PillLine("🎧 אוזניות התחברו (שם וסוללה)", NotchPrefs.pillEarbuds(ctx), "buds") {
                                 NotchPrefs.setPillEarbuds(ctx, it); refresh++
                             }
-                            SwitchLine("⬇️ הורדות (הטבעת מתמלאת, ובסוף \"הורד ✓\")", NotchPrefs.pillDownloads(ctx)) {
+                            PillLine("⬇️ הורדות (הטבעת מתמלאת, ובסוף \"הורד ✓\")", NotchPrefs.pillDownloads(ctx), "download") {
                                 NotchPrefs.setPillDownloads(ctx, it); NotchOverlay.refresh(); refresh++
                             }
-                            SwitchLine("📸 צילום מסך (תמונה קטנה ו\"נשמר\")", NotchPrefs.pillShots(ctx) && Screenshots.allowed(ctx)) {
+                            PillLine("📸 צילום מסך (תמונה קטנה ו\"נשמר\")", NotchPrefs.pillShots(ctx) && Screenshots.allowed(ctx), "shot") {
                                 NotchPrefs.setPillShots(ctx, it)
                                 if (it && !Screenshots.allowed(ctx)) shotPerm.launch(Screenshots.permission)
                                 refresh++
@@ -438,18 +501,25 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
-                // ---------- התנהגות ----------
-                Card {
-                    Text("התנהגות", style = MaterialTheme.typography.titleMedium)
+                // ---------- נגיעות: רטט ----------
+                if (page == "touch") Card {
                     SwitchLine("📳 רטט קטן בכל נגיעה בחור", NotchPrefs.haptic(ctx)) {
                         NotchPrefs.setHaptic(ctx, it); refresh++
                     }
+                }
+
+                // ---------- אפליקציות ומסכים ----------
+                if (page == "apps") Card {
                     SwitchLine("🙈 להסתיר במסך מלא (סרטון, משחק, תמונה)", NotchPrefs.hideFullscreen(ctx)) {
                         NotchPrefs.setHideFullscreen(ctx, it); NotchOverlay.refresh(); refresh++
                     }
                     SwitchLine("🔒 לעבוד גם במסך הנעילה (טבעת, התראות וגלולה)", NotchPrefs.onLockScreen(ctx)) {
                         NotchPrefs.setOnLockScreen(ctx, it); NotchOverlay.refresh(); refresh++
                     }
+                }
+
+                // ---------- שיחות ----------
+                if (page == "calls") Card {
                     // קיצורים כאפליקציית הטלפון: כל השיחות במסך הניאון. כבוי כברירת מחדל
                     SwitchLine("📞 מסך שיחה בניאון (קיצורים כאפליקציית הטלפון)", Calls.isDefault(ctx)) { on ->
                         if (on) {
@@ -480,6 +550,10 @@ fun HomeScreen(resumes: Int) {
                             }
                         }
                     }
+                }
+
+                // ---------- מוזיקה ----------
+                if (page == "music") Card {
                     // נגן: הקשה על העיגול כשמתנגן שיר
                     SwitchLine("🎵 נגן בהקשה על העיגול כשמתנגן שיר", NotchPrefs.musicTap(ctx)) {
                         NotchPrefs.setMusicTap(ctx, it); NotchOverlay.refresh(); refresh++
@@ -502,6 +576,10 @@ fun HomeScreen(resumes: Int) {
                             }
                         }
                     }
+                }
+
+                // ---------- אפליקציות שבהן קיצורים כבוי ----------
+                if (page == "apps") Card {
                     // אפליקציות שבהן קיצורים לא עובד בכלל: בלי טבעת, בלי נגיעות ובלי גלולה (שיחה נכנסת כן)
                     Text("🚫 כבוי באפליקציות האלה", style = MaterialTheme.typography.bodyMedium)
                     Text(
@@ -521,7 +599,7 @@ fun HomeScreen(resumes: Int) {
                 }
 
                 // ---------- תנועות לפי אפליקציה ----------
-                Card {
+                if (page == "touch") Card {
                     Text("תנועות לפי אפליקציה", style = MaterialTheme.typography.titleMedium)
                     Text(
                         "בתוך אפליקציה מסוימת התנועות יכולות לעשות משהו אחר. למשל ביוטיוב הקשה = השהיה.",
@@ -550,13 +628,10 @@ fun HomeScreen(resumes: Int) {
                     TextButton(onClick = { addingApp = true }) { Text("+ הוספת אפליקציה") }
                 }
 
-                // ---------- גודל ומיקום (נפתח בלחיצה) ----------
-                if (showPos) {
+                // ---------- גודל ומיקום (בדף "עוד") ----------
+                if (page == "more") {
                     Card {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("📐 גודל ומיקום", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                            TextButton(onClick = { showPos = false }) { Text("סגירה") }
-                        }
+                        Text("📐 גודל ומיקום", style = MaterialTheme.typography.titleMedium)
                         Text(
                             "העיגול הוורוד למעלה מראה איפה הטבעת יושבת. מזיזים, והוא זז תוך כדי.",
                             style = MaterialTheme.typography.bodySmall,
@@ -579,9 +654,8 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
-                // ---------- כפתורים ----------
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NeonButton("📐", "גודל ומיקום", Modifier.weight(1f)) { showPos = !showPos }
+                // ---------- כפתורים (בדף "עוד") ----------
+                if (page == "more") Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NeonButton("⚙️", "אוטומציות", Modifier.weight(1f)) {
                         ctx.startActivity(Intent(ctx, AutomationsActivity::class.java))
                     }
@@ -993,5 +1067,50 @@ private fun ColorLine(label: String, type: String, default: Int, defaultName: St
                 TextButton(onClick = { open = false }) { Text("סגור") }
             }
         }
+    }
+}
+
+/** נושא בתפריט הראשי: אריח עם סמל, שם ושורה קטנה, והמילים שהחיפוש מוצא בו */
+private class HomePage(val id: String, val emoji: String, val title: String, val sub: String, val items: List<String>)
+
+private val HomePages = listOf(
+    HomePage("touch", "👆", "נגיעות", "הקשה, כפולה, החלקה", listOf(
+        "הקשה אחת", "הקשה כפולה", "לחיצה ארוכה", "החלקה", "רטט קטן בכל נגיעה", "תנועות לפי אפליקציה",
+    )),
+    HomePage("pill", "✨", "גלולה חיה", "התראות סביב המצלמה", listOf(
+        "להפעיל את הגלולה החיה", "הודעות", "שיחות", "שיר חדש", "מוזיקה כל הזמן בעיגול", "סמל המוזיקה בשורת המצב",
+        "חיבור מטען", "ניווט", "אוזניות", "הורדות", "צילום מסך", "חלון קופץ",
+    )),
+    HomePage("ring", "⭕", "טבעת", "סוללה ונורת התראות", listOf(
+        "טבעת סוללה", "רק בזמן טעינה", "נקודה מסתובבת בזמן טעינה", "נורת התראות", "נכבית לבד אחרי",
+        "הקשה על העיגול הדלוק", "עוצמת קול", "התקדמות השיר", "הבהוב בצלצול",
+    )),
+    HomePage("colors", "🎨", "צבעים", "צבע לכל סוג התראה", listOf(
+        "צבע הודעות", "צבע שיחות", "צבע מוזיקה", "צבע ניווט", "צבע הורדות", "צבע צילום מסך", "צבע טעינה", "צבע אוזניות", "צבע עוצמת קול",
+    )),
+    HomePage("calls", "📞", "שיחות", "מסך ניאון וחייגן", listOf(
+        "מסך שיחה בניאון", "אפליקציית הטלפון", "חייגן", "קיצור טלפון", "מועדפים",
+    )),
+    HomePage("music", "🎵", "מוזיקה", "נגן בהקשה על העיגול", listOf(
+        "נגן בהקשה על העיגול", "פס התקדמות וזמן", "שיר קודם / הבא", "תמונת האלבום",
+    )),
+    HomePage("apps", "📱", "אפליקציות ומסכים", "מסך מלא, נעילה, כבוי ב…", listOf(
+        "להסתיר במסך מלא", "מסך הנעילה", "כבוי באפליקציות",
+    )),
+    HomePage("more", "⋯", "עוד", "גודל, אוטומציות, קולי", listOf(
+        "גודל הטבעת", "עובי", "מיקום", "אזור נגיעה", "איפוס מיקום וגודל", "אוטומציות", "קולי",
+    )),
+)
+
+/** מתג בגלולה החיה, ולידו ▶ שמראה עכשיו למעלה איך זה נראה */
+@Composable
+private fun PillLine(text: String, checked: Boolean, demo: String, onChange: (Boolean) -> Unit) {
+    val ctx = LocalContext.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text, Modifier.weight(1f))
+        TextButton(onClick = {
+            if (!LivePill.demo(demo)) Actions.toast(ctx, "קודם צריך להדליק את קיצורים בנגישות")
+        }) { Text("▶ הדמיה", color = Neon.GreenSoft, style = MaterialTheme.typography.labelMedium) }
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }

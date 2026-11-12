@@ -154,7 +154,7 @@ object LivePill {
 
     fun showCall(key: String, name: String, decline: PendingIntent?, answer: PendingIntent?) {
         val s = NotchOverlay.service ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s))) return
         callKey = key
         val blue = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(79, 179, 255))
         // שורה אחת דקה: מימין מי מתקשר, משמאל דחה וענה
@@ -208,7 +208,7 @@ object LivePill {
     /** בזמן שיחה. נקראת כל שנייה. secondsFromAudio = מתי הטלפון נכנס למצב שיחה */
     fun inCall(secondsFromAudio: Int) {
         val s = NotchOverlay.service ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s))) return
         // מסך השיחה של קיצורים פתוח: אין צורך בגלולה
         if (CallActivity.visible) {
             if (inCallPill()) hide()
@@ -722,7 +722,7 @@ object LivePill {
      */
     fun showNav(key: String, pkg: String, title: String, text: String, arrow: android.graphics.drawable.Drawable?, open: PendingIntent?) {
         val s = NotchOverlay.service ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillNav(s)) return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillNav(s))) return
         if (inCallPill() || kind == "player" || kind == "msg") return
         val hasDist = title.any { it.isDigit() }
         val appName = runCatching {
@@ -757,7 +757,7 @@ object LivePill {
     private fun navCompact() {
         val s = NotchOverlay.service ?: return
         if (navKey == null || inCallPill() || kind == "player" || kind == "msg") return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillNav(s)) return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillNav(s))) return
         val open = navOpen
         show("nav", 150, NAV_BLUE, null, onTap = { launch(open) }) { ctx, left, right ->
             val t = label(ctx, navLabel, 12.5f, NAV_BLUE, bold = true)
@@ -805,7 +805,7 @@ object LivePill {
     /** נקרא כל שנייה כשמתנגן שיר. מראה את הגלולה הקבועה אם אין משהו אחר על המסך */
     fun musicLive(art: android.graphics.Bitmap?) {
         val s = NotchOverlay.service ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusicLive(s)) return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillMusicLive(s))) return
         if (navKey != null) return // בזמן ניווט הניווט חשוב יותר
         if (songWindow != null) return // שיר חדש מוצג עכשיו (הוא יצא מהגלולה הזו)
         if (kind == "musicLive") {
@@ -969,7 +969,7 @@ object LivePill {
     /** אוזניות התחברו: השם והסוללה */
     fun showEarbuds(name: String, battery: Int?) {
         val s = NotchOverlay.service ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillEarbuds(s)) return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillEarbuds(s))) return
         if (inCallPill() || kind == "player") return
         val c = NotchPrefs.tint(NotchOverlay.service, "buds", Color.rgb(160, 168, 255))
         val text = if (battery != null) "$name · $battery%" else name
@@ -1018,7 +1018,7 @@ object LivePill {
     /** הורדה הסתיימה */
     fun showDownloaded(name: String, open: PendingIntent?) {
         val s = NotchOverlay.service ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillDownloads(s)) return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillDownloads(s))) return
         if (inCallPill() || kind == "player") return
         val blue = NotchPrefs.tint(NotchOverlay.service, "download", Color.rgb(79, 179, 255))
         val line = android.text.SpannableStringBuilder().apply {
@@ -1045,7 +1045,7 @@ object LivePill {
     fun showMusic(title: String) {
         val s = NotchOverlay.service ?: return
         val wm = NotchOverlay.wm ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillMusic(s)) return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillMusic(s))) return
         if (inCallPill() || kind == "player" || kind == "msg") return
         if (NotchOverlay.offHere() || NotchOverlay.pillBlocked("music")) return
         songWindow?.let { w -> runCatching { wm.removeView(w) } }
@@ -1217,7 +1217,7 @@ object LivePill {
 
     fun showCharging(percent: Int, minutesToFull: Long?) {
         val s = NotchOverlay.service ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillCharging(s)) return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillCharging(s))) return
         if (inCallPill()) return
         val green = NotchPrefs.tint(NotchOverlay.service, "charge", Color.rgb(62, 209, 140))
         val text = minutesToFull?.let { "מלאה בעוד " + Battery.minutesText(it) } ?: "בטעינה"
@@ -1553,9 +1553,51 @@ object LivePill {
                     left.addView(label(ctx, "שיר לדוגמא", 13.5f, Color.WHITE))
                 }
             }
+            // הדמיות לכל סוג בגלולה החיה, גם כשהמתג שלו כבוי
+            else -> {
+                demoMode = true
+                try {
+                    when (type) {
+                        "call" -> {
+                            showCall("demo", "אמא", null, null)
+                            main.postDelayed({ callNotificationRemoved("demo") }, 4000)
+                        }
+                        "live" -> {
+                            if (kind != null) removeNow()
+                            musicLive(null)
+                            musicProgress(0.4f)
+                            main.postDelayed({ if (kind == "musicLive" && NotchOverlay.playingController(s) == null) hide() }, 4500)
+                        }
+                        "song" -> {
+                            if (kind != "musicLive") {
+                                if (kind != null) removeNow()
+                                musicLive(null)
+                            }
+                            main.postDelayed({
+                                demoMode = true
+                                try { showMusic("שיר לדוגמא") } finally { demoMode = false }
+                            }, 700)
+                            main.postDelayed({ if (kind == "musicLive" && NotchOverlay.playingController(s) == null) hide() }, 5500)
+                        }
+                        "nav" -> {
+                            if (kind != null) removeNow()
+                            showNav("demo", "com.waze", "בעוד 300 מ׳", "פנה ימינה לרחוב הרצל", null, null)
+                            main.postDelayed({ navEnded("demo") }, 5000)
+                        }
+                        "buds" -> showEarbuds("Galaxy Buds", 80)
+                        "download" -> showDownloaded("סידור.pdf", null)
+                        "shot" -> showScreenshot(null, android.net.Uri.EMPTY)
+                    }
+                } finally {
+                    demoMode = false
+                }
+            }
         }
         return true
     }
+
+    /** בזמן הדמיה: מראים גם כשהמתג של הסוג כבוי */
+    private var demoMode = false
 
     /** נכנסו לאפליקציה שבה קיצורים כבוי: סוגרים, חוץ משיחה */
     fun hideUnlessCall() {
