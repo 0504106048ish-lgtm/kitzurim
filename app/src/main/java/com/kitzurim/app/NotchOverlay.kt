@@ -105,7 +105,8 @@ object NotchOverlay {
         // מסך מסובב: רק הודעות (ושיחות, שעוברות תמיד), כגלולה למעלה באמצע
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return kind != "msg"
         if (lockedHidden()) return true
-        return fullscreen && NotchPrefs.hideFullscreen(s) && !preview
+        // סטטוס בוואטסאפ, סטורי באינסטגרם וכו' נפתחים במסך מלא, אבל שם כן רוצים לראות התראות
+        return fullscreen && NotchPrefs.hideFullscreen(s) && !preview && currentPackage !in FULLSCREEN_SHOW
     }
 
     /** קיצורים כבוי באפליקציה שפתוחה עכשיו */
@@ -116,6 +117,12 @@ object NotchOverlay {
 
     /** מסך מלא (סרטון, משחק): מסתירים אם המתג דלוק */
     private var fullscreen = false
+
+    /** אפליקציות שהמסך המלא בהן הוא סטטוס או סטורי (לא סרטון או משחק): ההתראות ממשיכות להופיע */
+    private val FULLSCREEN_SHOW = setOf(
+        "com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger",
+        "com.instagram.android", "com.facebook.katana", "com.facebook.orca",
+    )
 
     /** מצב כיוון: כל עוד קיצורים פתוחה, מראים עיגול ורוד כדי לראות איפה הטבעת יושבת */
     private var preview = false
