@@ -41,6 +41,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
@@ -219,12 +222,40 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
     val contacts = remember(reload) { PhoneBook.contacts(ctx) }
     val missed = remember(recents) { recents.filter { it.type == CallLog.Calls.MISSED_TYPE } }
     androidx.activity.compose.BackHandler(enabled = keypad) { keypad = false }
+
+    // יד אחת (כמו בסמסונג): למעלה כותרת גדולה ומה שחשוב עכשיו, והרשימה מתחילה נמוך.
+    // כשגוללים למעלה הכותרת מתכווצת לשורה קטנה, וכשחוזרים לראש הרשימה היא נפתחת שוב
+    val low = remember { NotchPrefs.dialLow(ctx) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+    val smallPx = with(density) { 44.dp.toPx() }
+    val rangePx = with(density) { (screenH * 0.27f).dp.toPx() } - smallPx
+    var headPx by remember { androidx.compose.runtime.mutableFloatStateOf(rangePx) }
+    val shrink = remember(low, rangePx) {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            private fun take(dy: Float): androidx.compose.ui.geometry.Offset {
+                val old = headPx
+                headPx = (headPx + dy).coerceIn(0f, rangePx)
+                return androidx.compose.ui.geometry.Offset(0f, headPx - old)
+            }
+            // גוללים למעלה: קודם הכותרת מתכווצת, ורק אז הרשימה זזה
+            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource) =
+                if (!low || available.y >= 0) androidx.compose.ui.geometry.Offset.Zero else take(available.y)
+            // גוללים למטה: כשהרשימה הגיעה לראש, הכותרת נפתחת
+            override fun onPostScroll(
+                consumed: androidx.compose.ui.geometry.Offset,
+                available: androidx.compose.ui.geometry.Offset,
+                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+            ) = if (!low || available.y <= 0) androidx.compose.ui.geometry.Offset.Zero else take(available.y)
+        }
+    }
     Box(
         Modifier
             .fillMaxSize()
             .background(Color(0xFF0B0D13))
             .statusBarsPadding()
-            .navigationBarsPadding(),
+            .navigationBarsPadding()
+            .then(if (low) Modifier.nestedScroll(shrink) else Modifier),
     ) {
         if (keypad) {
             Column(Modifier.fillMaxSize()) {
@@ -238,6 +269,78 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
             }
         } else {
             Column(Modifier.fillMaxSize()) {
+                if (low) {
+                    // 1 = פתוחה לגמרי, 0 = שורה קטנה
+                    val f = if (rangePx > 0) headPx / rangePx else 0f
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(with(density) { (smallPx + headPx).toDp() })
+                            .clipToBounds()
+                            .padding(horizontal = 20.dp),
+                    ) {
+                        // מקופלת: "שיחות" קטן בשורה העליונה
+                        Text(
+                            "שיחות",
+                            color = Color.White.copy(alpha = (1f - f * 2f).coerceIn(0f, 1f)),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.align(Alignment.CenterStart),
+                        )
+                        // פתוחה: "שיחות" בגדול, ומתחת מה שחשוב עכשיו
+                        Column(
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(bottom = 10.dp)
+                                .graphicsLayer {
+                                    alpha = ((f - 0.35f) / 0.65f).coerceIn(0f, 1f)
+                                    val s = 0.85f + 0.15f * f
+                                    scaleX = s
+                                    scaleY = s
+                                },
+                        ) {
+                            Text("שיחות", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
+                            Spacer(Modifier.height(8.dp))
+                            // רק שיחות שלא נענו מהיממה האחרונה (ישנות כבר לא "חשובות עכשיו")
+                            val fresh = remember(missed) { missed.filter { it.date > System.currentTimeMillis() - 24L * 60 * 60 * 1000 } }
+                            if (fresh.isNotEmpty()) {
+                                // שיחות שלא נענו: הקשה פותחת את הלשונית "לא נענו"
+                                val names = fresh.map { it.name }.distinct().take(2).joinToString(", ")
+                                Text(
+                                    "↙ ${if (fresh.size == 1) "שיחה אחת שלא נענתה" else "${fresh.size} שיחות שלא נענו"} · $names",
+                                    color = Color(0xFFFFB3B5),
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Color(0x26FF5A5F))
+                                        .border(1.dp, Color(0x66FF5A5F), RoundedCornerShape(14.dp))
+                                        .clickable { tab = 3 }
+                                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                                )
+                            } else {
+                                // אין מה להשלים: כמה שיחות היו היום
+                                val dayStart = remember(recents) {
+                                    java.util.Calendar.getInstance().apply {
+                                        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                                        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                                    }.timeInMillis
+                                }
+                                val today = recents.count { it.date >= dayStart }
+                                Text(
+                                    when (today) {
+                                        0 -> "אין שיחות שלא נענו 👍"
+                                        1 -> "שיחה אחת היום · אין שיחות שלא נענו"
+                                        else -> "$today שיחות היום · אין שיחות שלא נענו"
+                                    },
+                                    color = Muted,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        }
+                    }
+                }
                 // חיפוש לפי שם או מספר, בכל לשונית
                 Box(
                     Modifier

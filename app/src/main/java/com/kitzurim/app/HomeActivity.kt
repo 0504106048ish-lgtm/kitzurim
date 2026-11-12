@@ -578,6 +578,11 @@ fun HomeScreen(resumes: Int) {
                                 if (on) DialerHome.install(ctx.applicationContext) else DialerHome.remove(ctx.applicationContext)
                                 refresh++
                             }
+                            // יד אחת: הרשימה מתחילה נמוך, כמו בסמסונג
+                            SwitchLine("👍 רשימה נמוכה (יד אחת): כותרת גדולה למעלה והרשימה בהישג האגודל", NotchPrefs.dialLow(ctx)) { on ->
+                                NotchPrefs.setDialLow(ctx, on)
+                                refresh++
+                            }
                             TextButton(onClick = { ctx.startActivity(Intent(ctx, DialActivity::class.java)) }) {
                                 Text("לפתוח את החייגן ←")
                             }

@@ -379,6 +379,9 @@ object NotchPrefs {
     /** אנדרואיד אוטו: להעביר הודעות למסך הרכב כשמחוברים */
     fun carMirror(c: Context) = sp(c).getBoolean("car_mirror", true)
     fun setCarMirror(c: Context, v: Boolean) = sp(c).edit().putBoolean("car_mirror", v).apply()
+    /** חייגן: הרשימה מתחילה נמוך (יד אחת), עם כותרת גדולה למעלה שמתכווצת בגלילה */
+    fun dialLow(c: Context) = sp(c).getBoolean("dial_low", true)
+    fun setDialLow(c: Context, v: Boolean) = sp(c).edit().putBoolean("dial_low", v).apply()
     /** גם הודעות SMS לרכב (כבוי: אפליקציית ההודעות כבר שולחת אותן לרכב לבד) */
     fun carSms(c: Context) = sp(c).getBoolean("car_sms", false)
     fun setCarSms(c: Context, v: Boolean) = sp(c).edit().putBoolean("car_sms", v).apply()
