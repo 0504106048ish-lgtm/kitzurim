@@ -659,6 +659,8 @@ object NotchOverlay {
         fun action(g: Gesture) = NotchPrefs.actionFor(s, g, currentPackage)
 
         fun fire(g: Gesture) {
+            // גלולת שיחה פתוחה: הקשה הולכת לשיחה, לא לקיצור
+            if (g == Gesture.TAP && LivePill.tapPill()) return
             // העיגול דלוק בגלל הודעה (ולא מראה עכשיו שיר): הקשה מראה שוב את ההודעה
             if (g == Gesture.TAP && NotchPrefs.ringTapMsg(s) && music == null && !LivePill.isPlayerOpen()) {
                 litMessage()?.let { m ->

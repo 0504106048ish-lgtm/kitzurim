@@ -69,19 +69,19 @@ object LivePill {
         val dark = Color.rgb(42, 47, 58)
         show("msg", 300, color, if (text.length > 40) 6500 else 5000, onTap = { launch(open) }) { ctx, left, right ->
             msg?.reply?.let { a ->
-                left.addView(thinBtn(ctx, "↩︎", dark) {
+                left.addView(thinBtn(ctx, R.drawable.ic_c_reply, dark) {
                     QuickReplyActivity.open(ctx, sender, a)
                     hide()
                 })
             }
             msg?.read?.let { a ->
-                left.addView(thinBtn(ctx, "✓", dark) {
+                left.addView(thinBtn(ctx, R.drawable.ic_c_check, dark) {
                     runCatching { a.actionIntent.send() }
                     msg.key?.let { NotchOverlay.notificationRemoved(it) }
                     hide()
                 })
             }
-            left.addView(thinBtn(ctx, "↗︎", dark) {
+            left.addView(thinBtn(ctx, R.drawable.ic_c_open, dark) {
                 launch(open)
                 hide()
             })
@@ -93,20 +93,21 @@ object LivePill {
     }
 
     /** כפתור עגול קטן לשורה הדקה */
-    private fun thinBtn(ctx: Context, symbol: String, bg: Int, wide: Boolean = false, onClick: () -> Unit): TextView {
+    private fun thinBtn(ctx: Context, icon: Int, bg: Int, wide: Boolean = false, onClick: () -> Unit): ImageView {
         val d = ctx.resources.displayMetrics.density
-        return TextView(ctx).apply {
-            text = symbol
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        // סמל בקו דק (לא אימוג'י), בעיגול קטן; קטנים מספיק כדי ששלושה ייכנסו בצד אחד של הגלולה
+        return ImageView(ctx).apply {
+            setImageResource(icon)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            val pad = (6 * d).toInt()
+            setPadding(pad, pad, pad, pad)
             background = GradientDrawable().apply {
-                cornerRadius = 15 * d
+                cornerRadius = 14 * d
                 setColor(bg)
             }
-            layoutParams = LinearLayout.LayoutParams(((if (wide) 38 else 30) * d).toInt(), (30 * d).toInt()).apply {
-                marginStart = (3 * d).toInt()
-                marginEnd = (3 * d).toInt()
+            layoutParams = LinearLayout.LayoutParams(((if (wide) 34 else 28) * d).toInt(), (28 * d).toInt()).apply {
+                marginStart = (2 * d).toInt()
+                marginEnd = (2 * d).toInt()
             }
             setOnClickListener { onClick() }
         }
@@ -118,7 +119,7 @@ object LivePill {
         gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
         // שמשאיר מקום לעיגול עם האות שלידו (חצי מהרוחב שבין השעה לסוללה, פחות העיגול)
         val d = ctx.resources.displayMetrics.density
-        val most = ((ctx.resources.displayMetrics.widthPixels - 2 * 58 * d - 40 * d) / 2 - 34 * d).toInt()
+        val most = ((ctx.resources.displayMetrics.widthPixels - 2 * 58 * d - 40 * d) / 2 - 52 * d).toInt()
         addView(label(ctx, top, 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT; maxWidth = most },
             LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
         addView(label(ctx, bottom.replace('\n', ' '), 11.5f, bottomColor).apply { gravity = Gravity.RIGHT; maxWidth = most },
@@ -132,11 +133,11 @@ object LivePill {
         val blue = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(79, 179, 255))
         // שורה אחת דקה: מימין מי מתקשר, משמאל דחה וענה
         show("call", 320, blue, null, onTap = null) { ctx, left, right ->
-            left.addView(thinBtn(ctx, "✕", Color.rgb(229, 72, 77), true) {
+            left.addView(thinBtn(ctx, R.drawable.ic_c_close, Color.rgb(229, 72, 77), true) {
                 runCatching { decline?.send() }
                 hide()
             })
-            left.addView(thinBtn(ctx, "✆︎", Color.rgb(42, 212, 154), true) {
+            left.addView(thinBtn(ctx, R.drawable.ic_c_phone, Color.rgb(42, 212, 154), true) {
                 runCatching { answer?.send() }
                 hide()
             })
@@ -209,12 +210,7 @@ object LivePill {
                         }
                     }
                 } else if (kind != "incall") {
-                    show("incall", 150, green, null, onTap = { openCallMenu() }) { ctx, left, right ->
-                        val tv = label(ctx, "•••", 14f, Color.WHITE, bold = true)
-                        timerText = tv
-                        left.addView(tv)
-                        right.addView(phoneIcon(ctx, green))
-                    }
+                    callMark(green)
                 }
             }
             // ענו עכשיו: גדול עם השם והזמן
@@ -225,17 +221,26 @@ object LivePill {
             } else {
                 body?.text = nameLine(name, "בשיחה · $t")
             }
-            // אחר כך: קטן, משמאל השניות ומימין טלפון. הקשה פותחת את התפריט
-            else -> if (kind != "incall") {
-                show("incall", 150, green, null, onTap = { openCallMenu() }) { ctx, left, right ->
-                    val tv = label(ctx, t, 14f, Color.WHITE, bold = true)
-                    timerText = tv
-                    left.addView(tv)
-                    right.addView(phoneIcon(ctx, green))
+            // אחר כך: רק סימן קטן שיש שיחה (הזמן כבר בהתראה). הקשה פותחת את השיחה
+            else -> if (kind != "incall") callMark(green)
+        }
+    }
+
+    /** סימן קטן ליד המצלמה: נקודה ירוקה וטלפון, בלי זמן */
+    private fun callMark(green: Int) {
+        show("incall", 150, green, null, onTap = { openCallMenu() }) { ctx, left, right ->
+            val d = ctx.resources.displayMetrics.density
+            left.addView(View(ctx).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(green)
                 }
-            } else {
-                timerText?.text = t
-            }
+                layoutParams = LinearLayout.LayoutParams((7 * d).toInt(), (7 * d).toInt()).apply {
+                    marginStart = (5 * d).toInt()
+                    marginEnd = (5 * d).toInt()
+                }
+            })
+            right.addView(phoneIcon(ctx, green))
         }
     }
 
@@ -244,12 +249,20 @@ object LivePill {
         // קיצורים היא אפליקציית הטלפון: הקשה על הגלולה מחזירה למסך השיחה המלא
         val s = NotchOverlay.service
         if (s != null && Calls.main() != null) {
-            runCatching {
-                s.startActivity(
-                    android.content.Intent(s, CallActivity::class.java)
-                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                )
+            // הגלולה מתרחבת לכל המסך (ההפך ממה שקורה כשיוצאים), ואז נפתח מסך השיחה
+            val open = {
+                runCatching {
+                    s.startActivity(
+                        android.content.Intent(s, CallActivity::class.java)
+                            .addFlags(
+                                android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                                    android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                            )
+                    )
+                }
+                Unit
             }
+            if (!morphScreen(grow = true, onEnd = open)) open()
             return
         }
         menuOpen = true
@@ -261,9 +274,17 @@ object LivePill {
      * ואז הגלולה של השיחה נשארת שם.
      */
     fun shrinkFromScreen() {
-        val s = NotchOverlay.service ?: return
-        val wm = NotchOverlay.wm ?: return
-        if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return
+        morphScreen(grow = false) {}
+    }
+
+    /**
+     * מעבר בין מסך השיחה לגלולה: grow=false המסך מתכווץ לחור, grow=true הגלולה מתרחבת לכל המסך.
+     * מחזיר false אם לא הצליח להתחיל (ואז פותחים בלי אנימציה)
+     */
+    private fun morphScreen(grow: Boolean, onEnd: () -> Unit): Boolean {
+        val s = NotchOverlay.service ?: return false
+        val wm = NotchOverlay.wm ?: return false
+        if (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s)) return false
         val d = s.resources.displayMetrics.density
         val dm = s.resources.displayMetrics
         val screenW = dm.widthPixels
@@ -280,7 +301,8 @@ object LivePill {
         val root = FrameLayout(s).apply { layoutDirection = View.LAYOUT_DIRECTION_LTR }
         val bgDrawable = GradientDrawable().apply {
             cornerRadius = 40 * d
-            colors = intArrayOf(Color.rgb(20, 32, 42), Color.rgb(7, 9, 13))
+            // כמו הרקע של מסך השיחה (ניאון ירקרק)
+            colors = intArrayOf(Color.rgb(15, 42, 36), Color.rgb(6, 9, 12))
             gradientType = GradientDrawable.RADIAL_GRADIENT
             gradientRadius = screenH * 0.6f
             setStroke((1.5f * d).toInt(), Color.TRANSPARENT)
@@ -288,13 +310,16 @@ object LivePill {
         val box = View(s).apply { background = bgDrawable }
         root.addView(box, FrameLayout.LayoutParams(screenW, screenH, Gravity.TOP or Gravity.LEFT))
         val lp = NotchOverlay.params(screenW, screenH, 0, 0, touchable = false)
-        runCatching { wm.addView(root, lp) }.onFailure { return }
+        runCatching { wm.addView(root, lp) }.onFailure { return false }
+        // מתרחבת: הגלולה הקטנה נעלמת ברגע שהמסגרת מתחילה לגדול ממנה
+        if (grow) removeNow()
 
         ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 420
-            interpolator = android.view.animation.DecelerateInterpolator(1.6f)
+            duration = if (grow) 360 else 420
+            interpolator = if (grow) android.view.animation.AccelerateDecelerateInterpolator() else android.view.animation.DecelerateInterpolator(1.6f)
             addUpdateListener {
-                val f = it.animatedValue as Float
+                // f=1 גלולה, f=0 כל המסך
+                val f = if (grow) 1f - (it.animatedValue as Float) else it.animatedValue as Float
                 val w = screenW + (endW - screenW) * f
                 val h = screenH + (endH - screenH) * f
                 val left = (screenW / 2f) + (cx - screenW / 2f) * f - w / 2f
@@ -306,21 +331,32 @@ object LivePill {
                 p.topMargin = top.toInt()
                 box.layoutParams = p
                 bgDrawable.cornerRadius = 40 * d + (endH / 2f - 40 * d) * f
-                // בסוף: הופך לשחור עם המסגרת הירוקה של הגלולה
+                // ליד הגלולה: שחור עם המסגרת הירוקה של הגלולה
                 if (f > 0.7f) {
                     bgDrawable.colors = intArrayOf(Color.BLACK, Color.BLACK)
                     bgDrawable.setStroke((1.5f * d).toInt(), green)
+                } else {
+                    bgDrawable.colors = intArrayOf(Color.rgb(15, 42, 36), Color.rgb(6, 9, 12))
+                    bgDrawable.setStroke((1.5f * d).toInt(), Color.TRANSPARENT)
                 }
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
-                    // הגלולה של השיחה נכנסת למקום, ורק אז המסגרת שהתכווצה נעלמת
-                    inCall(99)
-                    main.postDelayed({ runCatching { wm.removeView(root) } }, 120)
+                    if (grow) {
+                        // מסך השיחה נפתח מתחת, ורק אז המסגרת שהתרחבה נעלמת
+                        onEnd()
+                        main.postDelayed({ runCatching { wm.removeView(root) } }, 350)
+                    } else {
+                        // הגלולה של השיחה נכנסת למקום, ורק אז המסגרת שהתכווצה נעלמת
+                        inCall(99)
+                        onEnd()
+                        main.postDelayed({ runCatching { wm.removeView(root) } }, 120)
+                    }
                 }
             })
             start()
         }
+        return true
     }
 
     private fun showCallMenu() {
@@ -333,40 +369,28 @@ object LivePill {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
         }
-        val name = label(s, callName ?: "שיחה", 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT }
+        // רוחב מקסימלי: חצי מהגלולה, כדי שהשם לא ייחתך בקצה
+        val most = ((s.resources.displayMetrics.widthPixels - 2 * 58 * d - 40 * d) / 2 - 16 * d).toInt()
+        val name = label(s, callName ?: "שיחה", 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT; maxWidth = most }
         val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt() else 0
-        val time = label(s, if (answeredAt > 0) clock(secs * 1000L) else "מחייג…", 11.5f, green).apply { gravity = Gravity.RIGHT }
+        val time = label(s, if (answeredAt > 0) clock(secs * 1000L) else "מחייג…", 11.5f, green).apply { gravity = Gravity.RIGHT; maxWidth = most }
         who.addView(name, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
         who.addView(time, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
         val row = mutableListOf<View>()
         // כפתור: קודם מה שיש בהתראה של השיחה, ואם אין, קיצורים עושה את זה בעצמה
-        fun btn(symbol: String, bg: Int, wide: Boolean, a: Notification.Action?, own: () -> Unit) = TextView(s).apply {
-            text = symbol
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            background = GradientDrawable().apply {
-                cornerRadius = 15 * d
-                setColor(bg)
-            }
-            layoutParams = LinearLayout.LayoutParams(((if (wide) 38 else 30) * d).toInt(), (30 * d).toInt()).apply {
-                marginStart = (3 * d).toInt()
-                marginEnd = (3 * d).toInt()
-            }
-            setOnClickListener {
-                val sent = a != null && runCatching { a.actionIntent.send() }.isSuccess
-                if (!sent) runCatching { own() }
-                main.removeCallbacks(autoClose)
-                main.postDelayed(autoClose, 6000)
-            }
+        fun btn(icon: Int, bg: Int, wide: Boolean, a: Notification.Action?, own: () -> Unit) = thinBtn(s, icon, bg, wide) {
+            val sent = a != null && runCatching { a.actionIntent.send() }.isSuccess
+            if (!sent) runCatching { own() }
+            main.removeCallbacks(autoClose)
+            main.postDelayed(autoClose, 6000)
         }
         val dark = Color.rgb(42, 47, 58)
         val audio = s.getSystemService(android.media.AudioManager::class.java)
         @Suppress("DEPRECATION")
-        row.add(btn("🎙︎", dark, false, callAction(listOf("השתק", "mute"))) {
+        row.add(btn(R.drawable.ic_c_mute, dark, false, callAction(listOf("השתק", "mute"))) {
             audio?.let { it.isMicrophoneMute = !it.isMicrophoneMute }
         })
-        row.add(btn("✆︎", Color.rgb(229, 72, 77), true, callAction(listOf("נתק", "סיים", "סיום", "hang", "end"))) {
+        row.add(btn(R.drawable.ic_c_hang, Color.rgb(229, 72, 77), true, callAction(listOf("נתק", "סיים", "סיום", "hang", "end"))) {
             val call = Calls.main()
             if (call != null) Calls.hangup(call)
             else if (Build.VERSION.SDK_INT >= 28) {
@@ -377,7 +401,7 @@ object LivePill {
             hide()
         })
         @Suppress("DEPRECATION")
-        row.add(btn("🔊︎", dark, false, callAction(listOf("רמקול", "speaker"))) {
+        row.add(btn(R.drawable.ic_c_speaker, dark, false, callAction(listOf("רמקול", "speaker"))) {
             audio?.let { it.isSpeakerphoneOn = !it.isSpeakerphoneOn }
         })
         // הקשה על השם: חוזרים לגלולה הקטנה
@@ -468,6 +492,16 @@ object LivePill {
 
     private val CALL_KINDS = setOf("call", "incall", "dial", "callbig", "callmenu")
     private fun inCallPill() = kind in CALL_KINDS
+
+    /**
+     * הקשה על העיגול בזמן שגלולת שיחה פתוחה: הולכת לגלולה (פותחת את השיחה),
+     * ולא לקיצור שבחרת להקשה. מחזיר true אם ההקשה טופלה כאן
+     */
+    fun tapPill(): Boolean {
+        if (!inCallPill()) return false
+        pill?.takeIf { it.hasOnClickListeners() }?.performClick()
+        return true
+    }
 
     /** מתי הנגן נסגר בנגיעה מחוץ לו: אם הנגיעה הייתה על העיגול, לא פותחים אותו מיד שוב */
     private var closedByOutside = 0L
@@ -1467,9 +1501,9 @@ object LivePill {
                 val text = if (type == "msg") "מה קורה?" else "אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר?"
                 val dark = Color.rgb(42, 47, 58)
                 show("msg", 300, green, if (text.length > 40) 6500 else 5000, onTap = null) { ctx, left, right ->
-                    left.addView(thinBtn(ctx, "↩︎", dark) {})
-                    left.addView(thinBtn(ctx, "✓", dark) {})
-                    left.addView(thinBtn(ctx, "↗︎", dark) {})
+                    left.addView(thinBtn(ctx, R.drawable.ic_c_reply, dark) {})
+                    left.addView(thinBtn(ctx, R.drawable.ic_c_check, dark) {})
+                    left.addView(thinBtn(ctx, R.drawable.ic_c_open, dark) {})
                     right.addView(twoLines(ctx, "דני", text, grey))
                     right.addView(letter(ctx, "דני", green).apply {
                         (layoutParams as LinearLayout.LayoutParams).marginStart = (5 * ctx.resources.displayMetrics.density).toInt()
