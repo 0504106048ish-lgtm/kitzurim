@@ -2,6 +2,7 @@ package com.kitzurim.app
 
 import android.content.Intent
 import android.os.Bundle
+import androidx.compose.animation.togetherWith
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -103,9 +104,9 @@ fun HomeScreen(resumes: Int) {
     var addingOffApp by remember { mutableStateOf(false) }
     var editingApp by remember { mutableStateOf<Pair<String, String>?>(null) }
     // התפריט: null = מסך הבית עם האריחים; אחרת הדף של נושא אחד
-    var page by remember { mutableStateOf<String?>(null) }
+    var openPage by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
-    androidx.activity.compose.BackHandler(enabled = page != null) { page = null }
+    androidx.activity.compose.BackHandler(enabled = openPage != null) { openPage = null }
     var pendingContact by remember { mutableStateOf<Pair<Target, ActionType>?>(null) }
 
     /** שומר פעולה. באפליקציה מסוימת, null = "כמו בכל מקום" */
@@ -143,11 +144,31 @@ fun HomeScreen(resumes: Int) {
 
     key(resumes, refresh) {
         Surface(Modifier.fillMaxSize(), color = scheme.background) {
+            // מעבר בין דפים: הדף החדש נכנס בהחלקה מהצד ובהופעה רכה, והקודם זז קצת ונעלם.
+            // בעברית "קדימה" זה שמאלה, ו"חזרה" ימינה
+            androidx.compose.animation.AnimatedContent(
+                targetState = openPage,
+                transitionSpec = {
+                    val ease = androidx.compose.animation.core.FastOutSlowInEasing
+                    val forward = targetState != null
+                    val inFrom = if (forward) -1 else 1
+                    (
+                        androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(340, easing = ease)) { it * inFrom / 3 } +
+                            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(260, delayMillis = 40)) +
+                            androidx.compose.animation.scaleIn(androidx.compose.animation.core.tween(340, easing = ease), initialScale = 0.96f)
+                        ).togetherWith(
+                        androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(300, easing = ease)) { -it * inFrom / 5 } +
+                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180)) +
+                            androidx.compose.animation.scaleOut(androidx.compose.animation.core.tween(300, easing = ease), targetScale = 0.97f),
+                    )
+                },
+                label = "page",
+            ) { page ->
             Column(
                 Modifier
                     .fillMaxSize()
                     .systemBarsPadding()
-                    .verticalScroll(scroll)
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
@@ -155,7 +176,7 @@ fun HomeScreen(resumes: Int) {
                 if (current != null) {
                     // דף של נושא: חץ חזרה והשם
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { page = null }) {
+                        IconButton(onClick = { openPage = null }) {
                             // חץ חזרה (בעברית הוא מצביע ימינה)
                             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "חזרה", tint = scheme.onSurface)
                         }
@@ -240,7 +261,7 @@ fun HomeScreen(resumes: Int) {
                                             .clip(RoundedCornerShape(18.dp))
                                             .background(Neon.Tile)
                                             .border(1.dp, Neon.Line, RoundedCornerShape(18.dp))
-                                            .clickable { page = p.id }
+                                            .clickable { openPage = p.id }
                                             .padding(14.dp),
                                         verticalArrangement = Arrangement.spacedBy(4.dp),
                                     ) {
@@ -265,7 +286,7 @@ fun HomeScreen(resumes: Int) {
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Neon.Tile)
-                                    .clickable { page = p.id; query = "" }
+                                    .clickable { openPage = p.id; query = "" }
                                     .padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -680,6 +701,7 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
                 Spacer(Modifier.size(8.dp))
+            }
             }
         }
     }
