@@ -74,6 +74,25 @@ object LivePill {
 
     /** גלולת ההודעה בשורה אחת. מחזירה את הטקסט שזז (כדי לדעת מתי לסגור) */
     private fun msgRow(sender: String, text: String, color: Int, open: PendingIntent?): MarqueeText? {
+        // הודעה קצרה שנכנסת בצד אחד: מחולקת לשניים, השם (והעיגול עם האות) מימין לחור וההודעה משמאל
+        val s = NotchOverlay.service ?: return null
+        val d = s.resources.displayMetrics.density
+        val msgText = text.replace('\n', ' ').trim()
+        val c = NotchOverlay.cutout(s)
+        val hole = max(c.width(), c.height())
+        val maxSide = (s.resources.displayMetrics.widthPixels - 2 * NotchPrefs.pillMargin(s) * d - (hole + 14 * d) - 2 * 12 * d) / 2 - 10 * d
+        val paint = android.text.TextPaint().apply { textSize = 12.5f * s.resources.displayMetrics.scaledDensity }
+        if (paint.measureText(msgText) <= maxSide) {
+            val grey = Color.rgb(210, 216, 228)
+            show("msg", 300, color, 3000, onTap = { launch(open) }) { ctx, left, right ->
+                left.addView(label(ctx, msgText, 12.5f, grey))
+                right.addView(label(ctx, sender, 12.5f, Color.WHITE, bold = true))
+                // רווח גמיש: השם צמוד לחור, והעיגול עם האות בקצה
+                right.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+                right.addView(letter(ctx, sender, color))
+            }
+            return null
+        }
         // שורה אחת לכל רוחב הגלולה: "דני:  ההודעה" זז פעם אחת עד הסוף, והעיגול עם האות בקצה הימני
         val line = android.text.SpannableStringBuilder().apply {
             append(sender.trim())
@@ -1543,7 +1562,7 @@ object LivePill {
             m.post {
                 if (window !== root) return@post
                 main.removeCallbacks(autoClose)
-                main.postDelayed(autoClose, max(autoMs, m.durationMs(m.width) + 1200L))
+                main.postDelayed(autoClose, max(2500L, m.durationMs(m.width) + 900L))
             }
         }
     }
@@ -1897,7 +1916,7 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
     /** כמה זמן כל התנועה לוקחת (כדי שהגלולה תיסגר רק אחרי שקראו הכול) */
     fun durationMs(width: Int): Long {
         val extra = textW - width
-        return if (extra <= 0) 0L else 600L + (extra / (55 * d) * 1000).toLong()
+        return if (extra <= 0) 0L else 400L + (extra / (90 * d) * 1000).toLong()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -1915,8 +1934,8 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
         offset = (w - textW).toFloat()
         if (extra > 0) {
             anim = ValueAnimator.ofFloat(offset, 0f).apply {
-                startDelay = 600
-                duration = (extra / (55 * d) * 1000).toLong()
+                startDelay = 400
+                duration = (extra / (90 * d) * 1000).toLong()
                 interpolator = android.view.animation.AccelerateDecelerateInterpolator()
                 addUpdateListener {
                     offset = it.animatedValue as Float
