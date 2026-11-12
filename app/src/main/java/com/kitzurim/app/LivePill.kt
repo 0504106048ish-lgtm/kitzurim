@@ -105,6 +105,13 @@ object LivePill {
         if (key == shownKey && kind == "msg") hide()
     }
 
+    /** אותו צבע, קצת יותר בהיר (בשביל ברק בכפתור זכוכית) */
+    private fun lighter(c: Int) = Color.rgb(
+        Color.red(c) + (255 - Color.red(c)) / 4,
+        Color.green(c) + (255 - Color.green(c)) / 4,
+        Color.blue(c) + (255 - Color.blue(c)) / 4,
+    )
+
     /** כפתור עגול קטן לשורה הדקה */
     private fun thinBtn(ctx: Context, icon: Int, bg: Int, wide: Boolean = false, onClick: () -> Unit): ImageView {
         val d = ctx.resources.displayMetrics.density
@@ -114,9 +121,17 @@ object LivePill {
             scaleType = ImageView.ScaleType.FIT_CENTER
             val pad = (6 * d).toInt()
             setPadding(pad, pad, pad, pad)
+            // כפתור זכוכית: אפור כהה הופך ללבן שקוף עם מסגרת בהירה; כפתור צבעוני (נתק, ענה) נשאר בצבע שלו עם ברק
             background = GradientDrawable().apply {
                 cornerRadius = 14 * d
-                setColor(bg)
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                if (bg == Color.rgb(42, 47, 58)) {
+                    colors = intArrayOf(Color.argb(70, 255, 255, 255), Color.argb(30, 255, 255, 255))
+                    setStroke((0.8f * d).toInt().coerceAtLeast(1), Color.argb(90, 255, 255, 255))
+                } else {
+                    colors = intArrayOf(lighter(bg), bg)
+                    setStroke((0.8f * d).toInt().coerceAtLeast(1), Color.argb(70, 255, 255, 255))
+                }
             }
             layoutParams = LinearLayout.LayoutParams(((if (wide) 34 else 28) * d).toInt(), (28 * d).toInt()).apply {
                 marginStart = (2 * d).toInt()
@@ -344,7 +359,7 @@ object LivePill {
                 bgDrawable.cornerRadius = 40 * d + (endH / 2f - 40 * d) * f
                 // ליד הגלולה: שחור עם המסגרת הירוקה של הגלולה
                 if (f > 0.7f) {
-                    bgDrawable.colors = intArrayOf(Color.BLACK, Color.BLACK)
+                    bgDrawable.colors = intArrayOf(GlassDrawable.TOP, GlassDrawable.TOP)
                     bgDrawable.setStroke((1.5f * d).toInt(), green)
                 } else {
                     bgDrawable.colors = intArrayOf(Color.rgb(15, 42, 36), Color.rgb(6, 9, 12))
@@ -1112,9 +1127,8 @@ object LivePill {
         // משמאל לימין במכוון: אחרת בעברית המיקום נמדד מצד ימין והשורה "בורחת" לימין
         root.layoutDirection = View.LAYOUT_DIRECTION_LTR
         val box = FrameLayout(s).apply {
-            background = GradientDrawable().apply {
+            background = GlassDrawable(d).apply {
                 cornerRadius = sH / 2f
-                setColor(Color.BLACK)
                 setStroke((1.5f * d).toInt(), purple)
             }
         }
@@ -1262,9 +1276,8 @@ object LivePill {
         }
         // רק הרקע נמתח; התוכן כבר בגודל הסופי ורק מופיע, כדי שהטקסט לא יקפוץ בזמן המתיחה
         val b = View(s).apply {
-            background = GradientDrawable().apply {
+            background = GlassDrawable(d).apply {
                 cornerRadius = h / 2f
-                setColor(Color.BLACK)
                 setStroke((1.5f * d).toInt(), color)
             }
         }
@@ -1572,6 +1585,8 @@ object LivePill {
         if (bold) typeface = Typeface.DEFAULT_BOLD
         val d = ctx.resources.displayMetrics.density
         setPadding((4 * d).toInt(), 0, (4 * d).toInt(), 0)
+        // צל דק: הכתב נשאר חד גם כשהזכוכית שקופה קצת מעל מסך בהיר
+        setShadowLayer(1.5f * d, 0f, 0.5f * d, Color.argb(150, 0, 0, 0))
     }
 
     /** עיגול עם האות הראשונה של השם */
@@ -1682,6 +1697,7 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
     private val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         this.color = color
         textSize = sp * ctx.resources.displayMetrics.scaledDensity
+        setShadowLayer(1.5f * ctx.resources.displayMetrics.density, 0f, 0.5f * ctx.resources.displayMetrics.density, Color.argb(150, 0, 0, 0))
     }
     private val textW = kotlin.math.ceil(android.text.Layout.getDesiredWidth(text, paint)).toInt() + 2
     private val layout: android.text.StaticLayout =
@@ -1751,5 +1767,54 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
             c.drawRect(width - fw, 0f, width.toFloat(), height.toFloat(), fade)
         }
         c.restoreToCount(save)
+    }
+}
+
+/**
+ * זכוכית כהה: רקע כהה ושקוף-למחצה (רואים קצת את מה שמתחת), ברק לבן רך בחלק העליון,
+ * והמסגרת הצבעונית הדקה כרגיל. זה עדיין GradientDrawable, כך שכל מה שמשנה פינות ומסגרת ממשיך לעבוד.
+ * כהה מספיק כדי שכתב לבן יהיה קריא גם מעל מסך לבן לגמרי
+ */
+class GlassDrawable(private val d: Float) : GradientDrawable() {
+    companion object {
+        val TOP = Color.argb(228, 30, 33, 42)
+        val BOTTOM = Color.argb(218, 8, 9, 13)
+    }
+
+    private val shine = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val edge = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = 0.8f * d
+    }
+    private val rect = android.graphics.RectF()
+
+    init {
+        orientation = Orientation.TOP_BOTTOM
+        colors = intArrayOf(TOP, BOTTOM)
+    }
+
+    override fun onBoundsChange(r: android.graphics.Rect) {
+        super.onBoundsChange(r)
+        val h = r.height().toFloat().coerceAtLeast(1f)
+        // ברק: לבן שקוף למעלה שנעלם עד האמצע
+        shine.shader = android.graphics.LinearGradient(
+            0f, r.top.toFloat(), 0f, r.top + h * 0.55f,
+            Color.argb(34, 255, 255, 255), Color.TRANSPARENT, android.graphics.Shader.TileMode.CLAMP,
+        )
+        // קו אור דק בקצה העליון, כמו השתקפות בזכוכית
+        edge.shader = android.graphics.LinearGradient(
+            0f, r.top.toFloat(), 0f, r.top + h * 0.5f,
+            Color.argb(90, 255, 255, 255), Color.TRANSPARENT, android.graphics.Shader.TileMode.CLAMP,
+        )
+    }
+
+    override fun draw(c: android.graphics.Canvas) {
+        super.draw(c)
+        val inset = 1.6f * d
+        rect.set(bounds.left + inset, bounds.top + inset, bounds.right - inset, bounds.bottom - inset)
+        if (rect.width() <= 0 || rect.height() <= 0) return
+        val r = (cornerRadius - inset).coerceAtLeast(0f).coerceAtMost(rect.height() / 2f)
+        c.drawRoundRect(rect, r, r, shine)
+        c.drawRoundRect(rect, r, r, edge)
     }
 }
