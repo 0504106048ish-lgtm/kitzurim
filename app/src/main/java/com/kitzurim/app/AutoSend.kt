@@ -78,7 +78,9 @@ class AutoSendService : AccessibilityService() {
             w.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_SYSTEM &&
                 bounds.top <= 0 && bounds.height() in 1..(80 * d).toInt() && bounds.width() > screenW / 2
         }
-        NotchOverlay.setFullscreen(!statusBarShown)
+        // מסך הנעילה הוא חלון מלא של המערכת (בלי שורת מצב נפרדת), אבל זה לא "מסך מלא" של סרטון
+        val locked = getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+        NotchOverlay.setFullscreen(!statusBarShown && !locked)
     }
 
     // החור של המצלמה: הטבעת ואזור הנגיעה רצים כל עוד השירות פעיל

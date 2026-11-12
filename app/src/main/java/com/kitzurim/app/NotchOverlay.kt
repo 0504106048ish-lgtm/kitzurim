@@ -106,7 +106,8 @@ object NotchOverlay {
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return kind != "msg"
         if (lockedHidden()) return true
         // סטטוס בוואטסאפ, סטורי באינסטגרם וכו' נפתחים במסך מלא, אבל שם כן רוצים לראות התראות
-        return fullscreen && NotchPrefs.hideFullscreen(s) && !preview && currentPackage !in FULLSCREEN_SHOW
+        val locked = s.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+        return fullscreen && !locked && NotchPrefs.hideFullscreen(s) && !preview && currentPackage !in FULLSCREEN_SHOW
     }
 
     /** קיצורים כבוי באפליקציה שפתוחה עכשיו */
@@ -612,7 +613,9 @@ object NotchOverlay {
         // במסך שוכב החור זז לצד: לא מציגים
         if (s.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) return
         // מסך מלא (סרטון, משחק): מסתירים הכול, אם המתג דלוק
-        if (fullscreen && NotchPrefs.hideFullscreen(s) && !preview) return
+        if (fullscreen && NotchPrefs.hideFullscreen(s) && !preview &&
+            s.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked != true
+        ) return
         // מסך נעילה: אם כיבית "להראות גם במסך הנעילה"
         if (lockedHidden()) return
         // אפליקציה שבחרת שבה קיצורים כבוי
