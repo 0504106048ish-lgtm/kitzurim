@@ -176,6 +176,7 @@ class ReplyListener : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         NotchOverlay.notificationRemoved(sbn.key)
         LivePill.callNotificationRemoved(sbn.key)
+        LivePill.notificationGone(sbn.key)
         LivePill.navEnded(sbn.key)
         // הורדה שנעלמה כמעט בסוף: כנראה הסתיימה
         val p = NotchOverlay.downloadEnded(sbn.key)

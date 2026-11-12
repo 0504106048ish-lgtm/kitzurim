@@ -90,6 +90,15 @@ object LivePill {
                 (layoutParams as LinearLayout.LayoutParams).marginStart = (5 * ctx.resources.displayMetrics.density).toInt()
             })
         }
+        // זוכרים איזו התראה מוצגת: אם היא נמחקת (קראת, ענית), הגלולה נסגרת מיד
+        if (kind == "msg") shownKey = msg?.key
+    }
+
+    private var shownKey: String? = null
+
+    /** התראה נמחקה: אם הגלולה מראה אותה עכשיו, נסגרת מיד ולא מחכה עד הסוף */
+    fun notificationGone(key: String) {
+        if (key == shownKey && kind == "msg") hide()
     }
 
     /** כפתור עגול קטן לשורה הדקה */
@@ -1452,6 +1461,7 @@ object LivePill {
     }
 
     private fun removeNow() {
+        shownKey = null
         window?.let { w -> runCatching { NotchOverlay.wm?.removeView(w) } }
         window = null
         pill = null
