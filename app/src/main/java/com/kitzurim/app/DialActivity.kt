@@ -138,12 +138,32 @@ class DialActivity : ComponentActivity() {
         }
         neonBars()
         askPermissions()
-        val start = intent?.data?.schemeSpecificPart ?: ""
+        start = intent?.data?.schemeSpecificPart ?: ""
         setContent {
             KitzurimTheme {
-                DialerUi(start, reload) { call(it) }
+                // מספר חדש (מקישור או מאפליקציה אחרת): החייגן נפתח מחדש עם המספר
+                androidx.compose.runtime.key(start) {
+                    DialerUi(start, reload) { call(it) }
+                }
             }
         }
+    }
+
+    // מספר החיוג שהגיע מבחוץ (קישור טלפון). מתחלף כשהחייגן כבר פתוח ומגיע מספר חדש
+    private var start by mutableStateOf("")
+
+    /**
+     * החייגן כבר פתוח: לא פותחים עוד עותק מעליו (אחרת צריך ללחוץ "חזור" שוב ושוב),
+     * רק מעדכנים לפי מה שהגיע
+     */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(EXTRA_CALL)?.let { n ->
+            call(n)
+            return
+        }
+        intent.data?.schemeSpecificPart?.takeIf { it.isNotBlank() }?.let { start = it }
     }
 
     override fun onResume() {
