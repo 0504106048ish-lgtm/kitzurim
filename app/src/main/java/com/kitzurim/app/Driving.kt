@@ -114,7 +114,12 @@ class ReplyListener : NotificationListenerService() {
         }
 
         // הורדה: הטבעת מתמלאת לפי ההתקדמות, ובסוף "הורד ✓"
-        if (sbn.packageName in downloadApps) {
+        // גם הורדה של סרטון או תמונה בוואטסאפ (או כל אפליקציה): ההתראה מתעדכנת כל רגע עם האחוזים,
+        // אז במקום מלא גלולות של הודעה, הטבעת מתמלאת בשקט ובסוף "הורד ✓" פעם אחת
+        val progress = n.extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0) > 0 ||
+            n.extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false) ||
+            n.category == Notification.CATEGORY_PROGRESS
+        if (sbn.packageName in downloadApps || progress || sbn.key in downloadNames) {
             val max = n.extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0)
             val prog = n.extras.getInt(Notification.EXTRA_PROGRESS, 0)
             val title = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
