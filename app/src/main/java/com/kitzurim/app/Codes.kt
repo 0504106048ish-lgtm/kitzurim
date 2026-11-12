@@ -12,7 +12,8 @@ import android.service.notification.StatusBarNotification
  */
 object Codes {
     private val words = Regex(
-        "(קוד|אימות|סיסמ|code|verif|otp|passcode|password|pin|token|כניסה|login)",
+        // רק מילים שבאמת מופיעות בהודעת קוד (לא "כניסה" או "pin" שמופיעים גם בהודעות רגילות)
+        """(קוד|אימות|\bcode\b|verification|\botp\b|passcode|one.time)""",
         RegexOption.IGNORE_CASE,
     )
     // 4 עד 8 ספרות (גם עם רווח או מקף באמצע, כמו 123-456), לא חלק ממספר ארוך יותר

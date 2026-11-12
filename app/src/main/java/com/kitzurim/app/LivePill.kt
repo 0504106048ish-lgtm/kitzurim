@@ -623,7 +623,7 @@ object LivePill {
                 setColor(Color.rgb(40, 44, 56))
             }
             clipToOutline = true
-            layoutParams = LinearLayout.LayoutParams((46 * d).toInt(), (46 * d).toInt()).apply { marginEnd = (10 * d).toInt() }
+            layoutParams = LinearLayout.LayoutParams((60 * d).toInt(), (60 * d).toInt()).apply { marginEnd = (12 * d).toInt() }
         } else null
         cover?.let { row.addView(it) }
         val texts = LinearLayout(s).apply { orientation = LinearLayout.VERTICAL }
@@ -648,12 +648,7 @@ object LivePill {
                 dragging = on
                 if (on) main.removeCallbacks(autoClose)
             }).apply { seed = ((c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: "").hashCode() % 100) / 10f }
-            // הגל לכל הרוחב, כמעט עד הקצוות של הנגן
-            box.addView(seek, LinearLayout.LayoutParams(-1, (30 * d).toInt()).apply {
-                topMargin = (12 * d).toInt()
-                marginStart = (-8 * d).toInt()
-                marginEnd = (-8 * d).toInt()
-            })
+            box.addView(seek, LinearLayout.LayoutParams(-1, (30 * d).toInt()).apply { topMargin = (8 * d).toInt() })
             val times = FrameLayout(s)
             pos = label(s, "0:00", 11f, grey)
             dur = label(s, "0:00", 11f, grey)
@@ -690,16 +685,16 @@ object LivePill {
             }
         }
         val skip = optSkip
-        if (skip) controls.addView(ctl("⏮︎", 40, false) { runCatching { c.transportControls.skipToPrevious() } })
-        val play = ctl("❚❚", 46, true) {
+        if (skip) controls.addView(ctl("⏮︎", 36, false) { runCatching { c.transportControls.skipToPrevious() } })
+        val play = ctl("❚❚", 40, true) {
             runCatching {
                 if (c.playbackState?.state == PlaybackState.STATE_PLAYING) c.transportControls.pause()
                 else c.transportControls.play()
             }
         }
         controls.addView(play)
-        if (skip) controls.addView(ctl("⏭︎", 40, false) { runCatching { c.transportControls.skipToNext() } })
-        box.addView(controls, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (4 * d).toInt() })
+        if (skip) controls.addView(ctl("⏭︎", 36, false) { runCatching { c.transportControls.skipToNext() } })
+        box.addView(controls, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (2 * d).toInt() })
 
         pv = PlayerViews(title, artist, cover, seek, pos, dur, play)
         updatePlayer()
@@ -1405,7 +1400,8 @@ object LivePill {
         val h = if (tight) max(hole * 0.85f + 2 * d, 22 * d).toInt() else max(hole + 12 * d, 30 * d).toInt()
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
         // רחבה עד השעה ועד הסוללה (אפשר לכוון ב"גודל ומיקום"), כדי שלא יראו חתיכות של סמלים בצדדים
-        val margin = NotchPrefs.pillMargin(s) * d
+        // הנגן: רחב כמעט עד הקצוות (הוא נפתח מתחת לשורת המצב, אז אין שעה לכסות)
+        val margin = if (newKind == "player") 10 * d else NotchPrefs.pillMargin(s) * d
         val maxW = if (landscape) min(screenW - 2 * margin, 380 * d).toInt() else (screenW - 2 * margin).toInt()
         val gapW = hole + ((if (tight) 4 else 14) * d).toInt()
         // גלולת השיחה הקטנה: צמודה ככל האפשר (רק שניות וסמל)
