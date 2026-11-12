@@ -1406,7 +1406,8 @@ object LivePill {
         // הנגן: רחב כמעט עד הקצוות (הוא נפתח מתחת לשורת המצב, אז אין שעה לכסות)
         val margin = if (newKind == "player") 10 * d else NotchPrefs.pillMargin(s) * d
         val maxW = if (landscape) min(screenW - 2 * margin, 380 * d).toInt() else (screenW - 2 * margin).toInt()
-        val gapW = hole + ((if (tight) 4 else 14) * d).toInt()
+        // הרווח באמצע: קצת יותר מהחור עצמו (המלבן שהטלפון נותן לחור גדול מהחור שרואים), כדי שהטקסט יהיה צמוד אליו
+        val gapW = if (tight) hole + (4 * d).toInt() else (hole * 0.75f + 4 * d).toInt()
         // גלולת השיחה הקטנה: צמודה ככל האפשר (רק שניות וסמל)
         val compact = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
         val padW = ((if (compact) 5 else 12) * d).toInt()
