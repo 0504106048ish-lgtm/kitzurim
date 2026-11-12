@@ -1963,10 +1963,12 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
         setShadowLayer(1.5f * ctx.resources.displayMetrics.density, 0f, 0.5f * ctx.resources.displayMetrics.density, Color.argb(150, 0, 0, 0))
     }
     private val textW = kotlin.math.ceil(android.text.Layout.getDesiredWidth(text, paint)).toInt() + 2
+    // יש עברית: נקרא מימין וזז ימינה. רק אנגלית: נקרא משמאל וזז שמאלה
+    private val heb = text.any { it in 'א'..'ת' }
     private val layout: android.text.StaticLayout =
         android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, textW)
             // תמיד מימין לשמאל: גם כשהשם או השיר באנגלית, הדבר הראשון (השם) מימין וההמשך משמאל
-            .setTextDirection(android.text.TextDirectionHeuristics.RTL)
+            .setTextDirection(if (heb) android.text.TextDirectionHeuristics.RTL else android.text.TextDirectionHeuristics.LTR)
             .setAlignment(android.text.Layout.Alignment.ALIGN_NORMAL)
             .setMaxLines(1)
             .build()
@@ -2019,15 +2021,16 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
             val loc = IntArray(2)
             getLocationOnScreen(loc)
             val hx = NotchOverlay.cutout(s).exactCenterX() + NotchPrefs.offsetX(s) * d - loc[0]
-            // הטקסט מיושר לימין: הוא תופס מ-(w - textW) עד w
-            crossesHole = hx > (w - textW).coerceAtLeast(0) && hx < w
+            // עברית מיושרת לימין (תופסת מ-(w - textW) עד w), אנגלית לשמאל (מ-0 עד textW)
+            crossesHole = if (heb) hx > (w - textW).coerceAtLeast(0) && hx < w else hx > 0 && hx < min(textW, w)
         }
         val extra = textW - w
-        // ההתחלה של עברית מימין: מיישרים לימין, ואז מזיזים ימינה עד שרואים את הסוף משמאל
-        offset = (w - textW).toFloat()
+        // עברית: מתחילה מימין וזזה ימינה עד שרואים את הסוף משמאל. אנגלית: מתחילה משמאל וזזה שמאלה
+        offset = if (heb) (w - textW).toFloat() else 0f
+        val endAt = if (heb) 0f else (w - textW).toFloat()
         invalidate()
         if (extra > 0) {
-            anim = ValueAnimator.ofFloat(offset, 0f).apply {
+            anim = ValueAnimator.ofFloat(offset, endAt).apply {
                 startDelay = 400
                 duration = (extra / (90 * d) * 1000).toLong()
                 interpolator = android.view.animation.AccelerateDecelerateInterpolator()
@@ -2040,7 +2043,7 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
         } else if (crossesHole) {
             // טקסט בינוני שחלק ממנו מאחורי החור: זז הצידה ברוחב החור וחוזר, כך שהכול נראה
             val from = offset
-            val to = offset - holeGap - 6 * d
+            val to = if (heb) offset + holeGap + 6 * d else offset - holeGap - 6 * d
             anim = ValueAnimator.ofFloat(0f, 1f, 1f, 0f).apply {
                 startDelay = 500
                 duration = 2400
