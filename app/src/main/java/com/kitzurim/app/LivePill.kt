@@ -94,7 +94,7 @@ object LivePill {
         m.post {
             if (kind != "msg") return@post
             main.removeCallbacks(autoClose)
-            main.postDelayed(autoClose, max(4000L, m.durationMs(m.width) + 2200L))
+            main.postDelayed(autoClose, max(3000L, m.durationMs(m.width) + 1200L))
         }
     }
 
@@ -149,7 +149,7 @@ object LivePill {
                     setStroke((0.8f * d).toInt().coerceAtLeast(1), Color.argb(70, 255, 255, 255))
                 }
             }
-            layoutParams = LinearLayout.LayoutParams(((if (wide) 34 else 28) * d).toInt(), (28 * d).toInt()).apply {
+            layoutParams = LinearLayout.LayoutParams(((if (wide) 32 else 26) * d).toInt(), (26 * d).toInt()).apply {
                 marginStart = (2 * d).toInt()
                 marginEnd = (2 * d).toInt()
             }
@@ -406,18 +406,17 @@ object LivePill {
         if (!menuOpen) return
         val d = s.resources.displayMetrics.density
         val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
-        // שורה אחת דקה: מימין לחור השם ומתחתיו "מחייג…" או הזמן, משמאל שלושה כפתורים
+        // שורה אחת: השם, ולידו (קרוב לחור) "מחייג…" או הזמן בירוק
         val who = LinearLayout(s).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_LTR
+            gravity = Gravity.CENTER_VERTICAL
         }
-        // רוחב מקסימלי: חצי מהגלולה, כדי שהשם לא ייחתך בקצה
-        val most = ((s.resources.displayMetrics.widthPixels - 2 * 68 * d - 40 * d) / 2 - 16 * d).toInt()
-        val name = label(s, callName ?: "שיחה", 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT; maxWidth = most }
+        val name = label(s, callName ?: "שיחה", 12.5f, Color.WHITE, bold = true)
         val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt() else 0
-        val time = label(s, if (answeredAt > 0) clock(secs * 1000L) else "מחייג…", 11.5f, green).apply { gravity = Gravity.RIGHT; maxWidth = most }
-        who.addView(name, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
-        who.addView(time, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
+        val time = label(s, if (answeredAt > 0) clock(secs * 1000L) else "מחייג…", 12f, green)
+        who.addView(time, LinearLayout.LayoutParams(-2, -2))
+        who.addView(name, LinearLayout.LayoutParams(-2, -2))
         val row = mutableListOf<View>()
         // כפתור: קודם מה שיש בהתראה של השיחה, ואם אין, קיצורים עושה את זה בעצמה
         fun btn(icon: Int, bg: Int, wide: Boolean, a: Notification.Action?, after: ((ImageView) -> Unit)? = null, own: () -> Unit): ImageView {
@@ -1006,7 +1005,7 @@ object LivePill {
             body?.text = text
             return
         }
-        show("buds", 260, c, 3500, onTap = null, long = text) { ctx, _, right ->
+        show("buds", 260, c, 3000, onTap = null, long = text) { ctx, _, right ->
             right.addView(label(ctx, "🎧︎", 15f, c, bold = true))
         }
     }
@@ -1031,7 +1030,7 @@ object LivePill {
             append("צילום מסך נשמר ✓")
             setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
-        show("shot", 260, blue, 3500, onTap = open, long = line, longColor = Color.WHITE) { ctx, _, right ->
+        show("shot", 260, blue, 3000, onTap = open, long = line, longColor = Color.WHITE) { ctx, _, right ->
             right.addView(ImageView(ctx).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 background = GradientDrawable().apply {
@@ -1056,7 +1055,7 @@ object LivePill {
             setSpan(android.text.style.ForegroundColorSpan(Color.WHITE), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             if (name.isNotBlank()) append("  ").append(name.trim())
         }
-        show("download", 280, blue, 3500, onTap = { launch(open) }, long = line) { ctx, _, right ->
+        show("download", 280, blue, 3000, onTap = { launch(open) }, long = line) { ctx, _, right ->
             right.addView(label(ctx, "⬇︎", 15f, blue, bold = true))
         }
     }
@@ -1136,6 +1135,15 @@ object LivePill {
                 setSpan(android.text.style.ForegroundColorSpan(grey), st, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
+        // שיר חדש: שורה אחת בגובה החור, כמו הודעה (לא שורה שיורדת מתחת לשורת המצב).
+        // השם זז פעם אחת עד הסוף; אחרי שהיא נסגרת הגלולה הקטנה של המוזיקה חוזרת לבד
+        show("music", 240, purple, 3000, onTap = {
+            ctl?.let { c -> main.postDelayed({ showPlayer(c) }, 280) }
+            Unit
+        }, long = line) { ctx, _, right ->
+            right.addView(artView(ctx, art, purple))
+        }
+        if (true) return
         val tv = label(s, line, 12.5f, Color.WHITE)
         content.addView(tv)
 
@@ -1250,7 +1258,7 @@ object LivePill {
         if (inCallPill()) return
         val green = NotchPrefs.tint(NotchOverlay.service, "charge", Color.rgb(62, 209, 140))
         val text = minutesToFull?.let { "מלאה בעוד " + Battery.minutesText(it) } ?: "בטעינה"
-        show("charge", 240, green, 3000, onTap = null, long = text) { ctx, left, right ->
+        show("charge", 240, green, 2500, onTap = null, long = text) { ctx, left, right ->
             // מימין האחוזים, משמאל כמה זמן עד מלאה (ואם לא נכנס: בשורה מתחת)
             right.addView(label(ctx, "⚡ $percent%", 14.5f, green, bold = true))
             left.addView(label(ctx, text, 13.5f, Color.WHITE))
@@ -1290,7 +1298,8 @@ object LivePill {
         val cy = if (landscape) 6 * d + (max(hole.toFloat(), 22 * d) + 18 * d) / 2f else c.exactCenterY() + NotchPrefs.offsetY(s) * d
         // גלולות קטנות (ניווט, מוזיקה, זמן שיחה): דקות כמו הסימן של ספוטיפיי בשורת המצב, צמודות לחור
         val tight = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
-        val h = if (tight) max(hole * 0.85f + 2 * d, 24 * d).toInt() else (max(hole.toFloat(), 22 * d) + 18 * d).toInt()
+        // כל השאר: שורה אחת, קצת יותר גבוהה מהחור (לא כרטיס גבוה), כדי שהגלולה תהיה צמודה אליו
+        val h = if (tight) max(hole * 0.85f + 2 * d, 24 * d).toInt() else max(hole + 12 * d, 30 * d).toInt()
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
         val maxW = if (landscape) min(screenW - 2 * 68 * d, 380 * d).toInt() else (screenW - 2 * 68 * d).toInt()
         val gapW = hole + ((if (tight) 4 else 14) * d).toInt()
@@ -1345,16 +1354,22 @@ object LivePill {
         // הגודל לפי הטקסט: מילה אחת = כרטיס קטן בשורה אחת, הרבה מלל = רחב יותר ועד 3 שורות
         val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         left.measure(free, free)
-        val expanded = long != null || extra != null
-        if (long != null) left.removeAllViews()
-        val body: TextView? = if (long == null) null else label(s, long, 13.5f, longColor).apply {
-            maxLines = 3
-            gravity = Gravity.RIGHT
-            alpha = 0f
-            setLineSpacing(0f, 1.1f)
-            // מרחק מהקצוות העגולים של הכרטיס, כדי שהאותיות לא ייגעו במסגרת
-            val pd = (10 * s.resources.displayMetrics.density).toInt()
-            setPadding(pd, 0, pd, (2 * s.resources.displayMetrics.density).toInt())
+        // כל ההתראות בשורה אחת (כמו הודעה), בלי כרטיס שיורד למטה:
+        // הטקסט הארוך עובר לצד שמאל של החור וזז פעם אחת עד הסוף
+        val expanded = extra != null
+        val body: TextView? = null
+        var longMarquee: MarqueeText? = null
+        if (long != null) {
+            left.removeAllViews()
+            val flat = android.text.SpannableStringBuilder(long).also { sb ->
+                var i = sb.indexOf("\n")
+                while (i >= 0) {
+                    sb.replace(i, i + 1, " · ")
+                    i = sb.indexOf("\n")
+                }
+            }
+            longMarquee = MarqueeText(s, flat, 12.5f, if (longColor == Color.WHITE) Color.rgb(225, 230, 238) else longColor)
+            left.addView(longMarquee, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (4 * d).toInt() })
         }
         fit(left, maxSide)
         fit(right, maxSide)
@@ -1473,6 +1488,14 @@ object LivePill {
         this.extra = extra
 
         if (autoMs != null) main.postDelayed(autoClose, autoMs)
+        // טקסט שזז: נסגרת רק אחרי שסיים לזוז, ועוד שנייה לקרוא את הסוף
+        if (autoMs != null) longMarquee?.let { m ->
+            m.post {
+                if (window !== root) return@post
+                main.removeCallbacks(autoClose)
+                main.postDelayed(autoClose, max(autoMs, m.durationMs(m.width) + 1200L))
+            }
+        }
     }
 
     /** מתכווצת חזרה לעיגול ונעלמת */
@@ -1589,7 +1612,7 @@ object LivePill {
                 val green = NotchPrefs.tint(NotchOverlay.service, "charge", Color.rgb(62, 209, 140))
                 val b = Battery.read(s, null)
                 val text = "מלאה בעוד שעה ו-10 דק׳"
-                show("charge", 240, green, 3000, onTap = null, long = text) { ctx, left, right ->
+                show("charge", 240, green, 2500, onTap = null, long = text) { ctx, left, right ->
                     right.addView(label(ctx, "⚡ ${b.percent}%", 14.5f, green, bold = true))
                     left.addView(label(ctx, text, 13.5f, Color.WHITE))
                 }
@@ -1805,7 +1828,7 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
     /** כמה זמן כל התנועה לוקחת (כדי שהגלולה תיסגר רק אחרי שקראו הכול) */
     fun durationMs(width: Int): Long {
         val extra = textW - width
-        return if (extra <= 0) 0L else 900L + (extra / (38 * d) * 1000).toLong()
+        return if (extra <= 0) 0L else 600L + (extra / (55 * d) * 1000).toLong()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -1823,8 +1846,8 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
         offset = (w - textW).toFloat()
         if (extra > 0) {
             anim = ValueAnimator.ofFloat(offset, 0f).apply {
-                startDelay = 900
-                duration = (extra / (38 * d) * 1000).toLong()
+                startDelay = 600
+                duration = (extra / (55 * d) * 1000).toLong()
                 interpolator = android.view.animation.AccelerateDecelerateInterpolator()
                 addUpdateListener {
                     offset = it.animatedValue as Float

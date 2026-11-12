@@ -354,7 +354,7 @@ fun HomeScreen(resumes: Int) {
                                 }
                             }
                         }
-                        SwitchLine("👆 הקשה על העיגול הדלוק מראה את ההודעה", NotchPrefs.ringTapMsg(ctx)) {
+                        SwitchLine("👆 הקשה על העיגול הדלוק מראה שוב את ההודעה האחרונה שבגללה הוא נדלק", NotchPrefs.ringTapMsg(ctx)) {
                             NotchPrefs.setRingTapMsg(ctx, it); NotchOverlay.refresh(); refresh++
                         }
                     }
