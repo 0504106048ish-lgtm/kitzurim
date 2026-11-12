@@ -145,6 +145,8 @@ fun SettingsScreen(
                 }
             }
 
+            // עדכונים, מה חדש, ופרטים על האפליקציה
+            AboutSection()
         }
     }
 }
