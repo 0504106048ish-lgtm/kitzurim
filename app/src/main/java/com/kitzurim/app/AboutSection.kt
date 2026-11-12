@@ -130,9 +130,6 @@ fun AboutSection() {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("✨ מה חדש בגרסה $mine", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
             WHATS_NEW.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
-            TextButton(onClick = {
-                runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.RELEASES_PAGE)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            }) { Text("כל הגרסאות הקודמות ←") }
         }
     }
 

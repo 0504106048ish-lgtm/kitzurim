@@ -22,7 +22,6 @@ import java.net.URL
  */
 object Updater {
     private const val API = "https://api.github.com/repos/0504106048ish-lgtm/kitzurim/releases?per_page=15"
-    const val RELEASES_PAGE = "https://github.com/0504106048ish-lgtm/kitzurim/releases"
 
     /** גרסה שאפשר להוריד. notes = מה חדש בכל הגרסאות שאחרי הגרסה שמותקנת */
     class Release(val number: Int, val url: String, val size: Long, val date: String, val notes: List<Pair<Int, String>>)
