@@ -379,6 +379,9 @@ object NotchPrefs {
     /** אנדרואיד אוטו: להעביר הודעות למסך הרכב כשמחוברים */
     fun carMirror(c: Context) = sp(c).getBoolean("car_mirror", true)
     fun setCarMirror(c: Context, v: Boolean) = sp(c).edit().putBoolean("car_mirror", v).apply()
+    /** גם הודעות SMS לרכב (כבוי: אפליקציית ההודעות כבר שולחת אותן לרכב לבד) */
+    fun carSms(c: Context) = sp(c).getBoolean("car_sms", false)
+    fun setCarSms(c: Context, v: Boolean) = sp(c).edit().putBoolean("car_sms", v).apply()
     /** מוזיקה כל הזמן בעיגול (תמונת האלבום וגלי צליל) */
     fun pillMusicLive(c: Context) = sp(c).getBoolean("pill_music_live", true)
     fun setPillMusicLive(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_music_live", v).apply()

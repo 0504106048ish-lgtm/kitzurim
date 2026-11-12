@@ -677,6 +677,10 @@ fun HomeScreen(resumes: Int) {
                     SwitchLine("להעביר הודעות למסך הרכב", NotchPrefs.carMirror(ctx)) {
                         NotchPrefs.setCarMirror(ctx, it); refresh++
                     }
+                    // SMS: בדרך כלל מגיעות לרכב לבד. אם כיבית גם להן את החלון הקופץ, מדליקים כאן
+                    if (NotchPrefs.carMirror(ctx)) SwitchLine("📩 גם הודעות SMS (אם הן לא קופצות ברכב לבד)", NotchPrefs.carSms(ctx)) {
+                        NotchPrefs.setCarSms(ctx, it); refresh++
+                    }
                     Text(
                         "פעם אחת: אנדרואיד אוטו מציג רק אפליקציות מחנות Play. כדי שיציג גם את קיצורים:\n1. פותחים את הגדרות אנדרואיד אוטו (בכפתור כאן)\n2. לוחצים 10 פעמים על \"גרסה\" למטה, ומאשרים\n3. בתפריט ⋮ למעלה ← הגדרות מפתח ← מסמנים \"מקורות לא ידועים\"",
                         style = MaterialTheme.typography.bodySmall,
