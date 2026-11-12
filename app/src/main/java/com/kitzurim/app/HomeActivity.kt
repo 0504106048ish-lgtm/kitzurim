@@ -555,18 +555,23 @@ fun HomeScreen(resumes: Int) {
                 // ---------- מוזיקה ----------
                 if (page == "music") Card {
                     // נגן: הקשה על העיגול כשמתנגן שיר
-                    SwitchLine("🎵 נגן בהקשה על העיגול כשמתנגן שיר", NotchPrefs.musicTap(ctx)) {
+                    Text(
+                        "כשמתנגן שיר, הקשה על העיגול שסביב המצלמה פותחת למעלה נגן קטן: עצירה והמשך, ומה שתבחר כאן למטה. ▶ מראה איך הוא נראה (צריך שיתנגן שיר).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                    PillLine("🎵 נגן קטן בהקשה על העיגול", NotchPrefs.musicTap(ctx), "player") {
                         NotchPrefs.setMusicTap(ctx, it); NotchOverlay.refresh(); refresh++
                     }
                     if (NotchPrefs.musicTap(ctx)) {
                         Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SwitchLine("פס התקדמות וזמן", NotchPrefs.playerProgress(ctx)) {
+                            PillLine("בנגן: פס שמראה איפה השיר והזמן", NotchPrefs.playerProgress(ctx), "player") {
                                 NotchPrefs.setPlayerProgress(ctx, it); refresh++
                             }
-                            SwitchLine("שיר קודם / הבא", NotchPrefs.playerSkip(ctx)) {
+                            PillLine("בנגן: כפתורי שיר קודם ושיר הבא", NotchPrefs.playerSkip(ctx), "player") {
                                 NotchPrefs.setPlayerSkip(ctx, it); refresh++
                             }
-                            SwitchLine("תמונת האלבום", NotchPrefs.playerCover(ctx)) {
+                            PillLine("בנגן: תמונת השיר", NotchPrefs.playerCover(ctx), "player") {
                                 NotchPrefs.setPlayerCover(ctx, it); refresh++
                             }
                         }

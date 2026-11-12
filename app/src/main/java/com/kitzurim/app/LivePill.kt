@@ -1661,6 +1661,18 @@ object LivePill {
                         "buds" -> showEarbuds("Galaxy Buds", 80)
                         "download" -> showDownloaded("סידור.pdf", null)
                         "shot" -> showScreenshot(null, android.net.Uri.EMPTY)
+                        "player" -> {
+                            // הנגן צריך שיר אמיתי שמתנגן; אם אין, אומרים את זה בגלולה עצמה
+                            val c = NotchOverlay.playingController(s)
+                            if (kind != null) removeNow()
+                            if (c != null) showPlayer(c)
+                            else {
+                                val purple = NotchPrefs.tint(s, "music", Color.rgb(179, 136, 255))
+                                show("music", 240, purple, 3000, onTap = null, long = "תפעיל שיר, ואז ▶ יראה את הנגן") { ctx, _, right ->
+                                    right.addView(label(ctx, "♪", 14f, purple, bold = true))
+                                }
+                            }
+                        }
                     }
                 } finally {
                     demoMode = false
