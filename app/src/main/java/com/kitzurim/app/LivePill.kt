@@ -117,12 +117,10 @@ object LivePill {
     private fun twoLines(ctx: Context, top: String, bottom: String, bottomColor: Int) = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
-        // שמשאיר מקום לעיגול עם האות שלידו (חצי מהרוחב שבין השעה לסוללה, פחות העיגול)
-        val d = ctx.resources.displayMetrics.density
-        val most = ((ctx.resources.displayMetrics.widthPixels - 2 * 58 * d - 40 * d) / 2 - 52 * d).toInt()
-        addView(label(ctx, top, 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT; maxWidth = most },
+        // הרוחב נקבע ב-fit לפי המקום שבאמת יש בצד (מקצר עם "…")
+        addView(label(ctx, top, 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT },
             LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
-        addView(label(ctx, bottom.replace('\n', ' '), 11.5f, bottomColor).apply { gravity = Gravity.RIGHT; maxWidth = most },
+        addView(label(ctx, bottom.replace('\n', ' '), 11.5f, bottomColor).apply { gravity = Gravity.RIGHT },
             LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
     }
 
@@ -1089,7 +1087,8 @@ object LivePill {
         val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         content.measure(free, free)
         val endW = min(content.measuredWidth.toFloat() + 6 * d, maxW.toFloat())
-        if (content.measuredWidth > maxW) tv.maxWidth = (maxW - 40 * d).toInt()
+        // ארוך מדי: מקצרים רק את הטקסט, בדיוק כמה שחסר (התמונה והמרווחים נשארים)
+        if (content.measuredWidth + 6 * d > maxW) tv.maxWidth = (maxW - 6 * d - (content.measuredWidth - tv.measuredWidth)).toInt().coerceAtLeast((40 * d).toInt())
 
         val winW = max(endW, sW).toInt() + (8 * d).toInt()
         val winX = (cx - winW / 2f).toInt()
@@ -1298,6 +1297,9 @@ object LivePill {
             gravity = Gravity.RIGHT
             alpha = 0f
             setLineSpacing(0f, 1.1f)
+            // מרחק מהקצוות העגולים של הכרטיס, כדי שהאותיות לא ייגעו במסגרת
+            val pd = (10 * s.resources.displayMetrics.density).toInt()
+            setPadding(pd, 0, pd, (2 * s.resources.displayMetrics.density).toInt())
         }
         fit(left, maxSide)
         fit(right, maxSide)
@@ -1470,24 +1472,31 @@ object LivePill {
         side.measure(free, free)
         val need = side.measuredWidth
         if (need <= maxSide || need == 0) return
-        val texts = (0 until side.childCount).map { side.getChildAt(it) }
-            .filter { it is TextView && (it.layoutParams == null || it.layoutParams.width == LinearLayout.LayoutParams.WRAP_CONTENT) }
-            .map { it as TextView }
-        if (texts.isEmpty()) return
-        val scale = max(0.8f, maxSide.toFloat() / need)
-        texts.forEach { it.setTextSize(TypedValue.COMPLEX_UNIT_PX, it.textSize * scale) }
-        side.measure(free, free)
-        if (side.measuredWidth <= maxSide) return
-        var fixed = 0
-        for (i in 0 until side.childCount) {
-            val v = side.getChildAt(i)
-            if (v !in texts) {
-                val lp = v.layoutParams as? LinearLayout.LayoutParams
-                fixed += v.measuredWidth + (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
+        // כל הטקסטים בצד, גם אלה שבתוך שורות פנימיות (שם מעל הודעה וכו')
+        val texts = ArrayList<TextView>()
+        fun collect(v: View) {
+            if (v is TextView) {
+                if (v.layoutParams == null || v.layoutParams.width == LinearLayout.LayoutParams.WRAP_CONTENT) texts.add(v)
+            } else if (v is android.view.ViewGroup) {
+                for (i in 0 until v.childCount) collect(v.getChildAt(i))
             }
         }
-        val each = ((maxSide - fixed) / texts.size).coerceAtLeast(0)
-        texts.forEach { it.maxWidth = each }
+        collect(side)
+        if (texts.isEmpty()) return
+        // קודם מקטינים קצת את הכתב
+        val scale = max(0.85f, maxSide.toFloat() / need)
+        texts.forEach { it.setTextSize(TypedValue.COMPLEX_UNIT_PX, it.textSize * scale) }
+        // ואם עדיין ארוך: מקצרים כל טקסט בכמה שחסר (עם "…"), כמה פעמים עד שנכנס
+        repeat(4) {
+            side.measure(free, free)
+            val over = side.measuredWidth - maxSide
+            if (over <= 0) return
+            val minW = (24 * side.resources.displayMetrics.density).toInt()
+            texts.forEach { t ->
+                t.measure(free, free)
+                t.maxWidth = (t.measuredWidth - over).coerceAtLeast(minW)
+            }
+        }
     }
 
     /** כפתור "דוגמא" במסך הבית: מראה איך תיראה הגלולה, גם כשהמתגים כבויים */
