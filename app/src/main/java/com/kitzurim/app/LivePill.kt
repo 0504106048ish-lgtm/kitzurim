@@ -1744,7 +1744,7 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
     private val textW = kotlin.math.ceil(android.text.Layout.getDesiredWidth(text, paint)).toInt() + 2
     private val layout: android.text.StaticLayout =
         android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, textW)
-            .setTextDirection(android.text.TextDirectionHeuristics.ANY_RTL)
+            .setTextDirection(android.text.TextDirectionHeuristics.FIRSTSTRONG_RTL)
             .setAlignment(android.text.Layout.Alignment.ALIGN_NORMAL)
             .setMaxLines(1)
             .build()
