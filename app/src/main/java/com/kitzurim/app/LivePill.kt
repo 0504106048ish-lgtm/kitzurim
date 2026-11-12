@@ -1988,12 +1988,13 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
     /** כמה זמן כל התנועה לוקחת (כדי שהגלולה תיסגר רק אחרי שקראו הכול) */
     fun durationMs(width: Int): Long {
         val extra = textW - (width - gap)
-        return if (extra <= 0) 0L else 400L + (extra / (90 * d) * 1000).toLong()
+        // טקסט שלא ארוך: זמן לתנועה הקטנה הצידה וחזרה (אם החור עליו)
+        return if (extra <= 0) 2200L else 400L + (extra / (90 * d) * 1000).toLong()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         // מבקשים גם מקום לרווח של החור, כדי שטקסט בינוני ייכנס שלם בלי לזוז
-        val want = textW + holeGap
+        val want = textW
         val w = when (MeasureSpec.getMode(widthMeasureSpec)) {
             MeasureSpec.UNSPECIFIED -> want
             else -> min(want, MeasureSpec.getSize(widthMeasureSpec))
@@ -2009,23 +2010,21 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
 
     private fun begin(w: Int) {
         anim?.cancel()
-        val s = NotchOverlay.service
+        // בלי רווח: הטקסט רציף. רק בודקים אם החור נופל עליו
         gap = 0f
         gapL = -1f
+        var crossesHole = false
+        val s = NotchOverlay.service
         if (s != null && holeGap > 0) {
             val loc = IntArray(2)
             getLocationOnScreen(loc)
-            val hx = NotchOverlay.cutout(s).exactCenterX() + NotchPrefs.offsetX(s) * d
-            val l = hx - holeGap / 2f - loc[0]
-            if (l + holeGap > 0 && l < w) {
-                gapL = l.coerceAtLeast(0f)
-                gap = (l + holeGap).coerceAtMost(w.toFloat()) - gapL
-            }
+            val hx = NotchOverlay.cutout(s).exactCenterX() + NotchPrefs.offsetX(s) * d - loc[0]
+            // הטקסט מיושר לימין: הוא תופס מ-(w - textW) עד w
+            crossesHole = hx > (w - textW).coerceAtLeast(0) && hx < w
         }
-        val room = w - gap
-        val extra = textW - room
+        val extra = textW - w
         // ההתחלה של עברית מימין: מיישרים לימין, ואז מזיזים ימינה עד שרואים את הסוף משמאל
-        offset = room - textW
+        offset = (w - textW).toFloat()
         invalidate()
         if (extra > 0) {
             anim = ValueAnimator.ofFloat(offset, 0f).apply {
@@ -2038,8 +2037,23 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
                 }
                 start()
             }
+        } else if (crossesHole) {
+            // טקסט בינוני שחלק ממנו מאחורי החור: זז הצידה ברוחב החור וחוזר, כך שהכול נראה
+            val from = offset
+            val to = offset - holeGap - 6 * d
+            anim = ValueAnimator.ofFloat(0f, 1f, 1f, 0f).apply {
+                startDelay = 500
+                duration = 2400
+                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+                addUpdateListener {
+                    offset = from + (to - from) * (it.animatedValue as Float)
+                    invalidate()
+                }
+                start()
+            }
         }
     }
+
 
     override fun onDetachedFromWindow() {
         anim?.cancel()
