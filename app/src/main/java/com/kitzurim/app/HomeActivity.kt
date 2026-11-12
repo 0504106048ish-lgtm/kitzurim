@@ -666,6 +666,29 @@ fun HomeScreen(resumes: Int) {
                     TextButton(onClick = { addingApp = true }) { Text("+ הוספת אפליקציה") }
                 }
 
+                // ---------- אנדרואיד אוטו (בדף "עוד") ----------
+                if (page == "more") Card {
+                    Text("🚗 אנדרואיד אוטו", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "כשהטלפון מחובר לרכב, הודעות מוואטסאפ (וטלגרם, מסנג'ר ואינסטגרם) קופצות במסך הרכב, נקראות בקול, ואפשר לענות בקול. גם כשהחלון הקופץ של וואטסאפ כבוי בטלפון.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                    SwitchLine("להעביר הודעות למסך הרכב", NotchPrefs.carMirror(ctx)) {
+                        NotchPrefs.setCarMirror(ctx, it); refresh++
+                    }
+                    Text(
+                        "פעם אחת: אנדרואיד אוטו מציג רק אפליקציות מחנות Play. כדי שיציג גם את קיצורים:\n1. פותחים את הגדרות אנדרואיד אוטו (בכפתור כאן)\n2. לוחצים 10 פעמים על \"גרסה\" למטה, ומאשרים\n3. בתפריט ⋮ למעלה ← הגדרות מפתח ← מסמנים \"מקורות לא ידועים\"",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(onClick = {
+                        val pkg = "com.google.android.projection.gearhead"
+                        val i = ctx.packageManager.getLaunchIntentForPackage(pkg)
+                            ?: Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$pkg"))
+                        runCatching { ctx.startActivity(i) }.onFailure { Actions.toast(ctx, "אנדרואיד אוטו לא מותקן") }
+                    }) { Text("לפתוח את הגדרות אנדרואיד אוטו ←") }
+                }
+
                 // ---------- גודל ומיקום (בדף "עוד") ----------
                 if (page == "more") {
                     Card {
@@ -1141,7 +1164,8 @@ private val HomePages = listOf(
     HomePage("apps", "📱", "אפליקציות ומסכים", "מסך מלא, נעילה, כבוי ב…", listOf(
         "להסתיר במסך מלא", "מסך הנעילה", "כבוי באפליקציות",
     )),
-    HomePage("more", "⋯", "עוד", "גודל, אוטומציות, קולי", listOf(
+    HomePage("more", "⋯", "עוד", "רכב, גודל, אוטומציות, קולי", listOf(
+        "אנדרואיד אוטו", "רכב", "מקורות לא ידועים",
         "גודל הטבעת", "עובי", "מיקום", "אזור נגיעה", "איפוס מיקום וגודל", "אוטומציות", "קולי",
     )),
 )

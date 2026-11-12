@@ -54,6 +54,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Kitzurim">
 
+        <!-- אנדרואיד אוטו: קיצורים מעבירה לרכב הודעות (וואטסאפ וכו') עם הקראה ותשובה בקול -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
+        <receiver
+            android:name=".CarReplyReceiver"
+            android:exported="false" />
+
         <!-- הכניסה מהאייקון ומהלחצן הצדדי: שקופה ומעבירה מיד הלאה (כמו בגרסה הראשונה, שעבדה עם הלחצן הצדדי) -->
         <activity
             android:name=".LaunchActivity"

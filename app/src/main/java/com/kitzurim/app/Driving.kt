@@ -59,6 +59,9 @@ class ReplyListener : NotificationListenerService() {
         "com.instagram.android" to 0xFFE1306C.toInt(),
     )
 
+    /** אפליקציות שההודעות שלהן עוברות לרכב דרך קיצורים */
+    private val carApps = setOf("com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "com.instagram.android", "com.facebook.orca")
+
     private fun lightFor(sbn: StatusBarNotification) {
         val n = sbn.notification
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
@@ -161,6 +164,13 @@ class ReplyListener : NotificationListenerService() {
                 listOf("נקרא", "read").any { a.title?.toString()?.contains(it, ignoreCase = true) == true }
         }
         val m = LastMsg(sender, text, color, n.contentIntent, reply, read, sbn.key)
+        // אנדרואיד אוטו: מחוברים לרכב? ההודעה עוברת גם למסך הרכב (הקראה ותשובה בקול)
+        // (הודעות SMS כבר מגיעות לרכב לבד, אז רק אפליקציות צ'אט, כדי שלא יהיו פעמיים)
+        if (sbn.packageName in carApps) {
+            val group = style?.isGroupConversation == true
+            val who = last?.person?.name?.toString()?.takeIf { it.isNotBlank() } ?: sender
+            CarMirror.mirror(this, sbn.key, who, text, if (group) (style?.conversationTitle?.toString() ?: sender) else null, reply, read)
+        }
         NotchOverlay.notificationPosted(sbn.key, color, m)
         LivePill.showMessage(sender, text, color, n.contentIntent, msg = m)
     }
@@ -178,6 +188,7 @@ class ReplyListener : NotificationListenerService() {
     private val downloadNames = HashMap<String, String>()
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        CarMirror.removed(this, sbn.key)
         NotchOverlay.notificationRemoved(sbn.key)
         LivePill.callNotificationRemoved(sbn.key)
         LivePill.notificationGone(sbn.key)
