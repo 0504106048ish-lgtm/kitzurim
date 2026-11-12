@@ -74,19 +74,18 @@ object LivePill {
 
     /** גלולת ההודעה בשורה אחת. מחזירה את הטקסט שזז (כדי לדעת מתי לסגור) */
     private fun msgRow(sender: String, text: String, color: Int, open: PendingIntent?): MarqueeText? {
-        var marquee: MarqueeText? = null
-        show("msg", 300, color, 6000, onTap = { launch(open) }) { ctx, left, right ->
-            val d = ctx.resources.displayMetrics.density
-            marquee = MarqueeText(ctx, text.replace('\n', ' ').trim(), 12.5f, Color.rgb(210, 216, 228)).apply {
-                layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (4 * d).toInt() }
-            }
-            left.addView(marquee)
-            right.addView(label(ctx, sender, 12.5f, Color.WHITE, bold = true))
-            // רווח גמיש: העיגול עם האות תמיד בקצה, והשם צמוד לחור
-            right.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+        // שורה אחת לכל רוחב הגלולה: "דני:  ההודעה" זז פעם אחת עד הסוף, והעיגול עם האות בקצה הימני
+        val line = android.text.SpannableStringBuilder().apply {
+            append(sender.trim())
+            setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.ForegroundColorSpan(Color.WHITE), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            append(":  ")
+            append(text.replace('\n', ' ').trim())
+        }
+        show("msg", 300, color, 3000, onTap = { launch(open) }, long = line, longColor = Color.rgb(210, 216, 228)) { ctx, _, right ->
             right.addView(letter(ctx, sender, color))
         }
-        return if (kind == "msg") marquee else null
+        return null
     }
 
     /** הגלולה נסגרת רק אחרי שהטקסט סיים לזוז, ועוד רגע לקרוא את הסוף */
@@ -523,13 +522,15 @@ object LivePill {
     private var pv: PlayerViews? = null
     private var dragging = false
     private var lastArt: Bitmap? = null
+    private var glowArt: Bitmap? = null
+    private var glowDone = false
     private const val PLAYER_MS = 7000L
 
     private class PlayerViews(
         val title: TextView,
         val artist: TextView,
         val cover: ImageView?,
-        val seek: SeekBar?,
+        val seek: WaveBar?,
         val pos: TextView?,
         val dur: TextView?,
         val play: TextView,
@@ -599,47 +600,36 @@ object LivePill {
         val cover = if (optCover) ImageView(s).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
-                cornerRadius = 8 * d
-                setColor(purple)
+                cornerRadius = 14 * d
+                setColor(Color.rgb(40, 44, 56))
             }
             clipToOutline = true
-            layoutParams = LinearLayout.LayoutParams((44 * d).toInt(), (44 * d).toInt()).apply { marginEnd = (10 * d).toInt() }
+            layoutParams = LinearLayout.LayoutParams((60 * d).toInt(), (60 * d).toInt()).apply { marginEnd = (12 * d).toInt() }
         } else null
         cover?.let { row.addView(it) }
         val texts = LinearLayout(s).apply { orientation = LinearLayout.VERTICAL }
-        val title = label(s, "", 14.5f, Color.WHITE, bold = true)
-        val artist = label(s, "", 12.5f, grey)
+        val title = label(s, "", 15f, Color.WHITE, bold = true)
+        val artist = label(s, "", 12.5f, Color.rgb(199, 203, 214))
         texts.addView(title)
         texts.addView(artist)
         row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         box.addView(row)
 
         // פס התקדמות: אפשר לגרור כדי לקפוץ בשיר
-        var seek: SeekBar? = null
+        var seek: WaveBar? = null
         var pos: TextView? = null
         var dur: TextView? = null
         if (optProgress) {
-            seek = SeekBar(s).apply {
-                max = 1000
-                progressTintList = ColorStateList.valueOf(purple)
-                progressBackgroundTintList = ColorStateList.valueOf(Color.rgb(60, 64, 76))
-                thumbTintList = ColorStateList.valueOf(Color.WHITE)
-                setPadding((6 * d).toInt(), 0, (6 * d).toInt(), 0)
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(sb: SeekBar, p: Int, fromUser: Boolean) {}
-                    override fun onStartTrackingTouch(sb: SeekBar) {
-                        dragging = true
-                        main.removeCallbacks(autoClose)
-                    }
-                    override fun onStopTrackingTouch(sb: SeekBar) {
-                        dragging = false
-                        val length = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
-                        if (length > 0) runCatching { c.transportControls.seekTo(length * sb.progress / 1000) }
-                        keepOpen()
-                    }
-                })
-            }
-            box.addView(seek, LinearLayout.LayoutParams(-1, (26 * d).toInt()).apply { topMargin = (6 * d).toInt() })
+            // גל קול: הלבן מתמלא עד איפה שהשיר. גוררים עליו כדי לקפוץ בשיר
+            seek = WaveBar(s, onSeek = { f ->
+                val length = c.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+                if (length > 0) runCatching { c.transportControls.seekTo((length * f).toLong()) }
+                keepOpen()
+            }, onDrag = { on ->
+                dragging = on
+                if (on) main.removeCallbacks(autoClose)
+            }).apply { seed = ((c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: "").hashCode() % 100) / 10f }
+            box.addView(seek, LinearLayout.LayoutParams(-1, (30 * d).toInt()).apply { topMargin = (12 * d).toInt() })
             val times = FrameLayout(s)
             pos = label(s, "0:00", 11f, grey)
             dur = label(s, "0:00", 11f, grey)
@@ -661,7 +651,9 @@ object LivePill {
             setTextColor(if (filled) Color.BLACK else Color.WHITE)
             if (filled) background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.WHITE)
+                // לבן עם ברק עדין (מלמעלה לבן, למטה אפרפר), כמו כפתור זכוכית
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                colors = intArrayOf(Color.WHITE, Color.rgb(227, 230, 238))
             }
             layoutParams = LinearLayout.LayoutParams((size * d).toInt(), (size * d).toInt()).apply {
                 marginStart = (14 * d).toInt()
@@ -691,13 +683,39 @@ object LivePill {
         show("player", 320, purple, PLAYER_MS, onTap = {}, extra = box) { ctx, _, right ->
             right.addView(label(ctx, "♪", 14f, purple, bold = true))
         }
-        if (kind == "player") main.post(playerTick)
+        glowArt = null
+        glowDone = false
+        if (kind == "player") {
+            applyGlow()
+            main.post(playerTick)
+        }
+    }
+
+    /** ההילה של הנגן בצבעים של תמונת השיר (מתחלפת כשהשיר מתחלף) */
+    private fun applyGlow() {
+        val c = player ?: return
+        if (kind != "player") return
+        val md = c.metadata
+        val art = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+            ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            ?: md?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+        if (glowDone && art === glowArt) return
+        glowArt = art
+        glowDone = true
+        val g = bg?.background as? GlassDrawable ?: return
+        val d = (NotchOverlay.service ?: return).resources.displayMetrics.density
+        val cols = artColors(art) ?: NotchPrefs.tint(NotchOverlay.service, "music", Color.rgb(179, 136, 255)).let { it to it }
+        g.glowA = cols.first
+        g.glowB = cols.second
+        g.setStroke((1.5f * d).toInt(), cols.first)
+        g.invalidateSelf()
     }
 
     /** מעדכן את הנגן: שם, תמונה, מיקום בשיר, והכפתור הפעלה / השהיה */
     private fun updatePlayer() {
         val c = player ?: return
         val v = pv ?: return
+        applyGlow()
         val md = c.metadata
         val st = c.playbackState
         v.title.text = md?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
@@ -1070,6 +1088,7 @@ object LivePill {
      */
     private var songWindow: FrameLayout? = null
     private var songClosing: FrameLayout? = null
+    private var songImg: ImageView? = null
 
     /** הפעם הבאה שהגלולה מופיעה: בלי אנימציה (חוזרת למקום שהיא כבר הייתה בו) */
     private var instantNext = false
@@ -1145,7 +1164,17 @@ object LivePill {
             ctl?.let { c -> main.postDelayed({ showPlayer(c) }, 280) }
             Unit
         }, long = line) { ctx, _, right ->
-            right.addView(artView(ctx, art, purple))
+            right.addView(artView(ctx, art, purple).also { songImg = it })
+        }
+        // בספוטיפיי התמונה של השיר החדש מגיעה רק אחרי רגע: בודקים שוב, ומחליפים כשהיא מגיעה
+        if (art == null) listOf(500L, 1200L, 2200L).forEach { t ->
+            main.postDelayed({
+                val img = songImg ?: return@postDelayed
+                if (kind != "music") return@postDelayed
+                val md2 = NotchOverlay.playingController(s)?.metadata
+                val a2 = md2?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: md2?.getBitmap(MediaMetadata.METADATA_KEY_ART)
+                if (a2 != null) img.setImageBitmap(a2)
+            }, t)
         }
         if (true) return
         val tv = label(s, line, 12.5f, Color.WHITE)
@@ -1418,9 +1447,16 @@ object LivePill {
         }
         val targetW = max(2 * side + gapW + 2 * padW, collapsedW)
         val targetH = h + bodyH + extraH
-        p.addView(left, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
-        p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
-        p.addView(right, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
+        if (longMarquee != null) {
+            // טקסט שזז: עובר לאורך כל הגלולה (גם מתחת לחור), והסמל או התמונה בקצה הימני
+            right.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            p.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+            p.addView(right, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.MATCH_PARENT))
+        } else {
+            p.addView(left, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
+            p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
+            p.addView(right, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
+        }
 
         // החלון רק קצת גדול מהגלולה (מקום לקפיצה של המתיחה), ושקוף: רואים מה שמתחת.
         // לא לחרוג מלמעלה: אם החור קרוב לקצה, הגלולה יורדת קצת
@@ -1926,6 +1962,12 @@ class GlassDrawable(private val d: Float) : GradientDrawable() {
         strokeWidth = 0.8f * d
     }
     private val rect = android.graphics.RectF()
+    private val glowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val clip = android.graphics.Path()
+
+    /** הילה בצבעי תמונת השיר (בנגן). 0 = בלי הילה */
+    var glowA = 0
+    var glowB = 0
 
     init {
         orientation = Orientation.TOP_BOTTOM
@@ -1953,7 +1995,113 @@ class GlassDrawable(private val d: Float) : GradientDrawable() {
         rect.set(bounds.left + inset, bounds.top + inset, bounds.right - inset, bounds.bottom - inset)
         if (rect.width() <= 0 || rect.height() <= 0) return
         val r = (cornerRadius - inset).coerceAtLeast(0f).coerceAtMost(rect.height() / 2f)
+        // הילה צבעונית: צבע אחד מלמעלה בצד אחד, השני מלמטה בצד השני, בתוך הצורה של הגלולה
+        if (glowA != 0) {
+            clip.reset()
+            clip.addRoundRect(rect, r, r, android.graphics.Path.Direction.CW)
+            c.save()
+            c.clipPath(clip)
+            fun blob(cx: Float, cy: Float, rad: Float, col: Int) {
+                glowPaint.shader = android.graphics.RadialGradient(
+                    cx, cy, rad.coerceAtLeast(1f),
+                    Color.argb(120, Color.red(col), Color.green(col), Color.blue(col)), Color.TRANSPARENT,
+                    android.graphics.Shader.TileMode.CLAMP,
+                )
+                c.drawRect(rect, glowPaint)
+            }
+            blob(rect.right - rect.width() * 0.1f, rect.top, rect.width() * 0.75f, glowA)
+            blob(rect.left, rect.bottom, rect.width() * 0.7f, if (glowB != 0) glowB else glowA)
+            c.restore()
+        }
         c.drawRoundRect(rect, r, r, shine)
         c.drawRoundRect(rect, r, r, edge)
     }
+}
+
+/**
+ * גל קול במקום פס התקדמות: פסים בגבהים שונים, הלבנים עד איפה שהשיר נמצא.
+ * גוררים עליו כדי לקפוץ בשיר
+ */
+@SuppressLint("ViewConstructor")
+class WaveBar(ctx: Context, private val onSeek: (Float) -> Unit, private val onDrag: (Boolean) -> Unit) : View(ctx) {
+    private val d = ctx.resources.displayMetrics.density
+    /** 0 עד 1000 */
+    var progress = 0
+        set(v) {
+            field = v.coerceIn(0, 1000)
+            invalidate()
+        }
+    /** לכל שיר צורת גל קצת אחרת */
+    var seed = 0f
+        set(v) {
+            field = v
+            invalidate()
+        }
+    private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val r = android.graphics.RectF()
+
+    override fun onDraw(c: android.graphics.Canvas) {
+        val n = 46
+        val gap = 2 * d
+        val bw = (width - gap * (n - 1)) / n
+        if (bw <= 0) return
+        val done = progress / 1000f
+        for (i in 0 until n) {
+            val wave = kotlin.math.abs(kotlin.math.sin(i * 0.7f + seed) * 0.7f + kotlin.math.sin(i * 1.9f + seed * 0.3f) * 0.3f)
+            val h = height * (0.22f + 0.78f * wave).coerceIn(0.22f, 1f)
+            val x = i * (bw + gap)
+            r.set(x, (height - h) / 2, x + bw, (height + h) / 2)
+            paint.color = if ((i + 0.5f) / n <= done) Color.WHITE else Color.argb(60, 255, 255, 255)
+            c.drawRoundRect(r, bw / 2, bw / 2, paint)
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: MotionEvent): Boolean {
+        when (e.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                parent?.requestDisallowInterceptTouchEvent(true)
+                onDrag(true)
+                progress = (e.x / width * 1000).toInt()
+            }
+            MotionEvent.ACTION_MOVE -> progress = (e.x / width * 1000).toInt()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                progress = (e.x / width * 1000).toInt()
+                onSeek(progress / 1000f)
+                onDrag(false)
+            }
+        }
+        return true
+    }
+}
+
+/** שני הצבעים הבולטים בתמונת השיר (בשביל ההילה בנגן). null אם התמונה בלי צבע */
+fun artColors(bmp: Bitmap?): Pair<Int, Int>? {
+    if (bmp == null) return null
+    return runCatching {
+        val small = Bitmap.createScaledBitmap(bmp, 24, 24, true)
+        val bins = FloatArray(12)
+        val sumR = FloatArray(12)
+        val sumG = FloatArray(12)
+        val sumB = FloatArray(12)
+        val hsv = FloatArray(3)
+        for (y in 0 until 24) for (x in 0 until 24) {
+            val p = small.getPixel(x, y)
+            Color.colorToHSV(p, hsv)
+            if (hsv[1] < 0.25f || hsv[2] < 0.25f) continue
+            val b = ((hsv[0] / 30f).toInt()).coerceIn(0, 11)
+            val w = hsv[1] * hsv[2]
+            bins[b] += w
+            sumR[b] += Color.red(p) * w
+            sumG[b] += Color.green(p) * w
+            sumB[b] += Color.blue(p) * w
+        }
+        val order = bins.indices.sortedByDescending { bins[it] }
+        if (bins[order[0]] <= 0f) return@runCatching null
+        fun col(b: Int) = Color.rgb((sumR[b] / bins[b]).toInt(), (sumG[b] / bins[b]).toInt(), (sumB[b] / bins[b]).toInt())
+        val a = col(order[0])
+        // הצבע השני: הכי חזק שרחוק מספיק מהראשון (לפחות 2 "פלחים" בגלגל הצבעים)
+        val second = order.drop(1).firstOrNull { bins[it] > 0f && kotlin.math.abs(it - order[0]).let { dd -> min(dd, 12 - dd) } >= 2 }
+        a to (second?.let { col(it) } ?: a)
+    }.getOrNull()
 }
