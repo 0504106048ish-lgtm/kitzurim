@@ -174,18 +174,8 @@ class CallActivity : ComponentActivity() {
 
     /** כשהטלפון ליד האוזן: המסך נכבה, כדי שהלחי לא תלחץ על כפתורים */
     private fun updateProximity() {
-        val c = Calls.main()
-        val want = c != null && Calls.state(c) != Call.STATE_RINGING && Calls.route != CallAudioState.ROUTE_SPEAKER
-        val pm = getSystemService(PowerManager::class.java) ?: return
-        if (proximity == null && pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
-            proximity = runCatching { pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "kitzurim:call") }.getOrNull()
-        }
-        val w = proximity ?: return
-        // עטוף: תקלה כאן לא תפיל את האפליקציה באמצע שיחה
-        runCatching {
-            if (want && !w.isHeld) w.acquire(3 * 60 * 60 * 1000L)
-            if (!want && w.isHeld) w.release()
-        }
+        // החיישן מנוהל לכל השיחה (גם כשמסך השיחה סגור), ראו Proximity
+        Proximity.update(this)
     }
 
     companion object {

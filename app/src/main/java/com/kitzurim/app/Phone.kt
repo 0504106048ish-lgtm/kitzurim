@@ -163,6 +163,7 @@ class KitzInCallService : InCallService() {
         }
         Calls.changed()
         CallNotif.update(this)
+        Proximity.update(this)
     }
 
     override fun onCallAdded(call: Call) {
@@ -184,6 +185,7 @@ class KitzInCallService : InCallService() {
         Calls.list.remove(call)
         Calls.answeredAt.remove(call)
         Calls.changed()
+        Proximity.update(this)
         if (Calls.list.isEmpty()) {
             CallNotif.cancel(this)
             LivePill.callEnded()
@@ -195,11 +197,21 @@ class KitzInCallService : InCallService() {
     override fun onCallAudioStateChanged(audioState: CallAudioState) {
         Calls.muted = audioState.isMuted
         Calls.route = audioState.route
+        Proximity.update(this)
         Calls.changed()
     }
 
     override fun onDestroy() {
         if (Calls.service === this) Calls.service = null
+        // החזירו את אפליקציית הטלפון של סמסונג באמצע שיחה: השיחה כבר לא אצלנו. מנקים הכל,
+        // כדי שמסך השיחה, ההתראה והגלולה לא יישארו תקועים
+        Calls.list.forEach { runCatching { it.unregisterCallback(cb) } }
+        Calls.list.clear()
+        Calls.answeredAt.clear()
+        Calls.changed()
+        Proximity.update(this)
+        CallNotif.cancel(this)
+        LivePill.callEnded()
         super.onDestroy()
     }
 }
@@ -363,5 +375,28 @@ class CallActionReceiver : BroadcastReceiver() {
             "speaker" -> Calls.toggleSpeaker()
         }
         CallNotif.update(ctx)
+    }
+}
+
+/**
+ * חיישן הקרבה בזמן שיחה: צמוד לאוזן המסך נכבה, ומרחיקים הוא נדלק שוב.
+ * עובד כל זמן שיש שיחה פעילה (לא רק כשמסך השיחה פתוח), חוץ מצלצול ורמקול
+ */
+object Proximity {
+    private var lock: android.os.PowerManager.WakeLock? = null
+
+    fun update(ctx: Context) {
+        val c = Calls.main()
+        val want = c != null && Calls.state(c) != Call.STATE_RINGING && Calls.route != CallAudioState.ROUTE_SPEAKER
+        val pm = ctx.getSystemService(android.os.PowerManager::class.java) ?: return
+        if (lock == null && pm.isWakeLockLevelSupported(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+            lock = runCatching { pm.newWakeLock(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "kitzurim:ear") }.getOrNull()
+        }
+        val w = lock ?: return
+        runCatching {
+            if (want && !w.isHeld) w.acquire(3 * 60 * 60 * 1000L)
+            // משחררים רק כשהטלפון כבר לא ליד האוזן, כדי שהמסך יידלק כשמרחיקים
+            if (!want && w.isHeld) w.release(android.os.PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY)
+        }
     }
 }
