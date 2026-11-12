@@ -81,7 +81,7 @@ object LivePill {
         val msgText = text.replace('\n', ' ').trim()
         val c = NotchOverlay.cutout(s)
         val hole = max(c.width(), c.height())
-        val maxSide = (s.resources.displayMetrics.widthPixels - 2 * NotchPrefs.pillMargin(s) * d - (hole + 14 * d) - 2 * 12 * d) / 2 - 10 * d
+        val maxSide = (s.resources.displayMetrics.widthPixels - 2 * NotchPrefs.pillMargin(s) * d - (hole * 0.75f + 4 * d) - 2 * 12 * d) / 2 - 10 * d
         val paint = android.text.TextPaint().apply { textSize = 12.5f * s.resources.displayMetrics.scaledDensity }
         if (paint.measureText(msgText) <= maxSide) {
             val grey = Color.rgb(210, 216, 228)
