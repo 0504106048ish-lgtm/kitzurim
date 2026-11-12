@@ -63,7 +63,8 @@ object LivePill {
         val s = NotchOverlay.service ?: return
         // הקשה על העיגול הדלוק: מראים גם אם הגלולה של הודעות כבויה
         if (!fromRing && (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s))) return
-        if (inCallPill()) return // שיחה חשובה יותר
+        // בזמן שיחה: ההודעה מופיעה מעל הסימן הקטן של השיחה, וכשהיא נסגרת הסימן חוזר. רק בצלצול, בחיוג או כשתפריט השיחה פתוח לא מפריעים
+        if (kind == "call" || kind == "dial" || kind == "callmenu") return
         // שורה אחת בשורת המצב (לא יורדת): מימין לחור השם, ובקצה העיגול עם האות.
         // משמאל לחור ההודעה, שזזה פעם אחת לאט עד הסוף. הקשה פותחת
         val marquee = msgRow(sender, text, color, open)
@@ -243,6 +244,8 @@ object LivePill {
     fun inCall(secondsFromAudio: Int) {
         val s = NotchOverlay.service ?: return
         if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s))) return
+        // הודעה, קוד או העתקה מוצגים עכשיו מעל השיחה: מחכים שייסגרו, ואז הסימן של השיחה חוזר לבד
+        if (kind == "msg" || kind == "code" || kind == "clip") return
         // מסך השיחה של קיצורים פתוח: אין צורך בגלולה
         if (CallActivity.visible) {
             if (inCallPill()) hide()
@@ -1055,7 +1058,7 @@ object LivePill {
     fun showCode(code: String) {
         val s = NotchOverlay.service ?: return
         if (!demoMode && !NotchPrefs.pill(s)) return
-        if (inCallPill() || kind == "player") return
+        if (kind == "call" || kind == "dial" || kind == "callmenu" || kind == "player") return
         val green = NotchPrefs.tint(s, "msg", Color.rgb(42, 212, 154))
         show("code", 260, green, 9000, onTap = {
             Codes.copy(s, code)

@@ -147,7 +147,8 @@ class ReplyListener : NotificationListenerService() {
         if (text.isBlank()) return
         // רק הודעה חדשה באמת: וואטסאפ מפרסם שוב את אותה התראה (למשל כשמחברים מטען),
         // ואז העיגול לא נדלק שוב על הודעה שכבר ראית
-        val sig = "$sender|$text"
+        // גם אותה הודעה פעמיים ("אוקי", "אוקי") היא הודעה חדשה: מבדילים לפי הזמן שלה
+        val sig = "$sender|$text|${last?.timestamp ?: n.`when`}"
         if (shown[sbn.key] == sig) return
         shown[sbn.key] = sig
         val sent = last?.timestamp?.takeIf { it > 0 } ?: n.`when`
