@@ -546,6 +546,8 @@ object LivePill {
     private var lastArt: Bitmap? = null
     private var glowArt: Bitmap? = null
     private var glowDone = false
+    private var glowTitle = ""
+    private var lastArtTitle = ""
     private const val PLAYER_MS = 7000L
 
     private class PlayerViews(
@@ -718,15 +720,18 @@ object LivePill {
         val c = player ?: return
         if (kind != "player") return
         val md = c.metadata
+        // רק תמונה אמיתית של השיר (הסמל של ספוטיפיי, עיגול אפור, לא נחשב תמונה)
         val art = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-            ?: md?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-        if (glowDone && art === glowArt) return
+        val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
+        if (glowDone && art === glowArt && title == glowTitle) return
         glowArt = art
+        glowTitle = title
         glowDone = true
         val g = bg?.background as? GlassDrawable ?: return
         val d = (NotchOverlay.service ?: return).resources.displayMetrics.density
-        val cols = artColors(art) ?: NotchPrefs.tint(NotchOverlay.service, "music", Color.rgb(179, 136, 255)).let { it to it }
+        // אין תמונה (או שהיא בלי צבע): זוג צבעים לפי שם השיר, תמיד אותו זוג לאותו שיר
+        val cols = artColors(art) ?: songColors(title)
         g.glowA = cols.first
         g.glowB = cols.second
         g.setStroke((1.5f * d).toInt(), cols.first)
@@ -749,10 +754,12 @@ object LivePill {
         v.cover?.let { img ->
             val art = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
                 ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
-                ?: md?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-            if (art !== lastArt) {
+            val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
+            if (art !== lastArt || (art == null && title != lastArtTitle)) {
                 lastArt = art
-                img.setImageBitmap(art)
+                lastArtTitle = title
+                // אין תמונה: ריבוע בצבעים של השיר עם האות הראשונה, במקום העיגול האפור
+                img.setImageBitmap(art ?: songArt(title, 180))
             }
         }
         val playing = st?.state == PlaybackState.STATE_PLAYING
@@ -891,7 +898,7 @@ object LivePill {
             Unit
         }) { ctx, left, right ->
             left.addView(eqBars(ctx, purple))
-            right.addView(artView(ctx, art, purple).also { liveArt = it })
+            right.addView(artView(ctx, art, purple, NotchOverlay.playingController(s)?.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)).also { liveArt = it })
         }
         // המסגרת: עמומה, ומעליה הקו הסגול שמתמלא עד סוף השיר
         val b = bg
@@ -985,7 +992,7 @@ object LivePill {
         if (kind == "musicLive") hide()
     }
 
-    private fun artView(ctx: Context, art: android.graphics.Bitmap?, color: Int): ImageView {
+    private fun artView(ctx: Context, art: android.graphics.Bitmap?, color: Int, title: String? = null): ImageView {
         val d = ctx.resources.displayMetrics.density
         return ImageView(ctx).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -994,7 +1001,8 @@ object LivePill {
                 setColor(color)
             }
             clipToOutline = true
-            if (art != null) setImageBitmap(art)
+            // אין תמונה לשיר: ריבוע בצבעים של השיר עם האות הראשונה
+            if (art != null) setImageBitmap(art) else if (!title.isNullOrBlank()) setImageBitmap(songArt(title, 64))
             layoutParams = LinearLayout.LayoutParams((18 * d).toInt(), (18 * d).toInt())
             // מסתובבת לאט, כמו תקליט
             ValueAnimator.ofFloat(0f, 360f).apply {
@@ -1214,7 +1222,8 @@ object LivePill {
                 setColor(purple)
             }
             clipToOutline = true
-            if (art != null) setImageBitmap(art)
+            // אין תמונה לשיר: ריבוע בצבעים של השיר עם האות הראשונה
+            if (art != null) setImageBitmap(art) else if (!title.isNullOrBlank()) setImageBitmap(songArt(title, 64))
         }
         content.addView(img, LinearLayout.LayoutParams((20 * d).toInt(), (20 * d).toInt()).apply { marginEnd = (7 * d).toInt() })
         val line = android.text.SpannableStringBuilder().apply {
@@ -1232,7 +1241,7 @@ object LivePill {
             ctl?.let { c -> main.postDelayed({ showPlayer(c) }, 280) }
             Unit
         }, long = line) { ctx, _, right ->
-            right.addView(artView(ctx, art, purple).also { songImg = it })
+            right.addView(artView(ctx, art, purple, title).also { songImg = it })
         }
         // בספוטיפיי התמונה של השיר החדש מגיעה רק אחרי רגע: בודקים שוב, ומחליפים כשהיא מגיעה
         if (art == null) listOf(500L, 1200L, 2200L).forEach { t ->
@@ -2257,4 +2266,32 @@ fun artColors(bmp: Bitmap?): Pair<Int, Int>? {
         val second = order.drop(1).firstOrNull { bins[it] > 0f && kotlin.math.abs(it - order[0]).let { dd -> min(dd, 12 - dd) } >= 2 }
         a to (second?.let { col(it) } ?: a)
     }.getOrNull()
+}
+
+/** זוג צבעים לשיר בלי תמונה, לפי השם שלו (תמיד אותו זוג לאותו שיר) */
+fun songColors(title: String): Pair<Int, Int> {
+    val pairs = listOf(
+        0xFFFF6A88 to 0xFFFF9A62, 0xFF3A7BD5 to 0xFF6A4CFF, 0xFF2AD49A to 0xFF1A7FA0, 0xFFFFB340 to 0xFFFF6A3D,
+        0xFFB388FF to 0xFF6A4CFF, 0xFF4FB3FF to 0xFF2AD49A, 0xFFE5484D to 0xFF8E44AD, 0xFFF7797D to 0xFFC471ED,
+    )
+    val p = pairs[(title.hashCode() and 0x7fffffff) % pairs.size]
+    return p.first.toInt() to p.second.toInt()
+}
+
+/** תמונה לשיר בלי תמונה: ריבוע בצבעים של השיר עם האות הראשונה שלו */
+fun songArt(title: String, px: Int): Bitmap {
+    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+    val c = android.graphics.Canvas(bmp)
+    val (a, b) = songColors(title)
+    val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    p.shader = android.graphics.LinearGradient(0f, 0f, px.toFloat(), px.toFloat(), a, b, android.graphics.Shader.TileMode.CLAMP)
+    c.drawRect(0f, 0f, px.toFloat(), px.toFloat(), p)
+    p.shader = null
+    p.color = Color.WHITE
+    p.textSize = px * 0.46f
+    p.typeface = Typeface.DEFAULT_BOLD
+    p.textAlign = android.graphics.Paint.Align.CENTER
+    val first = title.trim().firstOrNull { it.isLetterOrDigit() }?.toString() ?: "♪"
+    c.drawText(first, px / 2f, px / 2f - (p.descent() + p.ascent()) / 2f, p)
+    return bmp
 }
