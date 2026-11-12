@@ -63,6 +63,9 @@ class ReplyListener : NotificationListenerService() {
         val n = sbn.notification
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
 
+        // קוד אימות: מועתק לבד ומוצג בגלולה (במקום ההודעה הרגילה)
+        if (Codes.handle(this, sbn)) return
+
         // שיחה נכנסת (רגילה או וואטסאפ): הגלולה עם "ענה" ו"דחה", דרך הכפתורים שכבר בהתראה
         if (n.category == Notification.CATEGORY_CALL && n.fullScreenIntent != null) {
             // שיחה של קיצורים עצמה (כשהיא אפליקציית הטלפון): מסך השיחה בניאון כבר פתוח

@@ -50,6 +50,9 @@ class AutoSendService : AccessibilityService() {
             checkFullscreen()
         }
 
+        // העתקת טקסט: הגלולה מראה מה הועתק
+        if (event != null) ClipWatch.onEvent(this, event)
+
         if (!AutoSend.armed(this)) return
         if (event?.packageName?.toString()?.startsWith("com.whatsapp") != true) return
         val root = rootInActiveWindow ?: return

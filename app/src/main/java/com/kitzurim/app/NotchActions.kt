@@ -370,6 +370,12 @@ object NotchPrefs {
     fun setPillDownloads(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_downloads", v).apply()
     fun pillShots(c: Context) = sp(c).getBoolean("pill_shots", true)
     fun setPillShots(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_shots", v).apply()
+    /** קוד אימות שהגיע בהודעה: מועתק לבד ומוצג בגלולה */
+    fun pillCodes(c: Context) = sp(c).getBoolean("pill_codes", true)
+    fun setPillCodes(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_codes", v).apply()
+    /** העתקת טקסט: הגלולה מראה מה הועתק, עם שיתוף */
+    fun pillClip(c: Context) = sp(c).getBoolean("pill_clip", true)
+    fun setPillClip(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_clip", v).apply()
     /** מוזיקה כל הזמן בעיגול (תמונת האלבום וגלי צליל) */
     fun pillMusicLive(c: Context) = sp(c).getBoolean("pill_music_live", true)
     fun setPillMusicLive(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_music_live", v).apply()

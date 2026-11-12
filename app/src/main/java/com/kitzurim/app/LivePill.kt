@@ -1051,6 +1051,52 @@ object LivePill {
         }
     }
 
+    /** קוד אימות: הקוד בגדול, וכבר מועתק. הקשה מעתיקה שוב */
+    fun showCode(code: String) {
+        val s = NotchOverlay.service ?: return
+        if (!demoMode && !NotchPrefs.pill(s)) return
+        if (inCallPill() || kind == "player") return
+        val green = NotchPrefs.tint(s, "msg", Color.rgb(42, 212, 154))
+        show("code", 260, green, 9000, onTap = {
+            Codes.copy(s, code)
+            Actions.toast(s, "📋 הקוד הועתק")
+        }) { ctx, left, right ->
+            // הקוד משמאל לחור בכתב גדול עם רווחים קטנים בין הספרות, ומימין "הועתק ✓" והמפתח
+            left.addView(label(ctx, code.chunked(3).joinToString(" "), 16f, Color.WHITE, bold = true).apply {
+                textDirection = View.TEXT_DIRECTION_LTR
+                letterSpacing = 0.08f
+            })
+            right.addView(label(ctx, "הועתק ✓", 12f, green))
+            right.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+            right.addView(label(ctx, "🔑", 14f, Color.WHITE))
+        }
+    }
+
+    /** הועתק טקסט: הגלולה מראה מה הועתק. הקשה פותחת שיתוף */
+    fun showClip(text: String) {
+        val s = NotchOverlay.service ?: return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillClip(s))) return
+        if (inCallPill() || kind == "player" || kind == "code") return
+        if (!demoMode && (NotchOverlay.offHere() || NotchOverlay.pillBlocked("clip"))) return
+        val blue = NotchPrefs.tint(s, "shot", Color.rgb(79, 179, 255))
+        val clean = text.replace('\n', ' ').trim().take(300)
+        if (clean.isEmpty()) return
+        show("clip", 260, blue, 3000, onTap = {
+            runCatching {
+                s.startActivity(
+                    android.content.Intent.createChooser(
+                        android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                            .putExtra(android.content.Intent.EXTRA_TEXT, text),
+                        "לשתף",
+                    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+            Unit
+        }, long = "הועתק:  $clean", longColor = Color.rgb(225, 230, 238)) { ctx, _, right ->
+            right.addView(label(ctx, "📋", 14f, Color.WHITE))
+        }
+    }
+
     /** צילום מסך נשמר: תמונה קטנה של הצילום ו"נשמר". הקשה פותחת את הצילום */
     fun showScreenshot(thumb: Bitmap?, uri: android.net.Uri) {
         val s = NotchOverlay.service ?: return
@@ -1737,6 +1783,8 @@ object LivePill {
                         "buds" -> showEarbuds("Galaxy Buds", 80)
                         "download" -> showDownloaded("סידור.pdf", null)
                         "shot" -> showScreenshot(null, android.net.Uri.EMPTY)
+                        "code" -> showCode("482913")
+                        "clip" -> showClip("רחוב הרצל 10, ירושלים")
                         "player", "player_progress", "player_skip", "player_cover" -> {
                             // הנגן צריך שיר אמיתי שמתנגן; אם אין, אומרים את זה בגלולה עצמה
                             val c = NotchOverlay.playingController(s)

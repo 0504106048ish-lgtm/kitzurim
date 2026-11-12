@@ -488,6 +488,12 @@ fun HomeScreen(resumes: Int) {
                                 if (it && !Screenshots.allowed(ctx)) shotPerm.launch(Screenshots.permission)
                                 refresh++
                             }
+                            PillLine("🔑 קוד אימות (מועתק לבד, ומוצג בגדול)", NotchPrefs.pillCodes(ctx), "code") {
+                                NotchPrefs.setPillCodes(ctx, it); refresh++
+                            }
+                            PillLine("📋 העתקת טקסט (מה הועתק, והקשה משתפת)", NotchPrefs.pillClip(ctx), "clip") {
+                                NotchPrefs.setPillClip(ctx, it); refresh++
+                            }
                         }
                         if (!Driving.listenerAllowed(ctx)) {
                             TextButton(onClick = { ctx.startActivity(Intent(ctx, PermissionsActivity::class.java)) }) {
@@ -1117,7 +1123,7 @@ private val HomePages = listOf(
     )),
     HomePage("pill", "✨", "גלולה חיה", "התראות סביב המצלמה", listOf(
         "להפעיל את הגלולה החיה", "הודעות", "שיחות", "שיר חדש", "מוזיקה כל הזמן בעיגול", "סמל המוזיקה בשורת המצב",
-        "חיבור מטען", "ניווט", "אוזניות", "הורדות", "צילום מסך", "חלון קופץ",
+        "חיבור מטען", "ניווט", "אוזניות", "הורדות", "צילום מסך", "קוד אימות", "העתקת טקסט", "חלון קופץ",
     )),
     HomePage("ring", "⭕", "טבעת", "סוללה ונורת התראות", listOf(
         "טבעת סוללה", "רק בזמן טעינה", "נקודה מסתובבת בזמן טעינה", "נורת התראות", "נכבית לבד אחרי",
