@@ -112,6 +112,22 @@ object LivePill {
         Color.blue(c) + (255 - Color.blue(c)) / 4,
     )
 
+    /** כפתור דלוק (השתקה, רמקול): לבן מלא וסמל כהה. כבוי: זכוכית שקופה וסמל לבן */
+    private fun setBtnOn(v: ImageView, on: Boolean) {
+        val d = v.resources.displayMetrics.density
+        v.background = GradientDrawable().apply {
+            cornerRadius = 14 * d
+            orientation = GradientDrawable.Orientation.TOP_BOTTOM
+            if (on) {
+                colors = intArrayOf(Color.WHITE, Color.rgb(225, 230, 238))
+            } else {
+                colors = intArrayOf(Color.argb(70, 255, 255, 255), Color.argb(30, 255, 255, 255))
+                setStroke((0.8f * d).toInt().coerceAtLeast(1), Color.argb(90, 255, 255, 255))
+            }
+        }
+        v.imageTintList = ColorStateList.valueOf(if (on) Color.rgb(10, 12, 16) else Color.WHITE)
+    }
+
     /** כפתור עגול קטן לשורה הדקה */
     private fun thinBtn(ctx: Context, icon: Int, bg: Int, wide: Boolean = false, onClick: () -> Unit): ImageView {
         val d = ctx.resources.displayMetrics.density
@@ -404,18 +420,29 @@ object LivePill {
         who.addView(time, LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
         val row = mutableListOf<View>()
         // כפתור: קודם מה שיש בהתראה של השיחה, ואם אין, קיצורים עושה את זה בעצמה
-        fun btn(icon: Int, bg: Int, wide: Boolean, a: Notification.Action?, own: () -> Unit) = thinBtn(s, icon, bg, wide) {
-            val sent = a != null && runCatching { a.actionIntent.send() }.isSuccess
-            if (!sent) runCatching { own() }
-            main.removeCallbacks(autoClose)
-            main.postDelayed(autoClose, 6000)
+        fun btn(icon: Int, bg: Int, wide: Boolean, a: Notification.Action?, after: ((ImageView) -> Unit)? = null, own: () -> Unit): ImageView {
+            lateinit var v: ImageView
+            v = thinBtn(s, icon, bg, wide) {
+                val sent = a != null && runCatching { a.actionIntent.send() }.isSuccess
+                if (!sent) runCatching { own() }
+                after?.invoke(v)
+                main.removeCallbacks(autoClose)
+                main.postDelayed(autoClose, 6000)
+            }
+            return v
         }
         val dark = Color.rgb(42, 47, 58)
         val audio = s.getSystemService(android.media.AudioManager::class.java)
+        // השתקה ורמקול: כפתור דלוק נהיה לבן עם סמל כהה, כדי שרואים שהוא פועל
+        val own = Calls.main() != null
+        var muted = if (own) Calls.muted else audio?.isMicrophoneMute == true
+        var speaker = if (own) Calls.route == android.telecom.CallAudioState.ROUTE_SPEAKER else audio?.isSpeakerphoneOn == true
         @Suppress("DEPRECATION")
-        row.add(btn(R.drawable.ic_c_mute, dark, false, callAction(listOf("השתק", "mute"))) {
-            audio?.let { it.isMicrophoneMute = !it.isMicrophoneMute }
-        })
+        val muteBtn = btn(R.drawable.ic_c_mute, dark, false, if (own) null else callAction(listOf("השתק", "mute")), after = { b -> muted = !muted; setBtnOn(b, muted) }) {
+            if (own) Calls.toggleMute() else audio?.let { it.isMicrophoneMute = !it.isMicrophoneMute }
+        }
+        setBtnOn(muteBtn, muted)
+        row.add(muteBtn)
         row.add(btn(R.drawable.ic_c_hang, Color.rgb(229, 72, 77), true, callAction(listOf("נתק", "סיים", "סיום", "hang", "end"))) {
             val call = Calls.main()
             if (call != null) Calls.hangup(call)
@@ -427,9 +454,11 @@ object LivePill {
             hide()
         })
         @Suppress("DEPRECATION")
-        row.add(btn(R.drawable.ic_c_speaker, dark, false, callAction(listOf("רמקול", "speaker"))) {
-            audio?.let { it.isSpeakerphoneOn = !it.isSpeakerphoneOn }
-        })
+        val speakerBtn = btn(R.drawable.ic_c_speaker, dark, false, if (own) null else callAction(listOf("רמקול", "speaker")), after = { b -> speaker = !speaker; setBtnOn(b, speaker) }) {
+            if (own) Calls.toggleSpeaker() else audio?.let { it.isSpeakerphoneOn = !it.isSpeakerphoneOn }
+        }
+        setBtnOn(speakerBtn, speaker)
+        row.add(speakerBtn)
         // הקשה על השם: חוזרים לגלולה הקטנה
         show("callmenu", 300, green, 6000, onTap = { menuOpen = false }) { _, left, right ->
             row.forEach { left.addView(it) }
@@ -1509,19 +1538,38 @@ object LivePill {
             }
         }
         collect(side)
-        if (texts.isEmpty()) return
-        // קודם מקטינים קצת את הכתב
-        val scale = max(0.85f, maxSide.toFloat() / need)
-        texts.forEach { it.setTextSize(TypedValue.COMPLEX_UNIT_PX, it.textSize * scale) }
-        // ואם עדיין ארוך: מקצרים כל טקסט בכמה שחסר (עם "…"), כמה פעמים עד שנכנס
-        repeat(4) {
-            side.measure(free, free)
-            val over = side.measuredWidth - maxSide
-            if (over <= 0) return
-            val minW = (24 * side.resources.displayMetrics.density).toInt()
-            texts.forEach { t ->
-                t.measure(free, free)
-                t.maxWidth = (t.measuredWidth - over).coerceAtLeast(minW)
+        if (texts.isNotEmpty()) {
+            // קודם מקטינים קצת את הכתב
+            val scale = max(0.85f, maxSide.toFloat() / need)
+            texts.forEach { it.setTextSize(TypedValue.COMPLEX_UNIT_PX, it.textSize * scale) }
+            // ואם עדיין ארוך: מקצרים כל טקסט בכמה שחסר (עם "…"), כמה פעמים עד שנכנס
+            repeat(4) {
+                side.measure(free, free)
+                val over = side.measuredWidth - maxSide
+                if (over <= 0) return
+                val minW = (24 * side.resources.displayMetrics.density).toInt()
+                texts.forEach { t ->
+                    t.measure(free, free)
+                    t.maxWidth = (t.measuredWidth - over).coerceAtLeast(minW)
+                }
+            }
+        }
+        // עדיין לא נכנס (כמה כפתורים בצד אחד): מקטינים את הכפתורים והמרווחים שלהם באותו יחס,
+        // כדי שאף כפתור לא ייחתך בקצה הגלולה
+        side.measure(free, free)
+        val total = side.measuredWidth
+        if (total <= maxSide) return
+        val ratio = (maxSide - 1).toFloat() / total
+        for (i in 0 until side.childCount) {
+            val v = side.getChildAt(i)
+            val lp = v.layoutParams as? LinearLayout.LayoutParams ?: continue
+            if (lp.width > 0) lp.width = (lp.width * ratio).toInt()
+            if (lp.height > 0) lp.height = (lp.height * ratio).toInt()
+            lp.marginStart = (lp.marginStart * ratio).toInt()
+            lp.marginEnd = (lp.marginEnd * ratio).toInt()
+            v.layoutParams = lp
+            if (v is ImageView) {
+                v.setPadding((v.paddingLeft * ratio).toInt(), (v.paddingTop * ratio).toInt(), (v.paddingRight * ratio).toInt(), (v.paddingBottom * ratio).toInt())
             }
         }
     }
@@ -1819,8 +1867,8 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
  */
 class GlassDrawable(private val d: Float) : GradientDrawable() {
     companion object {
-        val TOP = Color.argb(228, 30, 33, 42)
-        val BOTTOM = Color.argb(218, 8, 9, 13)
+        val TOP = Color.rgb(30, 33, 42)
+        val BOTTOM = Color.rgb(8, 9, 13)
     }
 
     private val shine = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
