@@ -64,34 +64,38 @@ object LivePill {
         // הקשה על העיגול הדלוק: מראים גם אם הגלולה של הודעות כבויה
         if (!fromRing && (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s))) return
         if (inCallPill()) return // שיחה חשובה יותר
-        // שורה אחת דקה: מימין מי שלח ומה כתב, משמאל השב, נקרא ופתח.
-        // הודעה ארוכה נשארת קצת יותר זמן כדי שיספיקו לקרוא
-        val dark = Color.rgb(42, 47, 58)
-        show("msg", 300, color, if (text.length > 40) 6500 else 5000, onTap = { launch(open) }) { ctx, left, right ->
-            msg?.reply?.let { a ->
-                left.addView(thinBtn(ctx, R.drawable.ic_c_reply, dark) {
-                    QuickReplyActivity.open(ctx, sender, a)
-                    hide()
-                })
-            }
-            msg?.read?.let { a ->
-                left.addView(thinBtn(ctx, R.drawable.ic_c_check, dark) {
-                    runCatching { a.actionIntent.send() }
-                    msg.key?.let { NotchOverlay.notificationRemoved(it) }
-                    hide()
-                })
-            }
-            left.addView(thinBtn(ctx, R.drawable.ic_c_open, dark) {
-                launch(open)
-                hide()
-            })
-            right.addView(twoLines(ctx, sender, text, Color.rgb(210, 216, 228)))
-            right.addView(letter(ctx, sender, color).apply {
-                (layoutParams as LinearLayout.LayoutParams).marginStart = (5 * ctx.resources.displayMetrics.density).toInt()
-            })
-        }
+        // שורה אחת בשורת המצב (לא יורדת): מימין לחור השם, ובקצה העיגול עם האות.
+        // משמאל לחור ההודעה, שזזה פעם אחת לאט עד הסוף. הקשה פותחת
+        val marquee = msgRow(sender, text, color, open)
         // זוכרים איזו התראה מוצגת: אם היא נמחקת (קראת, ענית), הגלולה נסגרת מיד
         if (kind == "msg") shownKey = msg?.key
+        marquee?.let { closeAfterMarquee(it) }
+    }
+
+    /** גלולת ההודעה בשורה אחת. מחזירה את הטקסט שזז (כדי לדעת מתי לסגור) */
+    private fun msgRow(sender: String, text: String, color: Int, open: PendingIntent?): MarqueeText? {
+        var marquee: MarqueeText? = null
+        show("msg", 300, color, 6000, onTap = { launch(open) }) { ctx, left, right ->
+            val d = ctx.resources.displayMetrics.density
+            marquee = MarqueeText(ctx, text.replace('\n', ' ').trim(), 12.5f, Color.rgb(210, 216, 228)).apply {
+                layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (4 * d).toInt() }
+            }
+            left.addView(marquee)
+            right.addView(label(ctx, sender, 12.5f, Color.WHITE, bold = true))
+            // רווח גמיש: העיגול עם האות תמיד בקצה, והשם צמוד לחור
+            right.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+            right.addView(letter(ctx, sender, color))
+        }
+        return if (kind == "msg") marquee else null
+    }
+
+    /** הגלולה נסגרת רק אחרי שהטקסט סיים לזוז, ועוד רגע לקרוא את הסוף */
+    private fun closeAfterMarquee(m: MarqueeText) {
+        m.post {
+            if (kind != "msg") return@post
+            main.removeCallbacks(autoClose)
+            main.postDelayed(autoClose, max(4000L, m.durationMs(m.width) + 2200L))
+        }
     }
 
     private var shownKey: String? = null
@@ -377,7 +381,7 @@ object LivePill {
             gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
         }
         // רוחב מקסימלי: חצי מהגלולה, כדי שהשם לא ייחתך בקצה
-        val most = ((s.resources.displayMetrics.widthPixels - 2 * 58 * d - 40 * d) / 2 - 16 * d).toInt()
+        val most = ((s.resources.displayMetrics.widthPixels - 2 * 68 * d - 40 * d) / 2 - 16 * d).toInt()
         val name = label(s, callName ?: "שיחה", 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT; maxWidth = most }
         val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt() else 0
         val time = label(s, if (answeredAt > 0) clock(secs * 1000L) else "מחייג…", 11.5f, green).apply { gravity = Gravity.RIGHT; maxWidth = most }
@@ -1092,7 +1096,7 @@ object LivePill {
         content.addView(tv)
 
         // רוחב לפי התוכן, ולא יותר מהרווח שבין השעה לסוללה
-        val maxW = (screenW - 2 * 58 * d).toInt()
+        val maxW = (screenW - 2 * 68 * d).toInt()
         val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         content.measure(free, free)
         val endW = min(content.measuredWidth.toFloat() + 6 * d, maxW.toFloat())
@@ -1245,7 +1249,7 @@ object LivePill {
         val tight = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
         val h = if (tight) max(hole * 0.85f + 2 * d, 24 * d).toInt() else (max(hole.toFloat(), 22 * d) + 18 * d).toInt()
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
-        val maxW = if (landscape) min(screenW - 2 * 58 * d, 380 * d).toInt() else (screenW - 2 * 58 * d).toInt()
+        val maxW = if (landscape) min(screenW - 2 * 68 * d, 380 * d).toInt() else (screenW - 2 * 68 * d).toInt()
         val gapW = hole + ((if (tight) 4 else 14) * d).toInt()
         // גלולת השיחה הקטנה: צמודה ככל האפשר (רק שניות וסמל)
         val compact = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
@@ -1518,16 +1522,7 @@ object LivePill {
             "msg", "long" -> {
                 val green = NotchPrefs.tint(NotchOverlay.service, "msg", Color.rgb(37, 211, 102))
                 val text = if (type == "msg") "מה קורה?" else "אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר?"
-                val dark = Color.rgb(42, 47, 58)
-                show("msg", 300, green, if (text.length > 40) 6500 else 5000, onTap = null) { ctx, left, right ->
-                    left.addView(thinBtn(ctx, R.drawable.ic_c_reply, dark) {})
-                    left.addView(thinBtn(ctx, R.drawable.ic_c_check, dark) {})
-                    left.addView(thinBtn(ctx, R.drawable.ic_c_open, dark) {})
-                    right.addView(twoLines(ctx, "דני", text, grey))
-                    right.addView(letter(ctx, "דני", green).apply {
-                        (layoutParams as LinearLayout.LayoutParams).marginStart = (5 * ctx.resources.displayMetrics.density).toInt()
-                    })
-                }
+                msgRow("דני", text, green, null)?.let { closeAfterMarquee(it) }
             }
             "charge" -> {
                 val green = NotchPrefs.tint(NotchOverlay.service, "charge", Color.rgb(62, 209, 140))
@@ -1674,5 +1669,87 @@ class SwipeUpFrame(ctx: Context, private val onSwipeUp: () -> Unit) : FrameLayou
             }
         }
         return true
+    }
+}
+
+/**
+ * טקסט בשורה אחת שזז פעם אחת: קודם רואים את ההתחלה (בעברית מימין), אחרי רגע הוא זז לאט
+ * עד שרואים את הסוף, ונעצר. טקסט קצר שנכנס לא זז. הקצוות נמוגים כדי שהמעבר ייראה רך
+ */
+@SuppressLint("ViewConstructor")
+class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : View(ctx) {
+    private val d = ctx.resources.displayMetrics.density
+    private val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color
+        textSize = sp * ctx.resources.displayMetrics.scaledDensity
+    }
+    private val textW = kotlin.math.ceil(android.text.Layout.getDesiredWidth(text, paint)).toInt() + 2
+    private val layout: android.text.StaticLayout =
+        android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, textW)
+            .setTextDirection(android.text.TextDirectionHeuristics.ANY_RTL)
+            .setAlignment(android.text.Layout.Alignment.ALIGN_NORMAL)
+            .setMaxLines(1)
+            .build()
+    private var offset = 0f
+    private var anim: ValueAnimator? = null
+    private val fade = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+    }
+
+    /** כמה זמן כל התנועה לוקחת (כדי שהגלולה תיסגר רק אחרי שקראו הכול) */
+    fun durationMs(width: Int): Long {
+        val extra = textW - width
+        return if (extra <= 0) 0L else 900L + (extra / (38 * d) * 1000).toLong()
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = when (MeasureSpec.getMode(widthMeasureSpec)) {
+            MeasureSpec.UNSPECIFIED -> textW
+            else -> min(textW, MeasureSpec.getSize(widthMeasureSpec))
+        }
+        setMeasuredDimension(w, layout.height)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        anim?.cancel()
+        val extra = textW - w
+        // ההתחלה של עברית מימין: מיישרים לימין, ואז מזיזים ימינה עד שרואים את הסוף משמאל
+        offset = (w - textW).toFloat()
+        if (extra > 0) {
+            anim = ValueAnimator.ofFloat(offset, 0f).apply {
+                startDelay = 900
+                duration = (extra / (38 * d) * 1000).toLong()
+                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+                addUpdateListener {
+                    offset = it.animatedValue as Float
+                    invalidate()
+                }
+                start()
+            }
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        anim?.cancel()
+        super.onDetachedFromWindow()
+    }
+
+    override fun onDraw(c: android.graphics.Canvas) {
+        val save = c.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
+        c.save()
+        c.translate(offset, 0f)
+        layout.draw(c)
+        c.restore()
+        // קצוות נמוגים רק בצד שיש בו עוד טקסט
+        val fw = 12 * d
+        if (offset < -0.5f) {
+            fade.shader = android.graphics.LinearGradient(0f, 0f, fw, 0f, Color.BLACK, Color.TRANSPARENT, android.graphics.Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, fw, height.toFloat(), fade)
+        }
+        if (offset + textW > width + 0.5f) {
+            fade.shader = android.graphics.LinearGradient(width - fw, 0f, width.toFloat(), 0f, Color.TRANSPARENT, Color.BLACK, android.graphics.Shader.TileMode.CLAMP)
+            c.drawRect(width - fw, 0f, width.toFloat(), height.toFloat(), fade)
+        }
+        c.restoreToCount(save)
     }
 }
