@@ -87,7 +87,7 @@ object LivePill {
             val grey = Color.rgb(210, 216, 228)
             show("msg", 300, color, 3000, onTap = { launch(open) }) { ctx, left, right ->
                 left.addView(label(ctx, msgText, 12.5f, grey))
-                right.addView(label(ctx, sender, 12.5f, Color.WHITE, bold = true))
+                right.addView(label(ctx, sender.trim() + ":", 12.5f, Color.WHITE, bold = true).apply { textDirection = View.TEXT_DIRECTION_RTL })
                 // רווח גמיש: השם צמוד לחור, והעיגול עם האות בקצה
                 right.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
                 right.addView(letter(ctx, sender, color))
@@ -1970,6 +1970,15 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
             .setAlignment(android.text.Layout.Alignment.ALIGN_NORMAL)
             .setMaxLines(1)
             .build()
+
+    // החור של המצלמה: הטקסט "קופץ" מעליו (רווח במקום החור), כך ששום אות לא מוסתרת מאחוריו
+    private val holeGap: Int = run {
+        val s = NotchOverlay.service
+        if (s == null) 0 else (max(NotchOverlay.cutout(s).width(), NotchOverlay.cutout(s).height()) + 12 * d).toInt()
+    }
+    private var gapL = -1f // איפה מתחיל הרווח (בתוך הטקסט הזה), או -1 אם החור לא נופל עליו
+    private var gap = 0f
+
     private var offset = 0f
     private var anim: ValueAnimator? = null
     private val fade = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -1978,23 +1987,46 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
 
     /** כמה זמן כל התנועה לוקחת (כדי שהגלולה תיסגר רק אחרי שקראו הכול) */
     fun durationMs(width: Int): Long {
-        val extra = textW - width
+        val extra = textW - (width - gap)
         return if (extra <= 0) 0L else 400L + (extra / (90 * d) * 1000).toLong()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        // מבקשים גם מקום לרווח של החור, כדי שטקסט בינוני ייכנס שלם בלי לזוז
+        val want = textW + holeGap
         val w = when (MeasureSpec.getMode(widthMeasureSpec)) {
-            MeasureSpec.UNSPECIFIED -> textW
-            else -> min(textW, MeasureSpec.getSize(widthMeasureSpec))
+            MeasureSpec.UNSPECIFIED -> want
+            else -> min(want, MeasureSpec.getSize(widthMeasureSpec))
         }
         setMeasuredDimension(w, layout.height)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         anim?.cancel()
-        val extra = textW - w
+        // צריך לדעת איפה הטקסט נמצא על המסך כדי לדעת איפה החור: אחרי שהוא מונח
+        post { begin(w) }
+    }
+
+    private fun begin(w: Int) {
+        anim?.cancel()
+        val s = NotchOverlay.service
+        gap = 0f
+        gapL = -1f
+        if (s != null && holeGap > 0) {
+            val loc = IntArray(2)
+            getLocationOnScreen(loc)
+            val hx = NotchOverlay.cutout(s).exactCenterX() + NotchPrefs.offsetX(s) * d
+            val l = hx - holeGap / 2f - loc[0]
+            if (l + holeGap > 0 && l < w) {
+                gapL = l.coerceAtLeast(0f)
+                gap = (l + holeGap).coerceAtMost(w.toFloat()) - gapL
+            }
+        }
+        val room = w - gap
+        val extra = textW - room
         // ההתחלה של עברית מימין: מיישרים לימין, ואז מזיזים ימינה עד שרואים את הסוף משמאל
-        offset = (w - textW).toFloat()
+        offset = room - textW
+        invalidate()
         if (extra > 0) {
             anim = ValueAnimator.ofFloat(offset, 0f).apply {
                 startDelay = 400
@@ -2016,17 +2048,31 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
 
     override fun onDraw(c: android.graphics.Canvas) {
         val save = c.saveLayer(0f, 0f, width.toFloat(), height.toFloat(), null)
-        c.save()
-        c.translate(offset, 0f)
-        layout.draw(c)
-        c.restore()
+        if (gapL >= 0f && gap > 0f) {
+            // משמאל לחור: הטקסט כרגיל. מימין לחור: אותו טקסט, מוזז ברוחב החור
+            c.save()
+            c.clipRect(0f, 0f, gapL, height.toFloat())
+            c.translate(offset, 0f)
+            layout.draw(c)
+            c.restore()
+            c.save()
+            c.clipRect(gapL + gap, 0f, width.toFloat(), height.toFloat())
+            c.translate(offset + gap, 0f)
+            layout.draw(c)
+            c.restore()
+        } else {
+            c.save()
+            c.translate(offset, 0f)
+            layout.draw(c)
+            c.restore()
+        }
         // קצוות נמוגים רק בצד שיש בו עוד טקסט
         val fw = 12 * d
         if (offset < -0.5f) {
             fade.shader = android.graphics.LinearGradient(0f, 0f, fw, 0f, Color.BLACK, Color.TRANSPARENT, android.graphics.Shader.TileMode.CLAMP)
             c.drawRect(0f, 0f, fw, height.toFloat(), fade)
         }
-        if (offset + textW > width + 0.5f) {
+        if (offset + textW > width - gap + 0.5f) {
             fade.shader = android.graphics.LinearGradient(width - fw, 0f, width.toFloat(), 0f, Color.TRANSPARENT, Color.BLACK, android.graphics.Shader.TileMode.CLAMP)
             c.drawRect(width - fw, 0f, width.toFloat(), height.toFloat(), fade)
         }
