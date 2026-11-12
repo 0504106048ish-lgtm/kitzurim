@@ -222,10 +222,27 @@ object LivePill {
     private var dialSince = 0L // מתי התחיל החיוג (כדי להקטין אחרי 2 שניות)
     private var bigUntil = 0L
     private var menuOpen = false
+    // מה שההתראה של השיחה פותחת: מסך השיחה של אפליקציית הטלפון
+    private var callScreen: PendingIntent? = null
+
+    /** שולח כפתור של התראה, עם אישור לפתוח מסך מהרקע (מאנדרואיד 14 בלי זה הוא נחסם בשקט) */
+    private fun sendAction(pi: PendingIntent): Boolean {
+        val s = NotchOverlay.service
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= 34 && s != null) {
+                val o = ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+                pi.send(s, 0, null, null, null, null, o.toBundle())
+            } else {
+                pi.send()
+            }
+        }.isSuccess
+    }
 
     /** ההתראה של שיחה פעילה התעדכנה (נקרא מ-ReplyListener) */
-    fun ongoingCall(name: String, answeredWall: Long?, actions: List<Notification.Action>) {
+    fun ongoingCall(name: String, answeredWall: Long?, actions: List<Notification.Action>, screen: PendingIntent? = null) {
         callInfoKnown = true
+        if (screen != null) callScreen = screen
         callName = name
         callActions = actions
         if (answeredWall != null && answeredAt == 0L) {
@@ -443,7 +460,8 @@ object LivePill {
         fun btn(icon: Int, bg: Int, wide: Boolean, a: Notification.Action?, after: ((ImageView) -> Unit)? = null, own: () -> Unit): ImageView {
             lateinit var v: ImageView
             v = thinBtn(s, icon, bg, wide) {
-                val sent = a != null && runCatching { a.actionIntent.send() }.isSuccess
+                // מאנדרואיד 14 כפתור של התראה ששולחים מהרקע נחסם בשקט, אז מאשרים במפורש
+                val sent = a != null && sendAction(a.actionIntent)
                 if (!sent) runCatching { own() }
                 after?.invoke(v)
                 main.removeCallbacks(autoClose)
@@ -455,30 +473,70 @@ object LivePill {
         val audio = s.getSystemService(android.media.AudioManager::class.java)
         // השתקה ורמקול: כפתור דלוק נהיה לבן עם סמל כהה, כדי שרואים שהוא פועל
         val own = Calls.main() != null
-        var muted = if (own) Calls.muted else audio?.isMicrophoneMute == true
-        var speaker = if (own) Calls.route == android.telecom.CallAudioState.ROUTE_SPEAKER else audio?.isSpeakerphoneOn == true
+        // המצב האמיתי של המיקרופון והרמקול (לא מה שחשבנו), כדי שהכפתור יראה את האמת
         @Suppress("DEPRECATION")
-        val muteBtn = btn(R.drawable.ic_c_mute, dark, false, if (own) null else callAction(listOf("השתק", "mute")), after = { b -> muted = !muted; setBtnOn(b, muted) }) {
-            if (own) Calls.toggleMute() else audio?.let { it.isMicrophoneMute = !it.isMicrophoneMute }
+        fun micMuted() = if (own) Calls.muted else audio?.isMicrophoneMute == true
+        @Suppress("DEPRECATION")
+        fun onSpeaker(): Boolean = when {
+            own -> Calls.route == android.telecom.CallAudioState.ROUTE_SPEAKER
+            Build.VERSION.SDK_INT >= 31 -> audio?.communicationDevice?.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER || audio?.isSpeakerphoneOn == true
+            else -> audio?.isSpeakerphoneOn == true
         }
-        setBtnOn(muteBtn, muted)
-        row.add(muteBtn)
-        row.add(btn(R.drawable.ic_c_hang, Color.rgb(229, 72, 77), true, callAction(listOf("נתק", "סיים", "סיום", "hang", "end"))) {
+        // השתקה / רמקול: מנסים דרך הכפתור של ההתראה, בודקים אחרי רגע אם המצב באמת השתנה,
+        // ואם לא: מנסים ישירות, ואם גם זה לא עבד פותחים את מסך השיחה של הטלפון (שם זה תמיד עובד)
+        fun toggle(icon: Int, words: List<String>, read: () -> Boolean, direct: () -> Unit): ImageView {
+            lateinit var v: ImageView
+            v = thinBtn(s, icon, dark, false) {
+                val before = read()
+                val a = if (own) null else callAction(words)
+                if (own) runCatching { direct() } else if (a == null || !sendAction(a.actionIntent)) runCatching { direct() }
+                main.postDelayed({
+                    if (read() != before || own) {
+                        setBtnOn(v, read())
+                        return@postDelayed
+                    }
+                    // הכפתור של ההתראה לא שינה כלום: מנסים ישירות
+                    if (a != null) runCatching { direct() }
+                    main.postDelayed({
+                        setBtnOn(v, read())
+                        if (read() == before) {
+                            menuOpen = false
+                            hide()
+                            launch(callScreen)
+                            Actions.toast(s, "פתחתי את מסך השיחה")
+                        }
+                    }, 450)
+                }, 700)
+                main.removeCallbacks(autoClose)
+                main.postDelayed(autoClose, 6000)
+            }
+            setBtnOn(v, read())
+            return v
+        }
+        row.add(toggle(R.drawable.ic_c_mute, listOf("השתק", "מיקרופון", "mute"), ::micMuted) {
+            if (own) Calls.toggleMute() else audio?.let { it.isMicrophoneMute = !it.isMicrophoneMute }
+        })
+        row.add(btn(R.drawable.ic_c_hang, Color.rgb(229, 72, 77), true, null) {
             val call = Calls.main()
-            if (call != null) Calls.hangup(call)
-            else if (Build.VERSION.SDK_INT >= 28) {
+            if (call != null) {
+                Calls.hangup(call)
+            } else {
+                // שיחה רגילה: מנתקים ישירות דרך הטלפון (הכי בטוח). שיחת וואטסאפ: דרך הכפתור "נתק" שבהתראה
                 @Suppress("DEPRECATION", "MissingPermission")
-                s.getSystemService(android.telecom.TelecomManager::class.java)?.endCall()
+                val ended = Build.VERSION.SDK_INT >= 28 &&
+                    s.checkSelfPermission(android.Manifest.permission.ANSWER_PHONE_CALLS) == android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                    runCatching { s.getSystemService(android.telecom.TelecomManager::class.java)?.endCall() == true }.getOrDefault(false)
+                if (!ended) {
+                    val a = callAction(listOf("נתק", "סיים", "סיום", "hang", "end", "decline"))
+                    if (a == null || !sendAction(a.actionIntent)) launch(callScreen)
+                }
             }
             menuOpen = false
             hide()
         })
-        @Suppress("DEPRECATION")
-        val speakerBtn = btn(R.drawable.ic_c_speaker, dark, false, if (own) null else callAction(listOf("רמקול", "speaker")), after = { b -> speaker = !speaker; setBtnOn(b, speaker) }) {
+        row.add(toggle(R.drawable.ic_c_speaker, listOf("רמקול", "speaker"), ::onSpeaker) {
             if (own) Calls.toggleSpeaker() else audio?.let { it.isSpeakerphoneOn = !it.isSpeakerphoneOn }
-        }
-        setBtnOn(speakerBtn, speaker)
-        row.add(speakerBtn)
+        })
         // הקשה על השם: חוזרים לגלולה הקטנה
         show("callmenu", 300, green, 6000, onTap = { menuOpen = false }) { _, left, right ->
             row.forEach { left.addView(it) }
@@ -490,6 +548,7 @@ object LivePill {
     fun callEnded() {
         callInfoKnown = false
         callName = null
+        callScreen = null
         callActions = emptyList()
         answeredAt = 0L
         dialSince = 0L

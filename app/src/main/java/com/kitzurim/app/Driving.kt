@@ -95,7 +95,7 @@ class ReplyListener : NotificationListenerService() {
             val dialing = listOf("מחייג", "מתקשר", "מחבר", "חיוג", "dialing", "calling", "connecting", "outgoing").any { status.contains(it) }
             val answered = counting || (status.isNotBlank() && !dialing)
             val at = if (n.`when` in 1..System.currentTimeMillis()) n.`when` else System.currentTimeMillis()
-            LivePill.ongoingCall(name, if (answered) at else null, n.actions?.toList() ?: emptyList())
+            LivePill.ongoingCall(name, if (answered) at else null, n.actions?.toList() ?: emptyList(), n.contentIntent)
             return
         }
 
