@@ -362,7 +362,7 @@ object LivePill {
         val bgDrawable = GradientDrawable().apply {
             cornerRadius = 40 * d
             // כמו הרקע של מסך השיחה (ניאון ירקרק)
-            colors = intArrayOf(Color.rgb(15, 42, 36), Color.rgb(6, 9, 12))
+            colors = intArrayOf(Color.rgb(24, 28, 40), Color.rgb(11, 13, 19))
             gradientType = GradientDrawable.RADIAL_GRADIENT
             gradientRadius = screenH * 0.6f
             setStroke((1.5f * d).toInt(), Color.TRANSPARENT)
@@ -396,7 +396,7 @@ object LivePill {
                     bgDrawable.colors = intArrayOf(GlassDrawable.TOP, GlassDrawable.TOP)
                     bgDrawable.setStroke((1.5f * d).toInt(), green)
                 } else {
-                    bgDrawable.colors = intArrayOf(Color.rgb(15, 42, 36), Color.rgb(6, 9, 12))
+                    bgDrawable.colors = intArrayOf(Color.rgb(24, 28, 40), Color.rgb(11, 13, 19))
                     bgDrawable.setStroke((1.5f * d).toInt(), Color.TRANSPARENT)
                 }
             }
@@ -623,7 +623,7 @@ object LivePill {
                 setColor(Color.rgb(40, 44, 56))
             }
             clipToOutline = true
-            layoutParams = LinearLayout.LayoutParams((60 * d).toInt(), (60 * d).toInt()).apply { marginEnd = (12 * d).toInt() }
+            layoutParams = LinearLayout.LayoutParams((46 * d).toInt(), (46 * d).toInt()).apply { marginEnd = (10 * d).toInt() }
         } else null
         cover?.let { row.addView(it) }
         val texts = LinearLayout(s).apply { orientation = LinearLayout.VERTICAL }
@@ -648,7 +648,12 @@ object LivePill {
                 dragging = on
                 if (on) main.removeCallbacks(autoClose)
             }).apply { seed = ((c.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: "").hashCode() % 100) / 10f }
-            box.addView(seek, LinearLayout.LayoutParams(-1, (30 * d).toInt()).apply { topMargin = (12 * d).toInt() })
+            // הגל לכל הרוחב, כמעט עד הקצוות של הנגן
+            box.addView(seek, LinearLayout.LayoutParams(-1, (30 * d).toInt()).apply {
+                topMargin = (12 * d).toInt()
+                marginStart = (-8 * d).toInt()
+                marginEnd = (-8 * d).toInt()
+            })
             val times = FrameLayout(s)
             pos = label(s, "0:00", 11f, grey)
             dur = label(s, "0:00", 11f, grey)

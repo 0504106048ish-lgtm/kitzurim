@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -265,6 +266,49 @@ private class CallAct(
 )
 
 @Composable
+private fun GlassBg(acc: Pair<Color, Color>, content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0B0D13))
+            .drawBehind {
+                // הילה בצבע הראשון למעלה בצד אחד, והשני למטה בצד השני
+                drawRect(
+                    Brush.radialGradient(
+                        listOf(acc.first.copy(alpha = 0.62f), Color.Transparent),
+                        center = androidx.compose.ui.geometry.Offset(size.width * 0.85f, 0f),
+                        radius = size.width * 1.15f,
+                    ),
+                )
+                drawRect(
+                    Brush.radialGradient(
+                        listOf(acc.second.copy(alpha = 0.5f), Color.Transparent),
+                        center = androidx.compose.ui.geometry.Offset(0f, size.height),
+                        radius = size.width * 1.1f,
+                    ),
+                )
+            },
+        content = content,
+    )
+}
+
+/** שני צבעים לאיש קשר: מהתמונה שלו, ואם אין תמונה אז זוג קבוע לפי השם (תמיד אותו צבע לאותו אדם) */
+private fun contactColors(name: String, photo: android.graphics.Bitmap?): Pair<Color, Color> {
+    artColors(photo)?.let { return Color(it.first) to Color(it.second) }
+    val pairs = listOf(
+        0xFF3A7BD5 to 0xFF6A4CFF,
+        0xFFFF6A88 to 0xFFFF9A62,
+        0xFF2AD49A to 0xFF1A7FA0,
+        0xFFFFB340 to 0xFFFF6A3D,
+        0xFFB388FF to 0xFF6A4CFF,
+        0xFF4FB3FF to 0xFF2AD49A,
+        0xFFE5484D to 0xFF8E44AD,
+    )
+    val p = pairs[(name.hashCode() and 0x7fffffff) % pairs.size]
+    return Color(p.first) to Color(p.second)
+}
+
+@Composable
 private fun NeonBg(content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
     Box(
         Modifier
@@ -430,7 +474,9 @@ private fun PreviewScreen(onEnable: () -> Unit, onClose: () -> Unit) {
 @Composable
 private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp = 70.dp) {
     var keypad by remember { mutableStateOf(false) }
-    NeonBg {
+    // זכוכית בצבעי איש הקשר: רקע כהה עם הילה בשני צבעים (מהתמונה שלו, או צבעים קבועים לפי השם)
+    val acc = remember(v.name, v.photo) { contactColors(v.name, v.photo) }
+    GlassBg(acc) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -439,24 +485,20 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
         ) {
             // מקום למעלה (בתצוגה המקדימה יותר, כי שם יש מסגרת הסבר)
             Spacer(Modifier.height(if (v.ringing) top + 20.dp else top))
-            if (v.ringing) Text(v.topText, color = Green, fontSize = 15.sp)
+            if (v.ringing) Text(v.topText, color = Color.White.copy(alpha = 0.8f), fontSize = 15.sp)
             Spacer(Modifier.height(if (v.ringing) 30.dp else 0.dp))
-            Avatar(v.name, v.photo, if (v.ringing) 118 else 92, breathing = v.ringing)
-            Spacer(Modifier.height(if (v.ringing) 30.dp else 20.dp))
-            Text(v.name, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2)
+            Avatar(v.name, v.photo, if (v.ringing) 118 else 104, breathing = v.ringing, acc = acc)
+            Spacer(Modifier.height(if (v.ringing) 30.dp else 22.dp))
+            Text(v.name, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2)
             if (v.number != null && v.number != v.name) {
-                Text(v.number, color = Soft, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                Text(v.number, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
             }
             if (!v.ringing) {
                 Text(
                     v.status,
-                    color = if (v.statusGreen) Green else Soft,
+                    color = Color.White.copy(alpha = 0.78f),
                     fontSize = 16.sp,
-                    modifier = Modifier.padding(top = 10.dp),
-                    // הזמן זוהר בירוק, כמו ניאון
-                    style = androidx.compose.ui.text.TextStyle(
-                        shadow = if (v.statusGreen) androidx.compose.ui.graphics.Shadow(Green, blurRadius = 18f) else null,
-                    ),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
             Spacer(Modifier.weight(1f))
@@ -505,8 +547,8 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                     }
                     Box(
                         Modifier
-                            .size(66.dp)
-                            .shadow(18.dp, CircleShape, ambientColor = Red, spotColor = Red)
+                            .size(70.dp)
+                            .shadow(16.dp, CircleShape, ambientColor = Red, spotColor = Red)
                             .clip(CircleShape)
                             .background(Red)
                             .clickable { act.hangup() },
@@ -523,7 +565,7 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
 
 /** תמונה או האות הראשונה, עם שתי טבעות ירוקות שנושמות כשמצלצלים */
 @Composable
-private fun Avatar(name: String, photo: android.graphics.Bitmap?, sizeDp: Int, breathing: Boolean) {
+private fun Avatar(name: String, photo: android.graphics.Bitmap?, sizeDp: Int, breathing: Boolean, acc: Pair<Color, Color>) {
     val t = rememberInfiniteTransition(label = "breath")
     val a by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "a")
     val b by t.animateFloat(1f, 0f, infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "b")
@@ -535,7 +577,7 @@ private fun Avatar(name: String, photo: android.graphics.Bitmap?, sizeDp: Int, b
                         .size((sizeDp + 26).dp)
                         .scale(1f + 0.14f * f)
                         .alpha(0.9f - 0.7f * f)
-                        .border(2.dp, Green, CircleShape),
+                        .border(2.dp, Color.White.copy(alpha = 0.7f), CircleShape),
                 )
             }
         }
@@ -549,18 +591,17 @@ private fun Avatar(name: String, photo: android.graphics.Bitmap?, sizeDp: Int, b
                 contentScale = ContentScale.Crop,
             )
         } else {
-            // ניאון: עיגול כהה עם מסגרת ירוקה זוהרת והאות בירוק (בלי גלים)
+            // עיגול בשני הצבעים של איש הקשר, עם האות בלבן וצל רך
             Box(
                 Modifier
                     .size(sizeDp.dp)
-                    .shadow(22.dp, CircleShape, ambientColor = Green, spotColor = Green)
+                    .shadow(20.dp, CircleShape)
                     .clip(CircleShape)
-                    .background(Brush.radialGradient(listOf(Green.copy(alpha = 0.22f), Color(0xFF07110E))))
-                    .border(2.dp, Green, CircleShape),
+                    .background(Brush.linearGradient(listOf(acc.first, acc.second))),
                 contentAlignment = Alignment.Center,
             ) {
                 val first = name.trim().firstOrNull { it.isLetterOrDigit() || it == '*' || it == '#' }?.toString() ?: "?"
-                Text(first, color = Green, fontSize = (sizeDp * 0.38f).sp, fontWeight = FontWeight.Bold)
+                Text(first, color = Color.White, fontSize = (sizeDp * 0.4f).sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -636,19 +677,23 @@ private fun SlideToAnswer(onAnswer: () -> Unit) {
 @Composable
 private fun RoundBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(84.dp)) {
-        // ניאון: עיגול שקוף עם מסגרת ירוקה וסמל ירוק; דלוק = מלא בירוק
+        // כפתור זכוכית: לבן שקוף עם ברק למעלה ומסגרת דקה; דלוק = לבן מלא וסמל כהה
         Box(
             Modifier
-                .size(62.dp)
+                .size(64.dp)
+                .shadow(10.dp, CircleShape)
                 .clip(CircleShape)
-                .background(if (on) Green else Green.copy(alpha = 0.06f))
-                .border(1.5.dp, Green.copy(alpha = if (on) 1f else 0.45f), CircleShape)
+                .background(
+                    if (on) Brush.verticalGradient(listOf(Color.White, Color(0xFFE3E6EE)))
+                    else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.08f))),
+                )
+                .border(1.dp, Color.White.copy(alpha = if (on) 0f else 0.22f), CircleShape)
                 .clickable { onClick() },
             contentAlignment = Alignment.Center,
         ) {
-            CallIcon(icon, if (on) Color.Black else Green, 26.dp)
+            CallIcon(icon, if (on) Color.Black else Color.White, 26.dp)
         }
-        Text(label, color = Soft, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp), maxLines = 1)
+        Text(label, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp), maxLines = 1)
     }
 }
 
