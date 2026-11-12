@@ -474,7 +474,7 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                 ) {
                     Text("✕  דחה", color = Red, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
-                Spacer(Modifier.height(46.dp))
+                Spacer(Modifier.height(84.dp)) // הכפתורים קצת יותר למעלה, נוח יותר לאגודל
             } else {
                 if (keypad) {
                     Keypad { ch -> act.dtmf(ch) }
@@ -515,7 +515,7 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                         CallIcon(CallIcons.phone, Color.White, 30.dp, rotate = 135f)
                     }
                 }
-                Spacer(Modifier.height(46.dp))
+                Spacer(Modifier.height(84.dp)) // הכפתורים קצת יותר למעלה, נוח יותר לאגודל
             }
         }
     }
