@@ -16,7 +16,7 @@ object Codes {
         RegexOption.IGNORE_CASE,
     )
     // 4 עד 8 ספרות (גם עם רווח או מקף באמצע, כמו 123-456), לא חלק ממספר ארוך יותר
-    private val number = Regex("(?<![\d+])(\d{3}[ -]\d{3}|\d{4,8})(?!\d)")
+    private val number = Regex("""(?<![\d+])(\d{3}[ -]\d{3}|\d{4,8})(?!\d)""")
     private val shown = HashMap<String, String>()
 
     /** מחזיר את הקוד אם ההתראה נראית כמו קוד אימות */
