@@ -1422,8 +1422,18 @@ object LivePill {
                     i = sb.indexOf("\n")
                 }
             }
-            longMarquee = MarqueeText(s, flat, 12.5f, if (longColor == Color.WHITE) Color.rgb(225, 230, 238) else longColor)
-            left.addView(longMarquee, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (4 * d).toInt() })
+            val col = if (longColor == Color.WHITE) Color.rgb(225, 230, 238) else longColor
+            val probe = android.text.TextPaint().apply { textSize = 12.5f * s.resources.displayMetrics.scaledDensity }
+            if (android.text.Layout.getDesiredWidth(flat, probe) + 10 * d <= maxSide) {
+                // קצר: נכנס בצד אחד, אז מחולק לשניים כמו הודעה קצרה (הטקסט משמאל לחור, הסמל מימין) ולא זז
+                left.addView(label(s, flat, 12.5f, col))
+                // הסמל או התמונה בקצה הימני, לא צמוד לחור
+                right.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            } else {
+                // ארוך: עובר לאורך כל הגלולה וזז פעם אחת עד הסוף
+                longMarquee = MarqueeText(s, flat, 12.5f, col)
+                left.addView(longMarquee, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (4 * d).toInt() })
+            }
         }
         fit(left, maxSide)
         fit(right, maxSide)
