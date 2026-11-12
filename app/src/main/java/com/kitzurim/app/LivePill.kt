@@ -1301,7 +1301,9 @@ object LivePill {
         // כל השאר: שורה אחת, קצת יותר גבוהה מהחור (לא כרטיס גבוה), כדי שהגלולה תהיה צמודה אליו
         val h = if (tight) max(hole * 0.85f + 2 * d, 24 * d).toInt() else max(hole + 12 * d, 30 * d).toInt()
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
-        val maxW = if (landscape) min(screenW - 2 * 68 * d, 380 * d).toInt() else (screenW - 2 * 68 * d).toInt()
+        // רחבה עד השעה ועד הסוללה (אפשר לכוון ב"גודל ומיקום"), כדי שלא יראו חתיכות של סמלים בצדדים
+        val margin = NotchPrefs.pillMargin(s) * d
+        val maxW = if (landscape) min(screenW - 2 * margin, 380 * d).toInt() else (screenW - 2 * margin).toInt()
         val gapW = hole + ((if (tight) 4 else 14) * d).toInt()
         // גלולת השיחה הקטנה: צמודה ככל האפשר (רק שניות וסמל)
         val compact = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
@@ -1379,7 +1381,8 @@ object LivePill {
         right.measure(wSpec, hSpec)
         var side = min(max(left.measuredWidth, right.measuredWidth) + ((if (compact) 1 else 6) * d).toInt(), maxSide)
         // נגן: תמיד ברוחב המלא (בין השעה לסוללה)
-        if (extra != null) side = maxSide
+        // נגן וכל הגלולות הפתוחות: תמיד ברוחב המלא, עד השעה והסוללה. רק הגלולות הקטנות (סימן שיחה, מוזיקה, ניווט) צמודות לתוכן
+        if (extra != null || !tight) side = maxSide
 
         // גובה הכרטיס לפי כמות הטקסט: כמה שורות שצריך (עד 3), ולא יותר
         var bodyH = 0

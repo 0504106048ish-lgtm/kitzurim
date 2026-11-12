@@ -326,6 +326,9 @@ object NotchPrefs {
     /** כמה גדול אזור הנגיעה מסביב לחור (dp) */
     fun zoneExtra(c: Context) = sp(c).getFloat("zone_extra", 14f)
     fun setZoneExtra(c: Context, v: Float) = sp(c).edit().putFloat("zone_extra", v).apply()
+    /** כמה מקום להשאיר מכל צד של הגלולה (בשביל השעה והסוללה). קטן יותר = גלולה רחבה יותר */
+    fun pillMargin(c: Context) = sp(c).getFloat("pill_margin", 60f)
+    fun setPillMargin(c: Context, v: Float) = sp(c).edit().putFloat("pill_margin", v).apply()
 
     /** מחזיר את המיקום, הגודל והעובי להתחלה */
     fun resetPosition(c: Context) = sp(c).edit()
