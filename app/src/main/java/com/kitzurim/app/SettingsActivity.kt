@@ -145,6 +145,37 @@ fun SettingsScreen(
                 }
             }
 
+            // אנדרואיד אוטו: להדליק או לכבות את העברת ההודעות לרכב
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    var car by remember { mutableStateOf(NotchPrefs.carMirror(ctx)) }
+                    var sms by remember { mutableStateOf(NotchPrefs.carSms(ctx)) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("🚗 אנדרואיד אוטו", fontWeight = FontWeight.Medium)
+                            Text(
+                                "הודעות וואטסאפ קופצות במסך הרכב, נקראות בקול, ואפשר לענות בקול",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = car, onCheckedChange = {
+                            car = it
+                            NotchPrefs.setCarMirror(ctx, it)
+                        })
+                    }
+                    if (car) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("📩 גם הודעות SMS", Modifier.weight(1f))
+                            Switch(checked = sms, onCheckedChange = {
+                                sms = it
+                                NotchPrefs.setCarSms(ctx, it)
+                            })
+                        }
+                    }
+                }
+            }
+
             // עדכונים, מה חדש, ופרטים על האפליקציה
             AboutSection()
         }
