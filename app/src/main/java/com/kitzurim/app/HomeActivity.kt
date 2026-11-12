@@ -354,7 +354,13 @@ fun HomeScreen(resumes: Int) {
                                 }
                             }
                         }
-                        SwitchLine("👆 הקשה על העיגול הדלוק מראה שוב את ההודעה האחרונה שבגללה הוא נדלק", NotchPrefs.ringTapMsg(ctx)) {
+                        Text(
+                            "כשמגיעה הודעה, העיגול סביב המצלמה נדלק בצבע של האפליקציה. פספסת את ההודעה? כשהמתג הזה דלוק, הקשה על העיגול הדלוק מראה אותה שוב.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp),
+                        )
+                        PillLine("👆 הקשה על העיגול הדלוק מראה שוב את ההודעה שפספסת", NotchPrefs.ringTapMsg(ctx), "long") {
                             NotchPrefs.setRingTapMsg(ctx, it); NotchOverlay.refresh(); refresh++
                         }
                     }
