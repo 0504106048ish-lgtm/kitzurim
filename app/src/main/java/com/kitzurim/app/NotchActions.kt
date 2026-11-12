@@ -382,6 +382,22 @@ object NotchPrefs {
     /** גם הודעות SMS לרכב (כבוי: אפליקציית ההודעות כבר שולחת אותן לרכב לבד) */
     fun carSms(c: Context) = sp(c).getBoolean("car_sms", false)
     fun setCarSms(c: Context, v: Boolean) = sp(c).edit().putBoolean("car_sms", v).apply()
+
+    /** האפליקציות שאפשר להעביר מהן הודעות לרכב, עם שם בעברית */
+    val CAR_APPS = listOf(
+        "com.whatsapp" to "וואטסאפ",
+        "com.whatsapp.w4b" to "וואטסאפ עסקי",
+        "org.telegram.messenger" to "טלגרם",
+        "com.facebook.orca" to "מסנג'ר",
+        "com.instagram.android" to "אינסטגרם",
+        "com.samsung.android.messaging" to "הודעות (SMS)",
+        "com.google.android.apps.messaging" to "הודעות של גוגל (SMS)",
+    )
+
+    /** האם להעביר לרכב הודעות מהאפליקציה הזו (צ'אט דלוק כברירת מחדל, SMS לפי המתג הישן) */
+    fun carApp(c: Context, pkg: String): Boolean =
+        sp(c).getBoolean("car_app_$pkg", if (pkg.contains("messaging")) carSms(c) else true)
+    fun setCarApp(c: Context, pkg: String, v: Boolean) = sp(c).edit().putBoolean("car_app_$pkg", v).apply()
     /** מוזיקה כל הזמן בעיגול (תמונת האלבום וגלי צליל) */
     fun pillMusicLive(c: Context) = sp(c).getBoolean("pill_music_live", true)
     fun setPillMusicLive(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_music_live", v).apply()

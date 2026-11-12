@@ -167,7 +167,7 @@ class ReplyListener : NotificationListenerService() {
         val m = LastMsg(sender, text, color, n.contentIntent, reply, read, sbn.key)
         // אנדרואיד אוטו: מחוברים לרכב? ההודעה עוברת גם למסך הרכב (הקראה ותשובה בקול)
         // (הודעות SMS כבר מגיעות לרכב לבד, אז רק אפליקציות צ'אט, כדי שלא יהיו פעמיים)
-        if (sbn.packageName in carApps || (NotchPrefs.carSms(this) && sbn.packageName in smsApps)) {
+        if ((sbn.packageName in carApps || sbn.packageName in smsApps) && NotchPrefs.carApp(this, sbn.packageName)) {
             val group = style?.isGroupConversation == true
             val who = last?.person?.name?.toString()?.takeIf { it.isNotBlank() } ?: sender
             CarMirror.mirror(this, sbn.key, who, text, if (group) (style?.conversationTitle?.toString() ?: sender) else null, reply, read)

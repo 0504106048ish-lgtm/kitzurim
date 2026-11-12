@@ -149,7 +149,6 @@ fun SettingsScreen(
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     var car by remember { mutableStateOf(NotchPrefs.carMirror(ctx)) }
-                    var sms by remember { mutableStateOf(NotchPrefs.carSms(ctx)) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("🚗 אנדרואיד אוטו", fontWeight = FontWeight.Medium)
@@ -165,13 +164,25 @@ fun SettingsScreen(
                         })
                     }
                     if (car) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("📩 גם הודעות SMS", Modifier.weight(1f))
-                            Switch(checked = sms, onCheckedChange = {
-                                sms = it
-                                NotchPrefs.setCarSms(ctx, it)
-                            })
-                        }
+                        // בוחרים מאילו אפליקציות ההודעות עוברות לרכב (רק מה שמותקן בטלפון)
+                        Text("מאילו אפליקציות:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        NotchPrefs.CAR_APPS
+                            .filter { (pkg, _) -> ctx.packageManager.getLaunchIntentForPackage(pkg) != null }
+                            .forEach { (pkg, name) ->
+                                var on by remember { mutableStateOf(NotchPrefs.carApp(ctx, pkg)) }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(name, Modifier.weight(1f))
+                                    Switch(checked = on, onCheckedChange = {
+                                        on = it
+                                        NotchPrefs.setCarApp(ctx, pkg, it)
+                                    })
+                                }
+                            }
+                        Text(
+                            "הודעות SMS בדרך כלל מגיעות לרכב לבד. מדליקים אותן כאן רק אם הן לא קופצות ברכב.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
