@@ -11,8 +11,8 @@
 
     <ImageView
         android:id="@+id/n_av"
-        android:layout_width="40dp"
-        android:layout_height="40dp" />
+        android:layout_width="42dp"
+        android:layout_height="42dp" />
 
     <LinearLayout
         android:layout_width="0dp"
@@ -50,33 +50,31 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <TextView
+    <!-- עיגולים רכים עם סמלים בקו דק; הנתק אדום ומוארך -->
+    <ImageView
         android:id="@+id/n_b1"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
-        android:layout_marginStart="6dp"
-        android:background="@drawable/nb_dark"
-        android:gravity="center"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp" />
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/nb_soft_light"
+        android:padding="10dp"
+        android:scaleType="fitCenter" />
 
-    <TextView
+    <ImageView
         android:id="@+id/n_b2"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
-        android:layout_marginStart="6dp"
-        android:background="@drawable/nb_dark"
-        android:gravity="center"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp" />
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/nb_soft_light"
+        android:padding="10dp"
+        android:scaleType="fitCenter" />
 
-    <TextView
+    <ImageView
         android:id="@+id/n_b3"
-        android:layout_width="50dp"
-        android:layout_height="38dp"
-        android:layout_marginStart="6dp"
+        android:layout_width="56dp"
+        android:layout_height="42dp"
+        android:layout_marginStart="8dp"
         android:background="@drawable/nb_red"
-        android:gravity="center"
-        android:textColor="#FFFFFF"
-        android:textSize="16sp" />
+        android:padding="10dp"
+        android:scaleType="fitCenter" />
 </LinearLayout>

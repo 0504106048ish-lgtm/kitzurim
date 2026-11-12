@@ -265,28 +265,43 @@ object CallNotif {
             } else {
                 v.setTextViewText(R.id.n_state, if (ringing) "שיחה נכנסת" else if (st == Call.STATE_HOLDING) "בהמתנה" else "מחייג…")
             }
+            // עיגולים רכים: הצבעים לפי מצב הטלפון (בהיר או כהה), כדי שייראו טוב בווילון בשני המצבים
+            val night = (ctx.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val softBg = if (night) R.drawable.nb_soft_dark else R.drawable.nb_soft_light
+            val onBg = if (night) R.drawable.nb_on_dark else R.drawable.nb_on_light
+            val softIcon = if (night) android.graphics.Color.rgb(233, 236, 242) else android.graphics.Color.rgb(42, 47, 58)
+            val onIcon = if (night) android.graphics.Color.rgb(17, 17, 17) else android.graphics.Color.WHITE
+            fun soft(id: Int, icon: Int, on: Boolean) {
+                v.setImageViewResource(id, icon)
+                v.setInt(id, "setBackgroundResource", if (on) onBg else softBg)
+                v.setInt(id, "setColorFilter", if (on) onIcon else softIcon)
+            }
+            fun solid(id: Int, icon: Int, bg: Int) {
+                v.setImageViewResource(id, icon)
+                v.setInt(id, "setBackgroundResource", bg)
+                v.setInt(id, "setColorFilter", android.graphics.Color.WHITE)
+            }
             if (ringing) {
                 // שיחה נכנסת: דחה באדום וענה בירוק
                 v.setViewVisibility(R.id.n_b1, android.view.View.GONE)
-                v.setTextViewText(R.id.n_b2, "✕")
-                v.setInt(R.id.n_b2, "setBackgroundResource", R.drawable.nb_red)
+                solid(R.id.n_b2, R.drawable.ic_c_hang, R.drawable.nb_red)
                 v.setOnClickPendingIntent(R.id.n_b2, pi(ctx, "decline", 2))
-                v.setTextViewText(R.id.n_b3, "✆")
-                v.setInt(R.id.n_b3, "setBackgroundResource", R.drawable.nb_green)
+                solid(R.id.n_b3, R.drawable.ic_c_phone, R.drawable.nb_green)
                 v.setOnClickPendingIntent(R.id.n_b3, pi(ctx, "answer", 3))
             } else {
                 val speaker = Calls.route == CallAudioState.ROUTE_SPEAKER
-                v.setTextViewText(R.id.n_b1, "🎙︎")
-                v.setInt(R.id.n_b1, "setBackgroundResource", if (Calls.muted) R.drawable.nb_on else R.drawable.nb_dark)
-                v.setTextColor(R.id.n_b1, if (Calls.muted) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                soft(R.id.n_b1, R.drawable.ic_c_mute, Calls.muted)
                 v.setOnClickPendingIntent(R.id.n_b1, pi(ctx, "mute", 4))
-                v.setTextViewText(R.id.n_b2, "🔊︎")
-                v.setInt(R.id.n_b2, "setBackgroundResource", if (speaker) R.drawable.nb_on else R.drawable.nb_dark)
-                v.setTextColor(R.id.n_b2, if (speaker) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                soft(R.id.n_b2, R.drawable.ic_c_speaker, speaker)
                 v.setOnClickPendingIntent(R.id.n_b2, pi(ctx, "speaker", 5))
-                v.setTextViewText(R.id.n_b3, "✆")
+                solid(R.id.n_b3, R.drawable.ic_c_hang, R.drawable.nb_red)
                 v.setOnClickPendingIntent(R.id.n_b3, pi(ctx, "hangup", 6))
             }
+            // הזמן בירוק כהה יותר במצב בהיר, כדי שיהיה קריא על רקע לבהיר
+            val timeColor = if (night) android.graphics.Color.rgb(42, 212, 154) else android.graphics.Color.rgb(20, 168, 116)
+            v.setTextColor(R.id.n_state, timeColor)
+            v.setTextColor(R.id.n_timer, timeColor)
             base()
                 .setStyle(NotificationCompat.DecoratedCustomViewStyle())
                 .setCustomContentView(v)
