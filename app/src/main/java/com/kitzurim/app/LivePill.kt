@@ -567,7 +567,11 @@ object LivePill {
         main.postDelayed(autoClose, PLAYER_MS)
     }
 
-    fun showPlayer(c: MediaController) {
+    /** demo: בהדמיה מראים רק חלק אחד של הנגן (פס, קודם/הבא, תמונה), כדי שיראו מה כל מתג מוסיף */
+    fun showPlayer(c: MediaController, demo: Triple<Boolean, Boolean, Boolean>? = null) {
+        val optProgress = demo?.first ?: NotchPrefs.playerProgress(NotchOverlay.service ?: return)
+        val optSkip = demo?.second ?: NotchPrefs.playerSkip(NotchOverlay.service ?: return)
+        val optCover = demo?.third ?: NotchPrefs.playerCover(NotchOverlay.service ?: return)
         val s = NotchOverlay.service ?: return
         if (inCallPill()) return
         val d = s.resources.displayMetrics.density
@@ -592,7 +596,7 @@ object LivePill {
                 hide()
             }
         }
-        val cover = if (NotchPrefs.playerCover(s)) ImageView(s).apply {
+        val cover = if (optCover) ImageView(s).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
                 cornerRadius = 8 * d
@@ -614,7 +618,7 @@ object LivePill {
         var seek: SeekBar? = null
         var pos: TextView? = null
         var dur: TextView? = null
-        if (NotchPrefs.playerProgress(s)) {
+        if (optProgress) {
             seek = SeekBar(s).apply {
                 max = 1000
                 progressTintList = ColorStateList.valueOf(purple)
@@ -669,7 +673,7 @@ object LivePill {
                 main.postDelayed({ updatePlayer() }, 250)
             }
         }
-        val skip = NotchPrefs.playerSkip(s)
+        val skip = optSkip
         if (skip) controls.addView(ctl("⏮︎", 40, false) { runCatching { c.transportControls.skipToPrevious() } })
         val play = ctl("❚❚", 46, true) {
             runCatching {
@@ -1661,11 +1665,18 @@ object LivePill {
                         "buds" -> showEarbuds("Galaxy Buds", 80)
                         "download" -> showDownloaded("סידור.pdf", null)
                         "shot" -> showScreenshot(null, android.net.Uri.EMPTY)
-                        "player" -> {
+                        "player", "player_progress", "player_skip", "player_cover" -> {
                             // הנגן צריך שיר אמיתי שמתנגן; אם אין, אומרים את זה בגלולה עצמה
                             val c = NotchOverlay.playingController(s)
                             if (kind != null) removeNow()
-                            if (c != null) showPlayer(c)
+                            // בכל הדמיה רק מה שהמתג שלה מוסיף, כדי לראות את ההבדל: נגן בסיסי, או רק הפס, רק קודם/הבא, רק התמונה
+                            val only = when (type) {
+                                "player_progress" -> Triple(true, false, false)
+                                "player_skip" -> Triple(false, true, false)
+                                "player_cover" -> Triple(false, false, true)
+                                else -> Triple(false, false, false)
+                            }
+                            if (c != null) showPlayer(c, only)
                             else {
                                 val purple = NotchPrefs.tint(s, "music", Color.rgb(179, 136, 255))
                                 show("music", 240, purple, 3000, onTap = null, long = "תפעיל שיר, ואז ▶ יראה את הנגן") { ctx, _, right ->

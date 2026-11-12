@@ -592,13 +592,13 @@ fun HomeScreen(resumes: Int) {
                     }
                     if (NotchPrefs.musicTap(ctx)) {
                         Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            PillLine("בנגן: פס שמראה איפה השיר והזמן", NotchPrefs.playerProgress(ctx), "player") {
+                            PillLine("בנגן: פס שמראה איפה השיר והזמן", NotchPrefs.playerProgress(ctx), "player_progress") {
                                 NotchPrefs.setPlayerProgress(ctx, it); refresh++
                             }
-                            PillLine("בנגן: כפתורי שיר קודם ושיר הבא", NotchPrefs.playerSkip(ctx), "player") {
+                            PillLine("בנגן: כפתורי שיר קודם ושיר הבא", NotchPrefs.playerSkip(ctx), "player_skip") {
                                 NotchPrefs.setPlayerSkip(ctx, it); refresh++
                             }
-                            PillLine("בנגן: תמונת השיר", NotchPrefs.playerCover(ctx), "player") {
+                            PillLine("בנגן: תמונת השיר", NotchPrefs.playerCover(ctx), "player_cover") {
                                 NotchPrefs.setPlayerCover(ctx, it); refresh++
                             }
                         }
