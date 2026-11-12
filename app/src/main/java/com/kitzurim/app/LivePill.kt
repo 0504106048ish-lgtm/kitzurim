@@ -1426,7 +1426,7 @@ object LivePill {
             val probe = android.text.TextPaint().apply { textSize = 12.5f * s.resources.displayMetrics.scaledDensity }
             if (android.text.Layout.getDesiredWidth(flat, probe) + 10 * d <= maxSide) {
                 // קצר: נכנס בצד אחד, אז מחולק לשניים כמו הודעה קצרה (הטקסט משמאל לחור, הסמל מימין) ולא זז
-                left.addView(label(s, flat, 12.5f, col))
+                left.addView(label(s, flat, 12.5f, col).apply { textDirection = View.TEXT_DIRECTION_RTL })
                 // הסמל או התמונה בקצה הימני, לא צמוד לחור
                 right.gravity = Gravity.END or Gravity.CENTER_VERTICAL
             } else {
@@ -1913,7 +1913,8 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
     private val textW = kotlin.math.ceil(android.text.Layout.getDesiredWidth(text, paint)).toInt() + 2
     private val layout: android.text.StaticLayout =
         android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, textW)
-            .setTextDirection(android.text.TextDirectionHeuristics.FIRSTSTRONG_RTL)
+            // תמיד מימין לשמאל: גם כשהשם או השיר באנגלית, הדבר הראשון (השם) מימין וההמשך משמאל
+            .setTextDirection(android.text.TextDirectionHeuristics.RTL)
             .setAlignment(android.text.Layout.Alignment.ALIGN_NORMAL)
             .setMaxLines(1)
             .build()
