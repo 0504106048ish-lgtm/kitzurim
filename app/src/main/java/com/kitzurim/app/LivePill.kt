@@ -937,9 +937,9 @@ object LivePill {
 
         override fun onDraw(c: android.graphics.Canvas) {
             if (progress <= 0f) return
-            val l = target.left + sw / 2
+            val l = target.left + target.translationX + sw / 2
             val t = target.top + sw / 2
-            val r = target.right - sw / 2
+            val r = target.right + target.translationX - sw / 2
             val b = target.bottom - sw / 2
             val rad = (b - t) / 2f
             if (r - l < 2 * rad) return
@@ -1332,7 +1332,7 @@ object LivePill {
         // גלולות קטנות (ניווט, מוזיקה, זמן שיחה): דקות כמו הסימן של ספוטיפיי בשורת המצב, צמודות לחור
         val tight = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
         // כל השאר: שורה אחת, קצת יותר גבוהה מהחור (לא כרטיס גבוה), כדי שהגלולה תהיה צמודה אליו
-        val h = if (tight) max(hole * 0.85f + 2 * d, 24 * d).toInt() else max(hole + 12 * d, 30 * d).toInt()
+        val h = if (tight) max(hole * 0.85f + 2 * d, 22 * d).toInt() else max(hole + 12 * d, 30 * d).toInt()
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
         // רחבה עד השעה ועד הסוללה (אפשר לכוון ב"גודל ומיקום"), כדי שלא יראו חתיכות של סמלים בצדדים
         val margin = NotchPrefs.pillMargin(s) * d
@@ -1416,6 +1416,11 @@ object LivePill {
         // נגן: תמיד ברוחב המלא (בין השעה לסוללה)
         // נגן וכל הגלולות הפתוחות: תמיד ברוחב המלא, עד השעה והסוללה. רק הגלולות הקטנות (סימן שיחה, מוזיקה, ניווט) צמודות לתוכן
         if (extra != null || !tight) side = maxSide
+        // גלולות קטנות: כל צד ברוחב שלו (בגודל המלל), והגלולה זזה קצת הצידה כדי שהחור יישב בדיוק ברווח שבאמצע
+        val small = tight && extra == null
+        val leftW = if (small) min(left.measuredWidth + (2 * d).toInt(), maxSide) else side
+        val rightW = if (small) min(right.measuredWidth + (2 * d).toInt(), maxSide) else side
+        val shift = (rightW - leftW) / 2f
 
         // גובה הכרטיס לפי כמות הטקסט: כמה שורות שצריך (עד 3), ולא יותר
         var bodyH = 0
@@ -1445,7 +1450,7 @@ object LivePill {
             extraH = extra.measuredHeight + (6 * d).toInt()
             extra.alpha = 0f
         }
-        val targetW = max(2 * side + gapW + 2 * padW, collapsedW)
+        val targetW = max(leftW + gapW + rightW + 2 * padW, collapsedW)
         val targetH = h + bodyH + extraH
         if (longMarquee != null) {
             // טקסט שזז: עובר לאורך כל הגלולה (גם מתחת לחור), והסמל או התמונה בקצה הימני
@@ -1453,15 +1458,15 @@ object LivePill {
             p.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
             p.addView(right, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.MATCH_PARENT))
         } else {
-            p.addView(left, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
+            p.addView(left, LinearLayout.LayoutParams(leftW, LinearLayout.LayoutParams.MATCH_PARENT))
             p.addView(View(s), LinearLayout.LayoutParams(gapW, 1))
-            p.addView(right, LinearLayout.LayoutParams(side, LinearLayout.LayoutParams.MATCH_PARENT))
+            p.addView(right, LinearLayout.LayoutParams(rightW, LinearLayout.LayoutParams.MATCH_PARENT))
         }
 
         // החלון רק קצת גדול מהגלולה (מקום לקפיצה של המתיחה), ושקוף: רואים מה שמתחת.
         // לא לחרוג מלמעלה: אם החור קרוב לקצה, הגלולה יורדת קצת
         val pillTop = max(0, (cy - h / 2f).toInt())
-        val winW = min((targetW * 1.12f).toInt(), screenW)
+        val winW = min((targetW * 1.12f + 2 * kotlin.math.abs(shift)).toInt(), screenW)
         if (expanded) (b.background as GradientDrawable).cornerRadius = min(h / 2f, 20 * d)
         root.addView(
             b,
@@ -1471,6 +1476,8 @@ object LivePill {
             p,
             FrameLayout.LayoutParams(targetW, h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
         )
+        b.translationX = shift
+        p.translationX = shift
         if (body != null) {
             root.addView(
                 body,
