@@ -1455,7 +1455,12 @@ object LivePill {
         // באפליקציה שבה קיצורים כבוי: רק שיחה עוברת
         if (newKind !in CALL_KINDS && (NotchOverlay.offHere() || NotchOverlay.pillBlocked(newKind))) return
         if (kind == "callmenu" && newKind != "callmenu") menuOpen = false
-        val instant = instantNext
+        // מסך נעול או כבוי: בלי אנימציה, מופיעה מיד (שם האנימציה לפעמים נתקעת והטקסט לא נראה)
+        val quiet = runCatching {
+            s.getSystemService(android.os.PowerManager::class.java)?.isInteractive == false ||
+                s.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+        }.getOrDefault(false)
+        val instant = instantNext || quiet
         main.removeCallbacks(autoClose)
         removeNow()
         timerText = null
@@ -1693,6 +1698,23 @@ object LivePill {
         body?.animate()?.alpha(1f)?.setStartDelay(340)?.setDuration(180)?.start()
         extra?.animate()?.alpha(1f)?.setStartDelay(360)?.setDuration(180)?.start()
         this.extra = extra
+        if (quiet) {
+            // מסך נעול: מציגים מיד, בלי לחכות לאנימציה
+            left.animate().cancel(); right.animate().cancel()
+            left.alpha = 1f; right.alpha = 1f
+            extra?.animate()?.cancel(); extra?.alpha = 1f
+            val blp = b.layoutParams
+            blp.width = targetW; blp.height = targetH; b.layoutParams = blp
+        }
+        // מסך נעול או כבוי: אנדרואיד לפעמים לא מריץ את האנימציה, והטקסט נשאר שקוף (שחור על שחור).
+        // ליתר ביטחון: אחרי רגע הכול מוצג בכל מקרה, ברוחב המלא
+        main.postDelayed({
+            if (window !== root) return@postDelayed
+            left.animate().cancel(); right.animate().cancel(); extra?.animate()?.cancel()
+            left.alpha = 1f; right.alpha = 1f; extra?.alpha = 1f
+            val blp = b.layoutParams
+            if (blp.width < targetW) { blp.width = targetW; blp.height = targetH; b.layoutParams = blp }
+        }, 750)
 
         if (autoMs != null) main.postDelayed(autoClose, autoMs)
         // טקסט שזז: נסגרת רק אחרי שסיים לזוז, ועוד שנייה לקרוא את הסוף
