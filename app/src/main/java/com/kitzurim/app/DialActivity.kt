@@ -455,7 +455,7 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
                     2 -> contacts.filter { it.starred }.distinctBy { it.name }
                     else -> missed
                 }
-                // חיפוש: תמיד בכל מקום, לא רק בלשונית הפתוחה. קודם אנשי קשר, ואחר כך מספרים מהשיחות האחרונות שאינם אנשי קשר.
+                // חיפוש: תמיד בכל מקום, לא רק בלשונית הפתוחה. קודם שיחות אחרונות, ואחר כך אנשי קשר.
                 // שם, מספר, וגם ספרות לפי האותיות שעל המקשים (כמו במקלדת)
                 val searching = q.isNotBlank()
                 val shown = if (!searching) base else remember(q, contacts, recents) {
@@ -464,11 +464,13 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
                     fun hit(e: PhoneEntry) = e.name.contains(q.trim(), ignoreCase = true) ||
                         (digits.length >= 2 && e.number.filter { c -> c.isDigit() }.contains(digits))
                     val smart = if (onlyDigits && digits.isNotEmpty()) smartSearch(digits, contacts, 50) else emptyList()
-                    val people = (contacts.filter { hit(it) } + smart).distinctBy { it.number.filter(Char::isDigit) }
-                    val known = people.map { it.number.filter(Char::isDigit) }.toSet()
-                    val others = recents.filter { hit(it) && it.number.filter(Char::isDigit) !in known }
-                        .distinctBy { it.number.filter(Char::isDigit) }
-                    people + others
+                    // קודם השיחות האחרונות (מהחדשה לישנה), ואחר כך אנשי קשר שלא הופיעו בהן
+                    fun key(e: PhoneEntry) = e.number.filter(Char::isDigit)
+                    val smartRecent = if (onlyDigits && digits.isNotEmpty()) smartSearch(digits, recents, 500).map { key(it) }.toSet() else emptySet()
+                    val recent = recents.filter { hit(it) || key(it) in smartRecent }.distinctBy { key(it) }
+                    val seen = recent.map { key(it) }.toSet()
+                    val people = (contacts.filter { hit(it) } + smart).distinctBy { key(it) }.filter { key(it) !in seen }
+                    recent + people
                 }
                 val empty = if (searching) "לא נמצא כלום" else when (tab) {
                     0 -> "אין עדיין שיחות"
@@ -477,7 +479,7 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
                     else -> "אין שיחות שלא נענו 👍"
                 }
                 Box(Modifier.weight(1f)) {
-                    EntryList(shown, empty, showTime = !searching && (tab == 0 || tab == 3), recents = recents, onCall = onCall)
+                    EntryList(shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall)
                 }
             }
             // כפתור המקלדת, בפינה
@@ -736,7 +738,8 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        val sub = if (showTime) {
+                        // שיחה (יש לה זמן): סוג השיחה והזמן. איש קשר: המספר
+                        val sub = if (showTime && e.date > 0) {
                             val kind = when (e.type) {
                                 CallLog.Calls.INCOMING_TYPE -> "↙ נכנסת"
                                 CallLog.Calls.OUTGOING_TYPE -> "↗ יוצאת"
