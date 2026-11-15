@@ -175,7 +175,9 @@ class KitzInCallService : InCallService() {
         runCatching {
             startActivity(
                 Intent(this, CallActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                // נכנס בהדרגה, מעל העיגול שהחייגן פתח (מעבר רציף מהחייגן לשיחה)
+                android.app.ActivityOptions.makeCustomAnimation(this, android.R.anim.fade_in, android.R.anim.fade_out).toBundle(),
             )
         }
     }

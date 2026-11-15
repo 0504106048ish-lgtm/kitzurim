@@ -42,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
@@ -142,11 +144,27 @@ class DialActivity : ComponentActivity() {
         neonBars()
         askPermissions()
         start = intent?.data?.schemeSpecificPart ?: ""
+        ui = true
         setContent {
             KitzurimTheme {
-                // מספר חדש (מקישור או מאפליקציה אחרת): החייגן נפתח מחדש עם המספר
-                androidx.compose.runtime.key(start) {
-                    DialerUi(start, reload) { call(it) }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        // זוכרים איפה נגעו לאחרונה: משם העיגול של המעבר למסך השיחה יוצא
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                    e.changes.firstOrNull()?.let { lastTouch = it.position }
+                                }
+                            }
+                        },
+                ) {
+                    // מספר חדש (מקישור או מאפליקציה אחרת): החייגן נפתח מחדש עם המספר
+                    androidx.compose.runtime.key(start) {
+                        DialerUi(start, reload) { call(it) }
+                    }
+                    CallReveal(reveal)
                 }
             }
         }
@@ -181,14 +199,40 @@ class DialActivity : ComponentActivity() {
         if (need.isNotEmpty()) requestPermissions(need.toTypedArray(), 8)
     }
 
+    // המעבר למסך השיחה: עיגול שגדל מהמקום שנגעו בו והופך לרקע של מסך השיחה
+    private var ui = false
+    private var lastTouch: androidx.compose.ui.geometry.Offset? = null
+    private var reveal by mutableStateOf<Reveal?>(null)
+
     private fun call(number: String) {
-        if (number.isBlank()) return
-        if (!PhoneBook.call(this, number)) {
+        if (number.isBlank() || reveal != null) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
             pending = number
             requestPermissions(arrayOf(Manifest.permission.CALL_PHONE), 9)
             return
         }
-        finish()
+        // מהווידג'ט (אין חייגן על המסך): מחייגים ישר
+        if (!ui) {
+            if (PhoneBook.call(this, number)) finish()
+            return
+        }
+        // אותם צבעים כמו במסך השיחה, כדי שהמעבר יהיה רציף
+        val name = Calls.lookup(this, number)?.first ?: number
+        val (a, b) = dialColors(name)
+        val dm = resources.displayMetrics
+        reveal = Reveal(lastTouch ?: androidx.compose.ui.geometry.Offset(dm.widthPixels / 2f, dm.heightPixels * 0.8f), a, b)
+        // מחייגים כשהעיגול כמעט מילא את המסך, ומסך השיחה נפתח מעליו בהדרגה
+        window.decorView.postDelayed({
+            if (!PhoneBook.call(this, number)) {
+                reveal = null
+                return@postDelayed
+            }
+            window.decorView.postDelayed({
+                finish()
+                @Suppress("DEPRECATION")
+                overridePendingTransition(0, 0)
+            }, 900)
+        }, 380)
     }
 
     @Deprecated("Deprecated in Java")
@@ -413,6 +457,55 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
                     .clickable { keypad = true },
                 contentAlignment = Alignment.Center,
             ) { Text("⌨︎", color = Color(0xFF04261A), fontSize = 24.sp) }
+        }
+    }
+}
+
+/** המעבר למסך השיחה: מאיפה העיגול יוצא, ובאיזה צבעים (של איש הקשר) */
+private class Reveal(val at: androidx.compose.ui.geometry.Offset, val a: Color, val b: Color)
+
+/**
+ * עיגול שגדל מהכפתור שנלחץ עד שהוא ממלא את המסך, וכבר נראה כמו הרקע של מסך השיחה
+ * (כהה עם הילות בצבעי איש הקשר), עם טבעת ירוקה דקה בקצה שנעלמת. ככה החייגן "נפתח" לתוך מסך השיחה
+ */
+@Composable
+private fun CallReveal(r: Reveal?) {
+    if (r == null) return
+    val p = remember(r) { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(r) {
+        p.animateTo(1f, androidx.compose.animation.core.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        val c = r.at
+        val far = kotlin.math.hypot(kotlin.math.max(c.x, size.width - c.x), kotlin.math.max(c.y, size.height - c.y))
+        val rad = far * p.value
+        val clip = androidx.compose.ui.graphics.Path().apply {
+            addOval(androidx.compose.ui.geometry.Rect(c, rad.coerceAtLeast(0.1f)))
+        }
+        clipPath(clip) {
+            drawRect(Color(0xFF0B0D13))
+            drawRect(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    listOf(r.a.copy(alpha = 0.62f), Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(size.width * 0.85f, 0f),
+                    radius = size.width * 1.15f,
+                ),
+            )
+            drawRect(
+                androidx.compose.ui.graphics.Brush.radialGradient(
+                    listOf(r.b.copy(alpha = 0.5f), Color.Transparent),
+                    center = androidx.compose.ui.geometry.Offset(0f, size.height),
+                    radius = size.width * 1.1f,
+                ),
+            )
+        }
+        if (p.value < 1f) {
+            drawCircle(
+                G.copy(alpha = 1f - p.value),
+                radius = rad,
+                center = c,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(3.dp.toPx()),
+            )
         }
     }
 }
