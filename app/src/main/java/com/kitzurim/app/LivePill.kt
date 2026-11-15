@@ -1563,11 +1563,15 @@ object LivePill {
         var side = min(max(left.measuredWidth, right.measuredWidth) + ((if (compact) 1 else 6) * d).toInt(), maxSide)
         // נגן: תמיד ברוחב המלא (בין השעה לסוללה)
         // נגן וכל הגלולות הפתוחות: תמיד ברוחב המלא, עד השעה והסוללה. רק הגלולות הקטנות (סימן שיחה, מוזיקה, ניווט) צמודות לתוכן
-        if (extra != null || !tight) side = maxSide
+        // רק הנגן וטקסט ארוך שזז ברוחב המלא. כל דבר קטן (בלוטוס, טעינה, הודעה קצרה...) בגודל של מה שיש בו
+        if (extra != null || longMarquee != null) side = maxSide
         // גלולות קטנות: כל צד ברוחב שלו (בגודל המלל), והגלולה זזה קצת הצידה כדי שהחור יישב בדיוק ברווח שבאמצע
-        val small = tight && extra == null
-        val leftW = if (small) min(left.measuredWidth + (2 * d).toInt(), maxSide) else side
-        val rightW = if (small) min(right.measuredWidth + (2 * d).toInt(), maxSide) else side
+        val small = extra == null && longMarquee == null
+        // קצת אוויר מסביב לתוכן (בגלולות הזעירות, כמו סימן השיחה, כמעט בלי)
+        val air = ((if (tight) 2 else 8) * d).toInt()
+        val minSide = if (tight) 0 else (16 * d).toInt()
+        val leftW = if (small) min(max(left.measuredWidth + air, minSide), maxSide) else side
+        val rightW = if (small) min(max(right.measuredWidth + air, minSide), maxSide) else side
         val shift = (rightW - leftW) / 2f
 
         // גובה הכרטיס לפי כמות הטקסט: כמה שורות שצריך (עד 3), ולא יותר
