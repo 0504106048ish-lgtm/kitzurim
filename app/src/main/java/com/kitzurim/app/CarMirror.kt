@@ -35,14 +35,22 @@ object CarMirror {
 
     /** האם הטלפון מחובר עכשיו לאנדרואיד אוטו */
     fun connected(c: Context): Boolean {
-        // מצב רכב של הטלפון (אנדרואיד אוטו מדליק אותו)
-        val car = c.getSystemService(UiModeManager::class.java)?.currentModeType == Configuration.UI_MODE_TYPE_CAR
-        if (car) return true
-        // הדרך הרשמית של אנדרואיד אוטו לספר שהוא מחובר (2 = מחובר דרך הטלפון)
-        return runCatching {
+        // קודם הדרך הרשמית של אנדרואיד אוטו (2 = מחובר דרך הטלפון). אם היא עונה, סומכים רק עליה:
+        // "מצב רכב" של הטלפון יכול להישאר דלוק גם בלי רכב, ואז ההודעות הופיעו פעמיים בטלפון
+        val official = runCatching {
             c.contentResolver.query(Uri.parse("content://androidx.car.app.connection"), arrayOf("CarConnectionState"), null, null, null)
-                ?.use { cur -> cur.moveToFirst() && cur.getInt(0) != 0 }
-        }.getOrNull() == true
+                ?.use { cur -> if (cur.moveToFirst()) cur.getInt(0) else 0 }
+        }.getOrNull()
+        if (official != null) return official == 2
+        // אין תשובה רשמית: מצב רכב של הטלפון
+        return c.getSystemService(UiModeManager::class.java)?.currentModeType == Configuration.UI_MODE_TYPE_CAR
+    }
+
+    /** לא מחוברים לרכב: מורידים מהטלפון את כל ההעתקים שנשארו (שלא יופיעו פעמיים) */
+    fun clearAll(c: Context) {
+        val nm = c.getSystemService(NotificationManager::class.java) ?: return
+        runCatching { nm.activeNotifications.filter { it.notification.channelId == CH }.forEach { nm.cancel(it.id) } }
+        origs.clear()
     }
 
     /** הודעה חדשה: אם מחוברים לרכב, מעבירים אותה למסך הרכב */
@@ -55,7 +63,10 @@ object CarMirror {
         reply: Notification.Action?,
         read: Notification.Action?,
     ) {
-        if (!NotchPrefs.carMirror(c) || !connected(c)) return
+        if (!NotchPrefs.carMirror(c) || !connected(c)) {
+            clearAll(c)
+            return
+        }
         val nm = c.getSystemService(NotificationManager::class.java) ?: return
         runCatching {
             nm.createNotificationChannel(NotificationChannel(CH, "הודעות ברכב", NotificationManager.IMPORTANCE_HIGH))

@@ -88,8 +88,8 @@ object LivePill {
             show("msg", 300, color, 3000, onTap = { launch(open) }) { ctx, left, right ->
                 left.addView(label(ctx, msgText, 12.5f, grey))
                 right.addView(label(ctx, sender.trim() + ":", 12.5f, Color.WHITE, bold = true).apply { textDirection = View.TEXT_DIRECTION_RTL })
-                // רווח גמיש: השם צמוד לחור, והעיגול עם האות בקצה
-                right.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+                // השם צמוד לחור, ומיד אחריו העיגול עם האות (בלי רווח שחור באמצע: הגלולה בגודל התוכן)
+                right.addView(View(ctx), LinearLayout.LayoutParams((6 * d).toInt(), 1))
                 right.addView(letter(ctx, sender, color))
             }
             return null
@@ -1140,7 +1140,7 @@ object LivePill {
                 letterSpacing = 0.08f
             })
             right.addView(label(ctx, "הועתק ✓", 12f, green))
-            right.addView(View(ctx), LinearLayout.LayoutParams(0, 1, 1f))
+            right.addView(View(ctx), LinearLayout.LayoutParams((6 * ctx.resources.displayMetrics.density).toInt(), 1))
             right.addView(label(ctx, "🔑", 14f, Color.WHITE))
         }
     }
