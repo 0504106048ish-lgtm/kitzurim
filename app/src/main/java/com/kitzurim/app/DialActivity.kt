@@ -630,13 +630,16 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -
             items(found.size) { i ->
                 val e = found[i]
                 val (c1, c2) = dialColors(e.name)
-                // הקשה על איש קשר מחייגת אליו
+                // הקשה על איש קשר: המספר שלו נכנס לשורה (לא מחייג). מחייגים בכפתור הירוק
                 Row(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.White.copy(alpha = 0.05f))
-                        .clickable { onCall(e.number) }
+                        .clickable {
+                            number = e.number.filter { c -> c.isDigit() || c == '+' || c == '*' || c == '#' }
+                            pad = true
+                        }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -653,7 +656,6 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -
                         Text(e.name, color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(e.number, color = Muted, fontSize = 12.sp, maxLines = 1)
                     }
-                    Text("✆︎", color = G, fontSize = 20.sp)
                 }
             }
         }
