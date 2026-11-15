@@ -178,8 +178,7 @@
             android:name=".DialActivity"
             android:launchMode="singleTask"
             android:taskAffinity="com.kitzurim.app.dialer"
-            android:exported="true"
-            android:excludeFromRecents="true">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.DIAL" />
                 <category android:name="android.intent.category.DEFAULT" />

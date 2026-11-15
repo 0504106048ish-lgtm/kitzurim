@@ -229,11 +229,9 @@ class DialActivity : ComponentActivity() {
                 reveal = null
                 return@postDelayed
             }
-            window.decorView.postDelayed({
-                finish()
-                @Suppress("DEPRECATION")
-                overridePendingTransition(0, 0)
-            }, 900)
+            // החייגן נשאר פתוח מתחת (ובאפליקציות האחרונות), כמו בסמסונג: כשהשיחה נגמרת חוזרים אליו.
+            // רק מורידים את העיגול, אחרי שמסך השיחה כבר מכסה
+            window.decorView.postDelayed({ reveal = null }, 900)
         }, 380)
     }
 
