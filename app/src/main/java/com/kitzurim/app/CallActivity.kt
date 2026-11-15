@@ -111,6 +111,8 @@ class CallActivity : ComponentActivity() {
                 val c = Calls.main()
                 LaunchedEffect(v) {
                     updateProximity()
+        // המסך הגדול פתוח: ההתראה של השיחה נכנסת בשקט (בלי שורה קופצת למעלה)
+        CallNotif.update(this)
                     if (c == null) {
                         delay(900)
                         if (Calls.main() == null) finishAndRemoveTask()
@@ -159,11 +161,15 @@ class CallActivity : ComponentActivity() {
         visible = true
         LivePill.callEnded() // בזמן שהמסך הזה פתוח לא צריך את הגלולה
         updateProximity()
+        // המסך הגדול פתוח: ההתראה של השיחה נכנסת בשקט (בלי שורה קופצת למעלה)
+        CallNotif.update(this)
     }
 
     override fun onPause() {
         super.onPause()
         visible = false
+        // יצאו מהמסך בזמן צלצול: ההתראה הקופצת חוזרת
+        if (!preview) CallNotif.update(this)
     }
 
     override fun onDestroy() {

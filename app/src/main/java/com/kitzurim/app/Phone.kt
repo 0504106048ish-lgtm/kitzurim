@@ -232,6 +232,11 @@ object CallNotif {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
+    // שיחה נכנסת: ההתראה הקופצת (והמסך המלא שלה) רק אם המסך הגדול של קיצורים לא נפתח תוך רגע.
+    // ככה כשהמסך הגדול מופיע אין גם שורה קופצת למעלה
+    private var lastLoud = false
+    private var ringSince = 0L
+
     fun update(ctx: Context) {
         if (!Notify.allowed(ctx)) return
         val c = Calls.main() ?: return cancel(ctx)
@@ -244,10 +249,20 @@ object CallNotif {
         )
         val st = Calls.state(c)
         val ringing = st == Call.STATE_RINGING
+        if (!ringing) ringSince = 0L
+        else if (ringSince == 0L) {
+            ringSince = android.os.SystemClock.elapsedRealtime()
+            val app = ctx.applicationContext
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ update(app) }, 1300)
+        }
+        val loud = ringing && !CallActivity.visible && android.os.SystemClock.elapsedRealtime() - ringSince >= 1200
+        // הייתה קופצת ועכשיו לא צריך: מורידים אותה (אחרת היא נשארת למעלה)
+        if (lastLoud && !loud) runCatching { nm.cancel(ID) }
+        lastLoud = loud
         // סימן כיוון מימין לשמאל בהתחלה: מספר כמו *8787 לא בורח הצידה ולא נכנס מתחת לסמל
         val name = "‏" + Calls.name(ctx, c)
         val pic = avatar(ctx, Calls.name(ctx, c))
-        fun base() = NotificationCompat.Builder(ctx, if (ringing) CH_RING else CH_ON)
+        fun base() = NotificationCompat.Builder(ctx, if (loud) CH_RING else CH_ON)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(name)
             .setCategory(NotificationCompat.CATEGORY_CALL)
@@ -323,15 +338,15 @@ object CallNotif {
                 .setCustomContentView(v)
                 .setCustomBigContentView(v)
                 .setCustomHeadsUpContentView(v)
-                .apply { if (ringing) setFullScreenIntent(open, true) }
+                .apply { if (loud) setFullScreenIntent(open, true) }
                 .build()
         }.getOrNull()
 
         // אם הטלפון לא תומך: ההתראה הרגילה עם שלושה כפתורים
         fun plain() = base().setLargeIcon(pic).apply {
             if (ringing) {
-                setFullScreenIntent(open, true)
-                    .addAction(0, "דחה", pi(ctx, "decline", 2))
+                if (loud) setFullScreenIntent(open, true)
+                addAction(0, "דחה", pi(ctx, "decline", 2))
                     .addAction(0, "ענה", pi(ctx, "answer", 3))
             } else {
                 addAction(0, if (Calls.muted) "בטל השתקה" else "השתק", pi(ctx, "mute", 4))
