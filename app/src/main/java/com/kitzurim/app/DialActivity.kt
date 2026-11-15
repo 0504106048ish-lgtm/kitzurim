@@ -118,6 +118,21 @@ object PhoneBook {
         return out
     }
 
+    /** מוחק שיחה אחת מהרשימה (לפי המספר והזמן שלה) */
+    fun delete(ctx: Context, e: PhoneEntry): Boolean {
+        if (!can(ctx, Manifest.permission.WRITE_CALL_LOG)) {
+            (ctx as? android.app.Activity)?.requestPermissions(arrayOf(Manifest.permission.WRITE_CALL_LOG), 10)
+            return false
+        }
+        return runCatching {
+            ctx.contentResolver.delete(
+                CallLog.Calls.CONTENT_URI,
+                CallLog.Calls.NUMBER + "=? AND " + CallLog.Calls.DATE + "=?",
+                arrayOf(e.number, e.date.toString()),
+            ) > 0
+        }.getOrDefault(false)
+    }
+
     /** מחייג מיד (צריך הרשאת חיוג; לאפליקציית הטלפון יש אותה) */
     fun call(ctx: Context, number: String): Boolean {
         if (!can(ctx, Manifest.permission.CALL_PHONE)) return false
@@ -196,7 +211,7 @@ class DialActivity : ComponentActivity() {
     }
 
     private fun askPermissions() {
-        val need = listOf(Manifest.permission.READ_CONTACTS, Manifest.permission.READ_CALL_LOG, Manifest.permission.CALL_PHONE)
+        val need = listOf(Manifest.permission.READ_CONTACTS, Manifest.permission.READ_CALL_LOG, Manifest.permission.WRITE_CALL_LOG, Manifest.permission.CALL_PHONE)
             .filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
         if (need.isNotEmpty()) requestPermissions(need.toTypedArray(), 8)
     }
@@ -262,7 +277,9 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var keypad by remember { mutableStateOf(start.isNotEmpty()) }
     var q by remember { mutableStateOf("") }
-    val recents = remember(reload) { PhoneBook.recents(ctx) }
+    // אחרי מחיקת שיחה: טוענים את הרשימה מחדש
+    var changed by remember { mutableIntStateOf(0) }
+    val recents = remember(reload, changed) { PhoneBook.recents(ctx) }
     val contacts = remember(reload) { PhoneBook.contacts(ctx) }
     val missed = remember(recents) { recents.filter { it.type == CallLog.Calls.MISSED_TYPE } }
     androidx.activity.compose.BackHandler(enabled = keypad) { keypad = false }
@@ -479,7 +496,7 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
                     else -> "אין שיחות שלא נענו 👍"
                 }
                 Box(Modifier.weight(1f)) {
-                    EntryList(shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall)
+                    EntryList(shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall, onChanged = { changed++ })
                 }
             }
             // כפתור המקלדת, בפינה
@@ -593,14 +610,25 @@ private fun smartSearch(digits: String, contacts: List<PhoneEntry>, limit: Int =
 @Composable
 private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -> Unit) {
     var number by remember { mutableStateOf(start) }
+    // המקשים פתוחים. גוררים את התוצאות: המקשים יורדים, ויש מקום לגלול בכל התוצאות
+    var pad by remember { mutableStateOf(true) }
     // חיפוש חכם: תוך כדי הקלדה מופיעים אנשי הקשר שמתאימים (לפי המספר או לפי האותיות שעל המקשים)
-    val found = remember(number, contacts) { smartSearch(number, contacts) }
+    val found = remember(number, contacts) { smartSearch(number, contacts, 50) }
+    val foldPad = remember {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (available.y != 0f && source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) pad = false
+                return androidx.compose.ui.geometry.Offset.Zero
+            }
+        }
+    }
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(
-            Modifier.weight(1f).fillMaxWidth(),
+        LazyColumn(
+            Modifier.weight(1f).fillMaxWidth().nestedScroll(foldPad),
             verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
         ) {
-            found.forEach { e ->
+            items(found.size) { i ->
+                val e = found[i]
                 val (c1, c2) = dialColors(e.name)
                 // הקשה על איש קשר מחייגת אליו
                 Row(
@@ -629,33 +657,44 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -
                 }
             }
         }
+        // המספר שהוקלד. הקשה עליו מחזירה את המקשים
         Text(
             number.ifEmpty { " " },
             color = Color.White,
             fontSize = if (number.length > 12) 28.sp else 36.sp,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).clickable { pad = true },
         )
-        Spacer(Modifier.height(18.dp))
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                listOf("123", "456", "789", "*0#").forEach { row ->
-                    Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        row.forEach { ch ->
-                            Box(
-                                Modifier
-                                    .size(70.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.07f))
-                                    .clickable { number += ch },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(ch.toString(), color = Color.White, fontSize = 28.sp, lineHeight = 30.sp)
-                                    // האותיות של המקש, כמו בטלפון רגיל (בשביל החיפוש החכם)
-                                    val letters = KeyLetters[ch]
-                                    if (letters != null) Text(letters, color = Muted, fontSize = 9.5.sp, lineHeight = 11.sp)
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = pad,
+                    enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) +
+                        androidx.compose.animation.expandVertically(androidx.compose.animation.core.tween(300), expandFrom = Alignment.Bottom),
+                    exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)) +
+                        androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(280), shrinkTowards = Alignment.Bottom),
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Spacer(Modifier.height(12.dp))
+                        listOf("123", "456", "789", "*0#").forEach { row ->
+                            Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                                row.forEach { ch ->
+                                    Box(
+                                        Modifier
+                                            .size(70.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = 0.07f))
+                                            .clickable { number += ch },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(ch.toString(), color = Color.White, fontSize = 28.sp, lineHeight = 30.sp)
+                                            // האותיות של המקש, כמו בטלפון רגיל (בשביל החיפוש החכם)
+                                            val letters = KeyLetters[ch]
+                                            if (letters != null) Text(letters, color = Muted, fontSize = 9.5.sp, lineHeight = 11.sp)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -666,7 +705,14 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Spacer(Modifier.size(72.dp))
+                    // המקשים מוסתרים: כפתור להחזיר אותם
+                    Box(
+                        Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .then(if (!pad) Modifier.clickable { pad = true } else Modifier),
+                        contentAlignment = Alignment.Center,
+                    ) { if (!pad) Text("⌨︎", color = Muted, fontSize = 26.sp) }
                     Box(
                         Modifier
                             .size(72.dp)
@@ -689,7 +735,7 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -
 }
 
 @Composable
-private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit) {
+private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit, onChanged: () -> Unit = {}) {
     val ctx = LocalContext.current
     if (list.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -801,6 +847,23 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                         Row(Modifier.fillMaxWidth().padding(top = 10.dp, start = 4.dp, end = 4.dp)) {
                             Text(e.number, color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
                             Text(if (week > 0) "$week שיחות השבוע" else "", color = Muted, fontSize = 12.sp)
+                            // שיחה מהרשימה (יש לה זמן): אפשר למחוק אותה
+                            if (showTime && e.date > 0) {
+                                Text(
+                                    "🗑 מחיקה",
+                                    color = Red,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .padding(start = 12.dp)
+                                        .clickable {
+                                            if (PhoneBook.delete(ctx, e)) {
+                                                open = null
+                                                Actions.toast(ctx, "השיחה נמחקה")
+                                                onChanged()
+                                            }
+                                        },
+                                )
+                            }
                         }
                     }
                 }
