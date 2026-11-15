@@ -122,6 +122,13 @@ fun HomeScreen(resumes: Int) {
     }
 
     val shotPerm = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { refresh++ }
+    // הקלטת שיחות: מבקשים את המיקרופון, ובודקים אם הטלפון בכלל מאפשר להקליט שיחות
+    val recPerm = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        val can = ok && CallRecorder.supported(ctx)
+        CallRecorder.setEnabled(ctx, can)
+        Actions.toast(ctx, if (can) "🎙️ בשיחה יופיע כפתור \"הקלט\"" else "הטלפון הזה לא מאפשר לקיצורים להקליט שיחות")
+        refresh++
+    }
     val contactLauncher = rememberLauncherForActivityResult(PickPhone()) { uri ->
         val p = pendingContact
         pendingContact = null
@@ -582,6 +589,20 @@ fun HomeScreen(resumes: Int) {
                             SwitchLine("👍 רשימה נמוכה (יד אחת): כותרת גדולה למעלה והרשימה בהישג האגודל", NotchPrefs.dialLow(ctx)) { on ->
                                 NotchPrefs.setDialLow(ctx, on)
                                 refresh++
+                            }
+                            // הקלטת שיחות: רק בטלפון שמאפשר (נבדק כשמדליקים)
+                            SwitchLine("🎙️ כפתור \"הקלט\" בשיחה (רק אם הטלפון מאפשר)", CallRecorder.enabled(ctx)) { on ->
+                                if (!on) {
+                                    CallRecorder.setEnabled(ctx, false)
+                                    refresh++
+                                } else if (CallRecorder.permitted(ctx)) {
+                                    val can = CallRecorder.supported(ctx)
+                                    CallRecorder.setEnabled(ctx, can)
+                                    Actions.toast(ctx, if (can) "🎙️ בשיחה יופיע כפתור \"הקלט\"" else "הטלפון הזה לא מאפשר לקיצורים להקליט שיחות")
+                                    refresh++
+                                } else {
+                                    recPerm.launch(android.Manifest.permission.RECORD_AUDIO)
+                                }
                             }
                             TextButton(onClick = { ctx.startActivity(Intent(ctx, DialActivity::class.java)) }) {
                                 Text("לפתוח את החייגן ←")

@@ -189,6 +189,8 @@ class KitzInCallService : InCallService() {
         Calls.changed()
         Proximity.update(this)
         if (Calls.list.isEmpty()) {
+            // השיחה נגמרה: ההקלטה נעצרת ונשמרת
+            CallRecorder.stop(this)
             CallNotif.cancel(this)
             LivePill.callEnded()
         } else {

@@ -210,6 +210,7 @@ private object CallIcons {
     val speaker = lineIcon("M3.5 9.5v5h3.5l5 4.5v-14l-5 4.5z M15.5 9a4 4 0 0 1 0 6 M18.5 6a8 8 0 0 1 0 12")
     val hold = lineIcon("M8.5 5.5v13 M15.5 5.5v13", stroke = 2.6f)
     val swap = lineIcon("M5 8h13 M15 5l3 3 -3 3 M19 16h-13 M9 13l-3 3 3 3")
+    val record = lineIcon("M12 4.5a7.5 7.5 0 1 0 0.01 0 M12 9a3 3 0 1 0 0.01 0", stroke = 2.2f)
     val phone = lineIcon(
         "M5 3.5h3.6a1 1 0 0 1 0.9 0.6l1.8 4.3a1 1 0 0 1 -0.3 1.2L9 11a12 12 0 0 0 4 4l1.4 -2a1 1 0 0 1 1.2 -0.3l4.3 1.8a1 1 0 0 1 0.6 0.9V19a2 2 0 0 1 -2 2A16 16 0 0 1 3 5.5a2 2 0 0 1 2 -2z",
         fill = true,
@@ -241,6 +242,9 @@ private class CallView(
     val speaker: Boolean,
     val holding: Boolean,
     val canSwap: Boolean,
+    // הקלטת שיחה: הכפתור מופיע רק אם הטלפון מאפשר (ומדליקים בהגדרות)
+    val canRecord: Boolean = false,
+    val recording: Boolean = false,
 )
 
 /** מה קורה כשלוחצים על הכפתורים */
@@ -253,6 +257,7 @@ private class CallAct(
     val hold: () -> Unit,
     val swap: () -> Unit,
     val dtmf: (Char) -> Unit,
+    val record: () -> Unit = {},
 )
 
 @Composable
@@ -329,6 +334,8 @@ private fun CallScreenUi(c: Call?, version: Int) {
     val number = remember(c) { Calls.number(c) }
     val photo = remember(c) { Calls.photo(ctx, c) }
     val ringing = st == Call.STATE_RINGING
+    // הקלטת שיחה: רק אם הודלקה בהגדרות (ושם כבר נבדק שהטלפון מאפשר)
+    val recOk = remember(c) { CallRecorder.enabled(ctx) }
     // שעון: מתעדכן כל חצי שנייה
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -357,6 +364,8 @@ private fun CallScreenUi(c: Call?, version: Int) {
         speaker = Calls.route == CallAudioState.ROUTE_SPEAKER,
         holding = st == Call.STATE_HOLDING,
         canSwap = st == Call.STATE_ACTIVE && Calls.list.any { Calls.state(it) == Call.STATE_HOLDING },
+        canRecord = recOk && (st == Call.STATE_ACTIVE || st == Call.STATE_HOLDING),
+        recording = CallRecorder.recording,
     )
     val act = remember(c) {
         CallAct(
@@ -368,6 +377,7 @@ private fun CallScreenUi(c: Call?, version: Int) {
             hold = { Calls.toggleHold(c) },
             swap = { Calls.swap() },
             dtmf = { ch -> Calls.dtmf(c, ch) },
+            record = { CallRecorder.toggle(ctx, name) },
         )
     }
     CallFace(view, act)
@@ -549,6 +559,8 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             RoundBtn(CallIcons.hold, if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
                             if (v.canSwap) RoundBtn(CallIcons.swap, "החלף", false) { act.swap() }
+                            // הקלטה: לבן ודלוק בזמן ההקלטה
+                            if (v.canRecord) RoundBtn(CallIcons.record, if (v.recording) "עצור הקלטה" else "הקלט", v.recording) { act.record() }
                         }
                     }
                 }
