@@ -455,18 +455,29 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
                     2 -> contacts.filter { it.starred }.distinctBy { it.name }
                     else -> missed
                 }
-                val digits = q.filter { it.isDigit() }
-                val shown = if (q.isBlank()) base else base.filter {
-                    it.name.contains(q, ignoreCase = true) || (digits.length >= 2 && it.number.filter { c -> c.isDigit() }.contains(digits))
+                // חיפוש: תמיד בכל מקום, לא רק בלשונית הפתוחה. קודם אנשי קשר, ואחר כך מספרים מהשיחות האחרונות שאינם אנשי קשר.
+                // שם, מספר, וגם ספרות לפי האותיות שעל המקשים (כמו במקלדת)
+                val searching = q.isNotBlank()
+                val shown = if (!searching) base else remember(q, contacts, recents) {
+                    val digits = q.filter { it.isDigit() }
+                    val onlyDigits = q.trim().all { it.isDigit() || it == '-' || it == ' ' || it == '+' }
+                    fun hit(e: PhoneEntry) = e.name.contains(q.trim(), ignoreCase = true) ||
+                        (digits.length >= 2 && e.number.filter { c -> c.isDigit() }.contains(digits))
+                    val smart = if (onlyDigits && digits.isNotEmpty()) smartSearch(digits, contacts, 50) else emptyList()
+                    val people = (contacts.filter { hit(it) } + smart).distinctBy { it.number.filter(Char::isDigit) }
+                    val known = people.map { it.number.filter(Char::isDigit) }.toSet()
+                    val others = recents.filter { hit(it) && it.number.filter(Char::isDigit) !in known }
+                        .distinctBy { it.number.filter(Char::isDigit) }
+                    people + others
                 }
-                val empty = when (tab) {
+                val empty = if (searching) "לא נמצא כלום" else when (tab) {
                     0 -> "אין עדיין שיחות"
                     1 -> "לא נמצאו אנשי קשר"
                     2 -> "אין מועדפים. מסמנים ⭐ באנשי הקשר של סמסונג"
                     else -> "אין שיחות שלא נענו 👍"
                 }
                 Box(Modifier.weight(1f)) {
-                    EntryList(shown, empty, showTime = tab == 0 || tab == 3, recents = recents, onCall = onCall)
+                    EntryList(shown, empty, showTime = !searching && (tab == 0 || tab == 3), recents = recents, onCall = onCall)
                 }
             }
             // כפתור המקלדת, בפינה
@@ -562,7 +573,7 @@ private fun t9(s: String) = buildString { s.lowercase().forEach { ch -> if (ch.i
  * חיפוש חכם במקלדת: אנשי הקשר שהמספר שלהם מכיל את הספרות, או שהשם שלהם מתאים לאותיות של המקשים.
  * קודם מי ששם (או מילה בשם) מתחיל בזה, אחר כך מי שזה באמצע השם, ואחר כך לפי המספר
  */
-private fun smartSearch(digits: String, contacts: List<PhoneEntry>): List<PhoneEntry> {
+private fun smartSearch(digits: String, contacts: List<PhoneEntry>, limit: Int = 3): List<PhoneEntry> {
     if (digits.isEmpty() || digits.any { !it.isDigit() }) return emptyList()
     return contacts.distinctBy { it.number.filter(Char::isDigit) }.mapNotNull { e ->
         val words = e.name.split(' ').filter { it.isNotBlank() }.map { t9(it) }
@@ -574,7 +585,7 @@ private fun smartSearch(digits: String, contacts: List<PhoneEntry>): List<PhoneE
             else -> return@mapNotNull null
         }
         score to e
-    }.sortedWith(compareBy({ it.first }, { it.second.name })).map { it.second }.take(3)
+    }.sortedWith(compareBy({ it.first }, { it.second.name })).map { it.second }.take(limit)
 }
 
 @Composable
