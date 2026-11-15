@@ -718,7 +718,7 @@ fun HomeScreen(resumes: Int) {
                         PrefSlider("למעלה / למטה", NotchPrefs.offsetY(ctx), -30f..30f) { NotchPrefs.setOffsetY(ctx, it) }
                         PrefSlider("אזור נגיעה", NotchPrefs.zoneExtra(ctx), 0f..40f) { NotchPrefs.setZoneExtra(ctx, it) }
                         // רוחב הגלולה: כמה מקום להשאיר לשעה ולסוללה (הפוך: ימינה = רחבה יותר)
-                        PrefSlider("רוחב הגלולה", 100f - NotchPrefs.pillMargin(ctx), 10f..70f) {
+                        PrefSlider("רוחב הגלולה (טקסט ארוך)", 100f - NotchPrefs.pillMargin(ctx), 10f..96f) {
                             NotchPrefs.setPillMargin(ctx, 100f - it)
                             LivePill.demo("charge")
                         }

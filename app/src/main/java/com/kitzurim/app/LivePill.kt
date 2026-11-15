@@ -154,7 +154,7 @@ object LivePill {
         return ImageView(ctx).apply {
             setImageResource(icon)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            val pad = (6 * d).toInt()
+            val pad = (5 * d).toInt()
             setPadding(pad, pad, pad, pad)
             // כפתור זכוכית: אפור כהה הופך ללבן שקוף עם מסגרת בהירה; כפתור צבעוני (נתק, ענה) נשאר בצבע שלו עם ברק
             background = GradientDrawable().apply {
@@ -168,7 +168,8 @@ object LivePill {
                     setStroke((0.8f * d).toInt().coerceAtLeast(1), Color.argb(70, 255, 255, 255))
                 }
             }
-            layoutParams = LinearLayout.LayoutParams(((if (wide) 32 else 26) * d).toInt(), (26 * d).toInt()).apply {
+            // נכנס בגלולה הצרה (בגובה החור)
+            layoutParams = LinearLayout.LayoutParams(((if (wide) 32 else 26) * d).toInt(), (22 * d).toInt()).apply {
                 marginStart = (2 * d).toInt()
                 marginEnd = (2 * d).toInt()
             }
@@ -178,12 +179,14 @@ object LivePill {
 
     /** שם מודגש, ומתחתיו שורה קטנה (סטטוס או ההודעה) */
     private fun twoLines(ctx: Context, top: String, bottom: String, bottomColor: Int) = LinearLayout(ctx).apply {
-        orientation = LinearLayout.VERTICAL
+        // שורה אחת (הגלולה צרה): מימין השם, ומשמאלו הסטטוס
+        orientation = LinearLayout.HORIZONTAL
+        layoutDirection = View.LAYOUT_DIRECTION_RTL
         gravity = Gravity.CENTER_VERTICAL or Gravity.RIGHT
         // הרוחב נקבע ב-fit לפי המקום שבאמת יש בצד (מקצר עם "…")
         addView(label(ctx, top, 12.5f, Color.WHITE, bold = true).apply { gravity = Gravity.RIGHT },
             LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
-        addView(label(ctx, bottom.replace('\n', ' '), 11.5f, bottomColor).apply { gravity = Gravity.RIGHT },
+        addView(label(ctx, "  " + bottom.replace('\n', ' '), 11.5f, bottomColor).apply { gravity = Gravity.RIGHT },
             LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
     }
 
@@ -1468,7 +1471,8 @@ object LivePill {
         // גלולות קטנות (ניווט, מוזיקה, זמן שיחה): דקות כמו הסימן של ספוטיפיי בשורת המצב, צמודות לחור
         val tight = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
         // כל השאר: שורה אחת, קצת יותר גבוהה מהחור (לא כרטיס גבוה), כדי שהגלולה תהיה צמודה אליו
-        val h = if (tight) max(hole * 0.85f + 2 * d, 22 * d).toInt() else max(hole + 12 * d, 30 * d).toInt()
+        // כל הגלולות צרות, בגובה החור (חוץ מהנגן, שנפתח מתחת לשורת המצב)
+        val h = if (newKind != "player") max(hole * 0.85f + 2 * d, 22 * d).toInt() else max(hole + 12 * d, 30 * d).toInt()
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
         // רחבה עד השעה ועד הסוללה (אפשר לכוון ב"גודל ומיקום"), כדי שלא יראו חתיכות של סמלים בצדדים
         // הנגן: רחב כמעט עד הקצוות (הוא נפתח מתחת לשורת המצב, אז אין שעה לכסות)
