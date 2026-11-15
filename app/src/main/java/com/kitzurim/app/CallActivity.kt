@@ -111,8 +111,6 @@ class CallActivity : ComponentActivity() {
                 val c = Calls.main()
                 LaunchedEffect(v) {
                     updateProximity()
-        // המסך הגדול פתוח: ההתראה של השיחה נכנסת בשקט (בלי שורה קופצת למעלה)
-        CallNotif.update(this)
                     if (c == null) {
                         delay(900)
                         if (Calls.main() == null) finishAndRemoveTask()
