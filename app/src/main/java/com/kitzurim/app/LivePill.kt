@@ -113,7 +113,7 @@ object LivePill {
         m.post {
             if (kind != "msg") return@post
             main.removeCallbacks(autoClose)
-            main.postDelayed(autoClose, max(3000L, m.durationMs(m.width) + 1200L))
+            main.postDelayed(autoClose, max(3000L, m.durationMs(m.width) + 1000L).coerceAtMost(7000L))
         }
     }
 
@@ -1691,7 +1691,7 @@ object LivePill {
             m.post {
                 if (window !== root) return@post
                 main.removeCallbacks(autoClose)
-                main.postDelayed(autoClose, max(2500L, m.durationMs(m.width) + 900L))
+                main.postDelayed(autoClose, max(2500L, m.durationMs(m.width) + 900L).coerceAtMost(7000L))
             }
         }
     }
@@ -2056,11 +2056,18 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
         xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
     }
 
+    /** זמן התנועה: לאט כרגיל, אבל טקסט ארוך מאוד זז מהר יותר כדי שהכול ייגמר תוך 7 שניות על המסך */
+    private fun moveMs(extra: Float): Long = (extra / (90 * d) * 1000).toLong().coerceAtMost(MAX_MOVE_MS)
+
+    companion object {
+        const val MAX_MOVE_MS = 5600L
+    }
+
     /** כמה זמן כל התנועה לוקחת (כדי שהגלולה תיסגר רק אחרי שקראו הכול) */
     fun durationMs(width: Int): Long {
         val extra = textW - (width - gap)
         // טקסט שלא ארוך: זמן לתנועה הקטנה הצידה וחזרה (אם החור עליו)
-        return if (extra <= 0) 2200L else 400L + (extra / (90 * d) * 1000).toLong()
+        return if (extra <= 0) 2200L else 400L + moveMs(extra)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -2101,7 +2108,7 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
         if (extra > 0) {
             anim = ValueAnimator.ofFloat(offset, endAt).apply {
                 startDelay = 400
-                duration = (extra / (90 * d) * 1000).toLong()
+                duration = moveMs(extra.toFloat())
                 interpolator = android.view.animation.AccelerateDecelerateInterpolator()
                 addUpdateListener {
                     offset = it.animatedValue as Float
