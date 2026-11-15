@@ -477,9 +477,19 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
             Spacer(Modifier.height(if (v.ringing) top + 20.dp else top))
             if (v.ringing) Text(v.topText, color = Color.White.copy(alpha = 0.8f), fontSize = 15.sp)
             Spacer(Modifier.height(if (v.ringing) 30.dp else 0.dp))
-            Avatar(v.name, v.photo, if (v.ringing) 118 else 104, breathing = v.ringing, acc = acc)
-            Spacer(Modifier.height(if (v.ringing) 30.dp else 22.dp))
-            Text(v.name, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2)
+            // המקלדת פתוחה: התמונה מתכווצת ונעלמת בעדינות, והשם קטן, כדי לפנות מקום למקלדת
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !keypad || v.ringing,
+                enter = androidx.compose.animation.fadeIn(tween(260)) + androidx.compose.animation.expandVertically(tween(320)),
+                exit = androidx.compose.animation.fadeOut(tween(180)) + androidx.compose.animation.shrinkVertically(tween(300)),
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Avatar(v.name, v.photo, if (v.ringing) 118 else 104, breathing = v.ringing, acc = acc)
+                    Spacer(Modifier.height(if (v.ringing) 30.dp else 22.dp))
+                }
+            }
+            val nameSize by androidx.compose.animation.core.animateFloatAsState(if (keypad && !v.ringing) 24f else 32f, tween(300), label = "name")
+            Text(v.name, color = Color.White, fontSize = nameSize.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2)
             if (v.number != null && v.number != v.name) {
                 Text(v.number, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
             }
@@ -508,33 +518,43 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                 }
                 Spacer(Modifier.height(84.dp)) // הכפתורים קצת יותר למעלה, נוח יותר לאגודל
             } else {
-                if (keypad) {
-                    Keypad { ch -> act.dtmf(ch) }
-                } else {
-                    // השתקה, מקלדת, רמקול, המתנה
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        RoundBtn(CallIcons.mute, if (v.muted) "בטל השתקה" else "השתק", v.muted) { act.mute() }
-                        RoundBtn(CallIcons.keys, "מקלדת", false) { keypad = true }
-                        RoundBtn(CallIcons.speaker, "רמקול", v.speaker) { act.speaker() }
-                    }
-                    Spacer(Modifier.height(18.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        RoundBtn(CallIcons.hold, if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
-                        if (v.canSwap) RoundBtn(CallIcons.swap, "החלף", false) { act.swap() }
+                // המקלדת נפתחת מעל הכפתורים (נפרשת למעלה ומתבהרת, והמקשים מופיעים אחד אחרי השני),
+                // כך שהשתקה ורמקול תמיד נשארים גלויים מתחתיה
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = keypad,
+                    enter = androidx.compose.animation.fadeIn(tween(240)) +
+                        androidx.compose.animation.expandVertically(tween(340, easing = FastOutSlowInEasing), expandFrom = Alignment.Bottom) +
+                        androidx.compose.animation.scaleIn(tween(340, easing = FastOutSlowInEasing), initialScale = 0.92f),
+                    exit = androidx.compose.animation.fadeOut(tween(160)) +
+                        androidx.compose.animation.shrinkVertically(tween(280, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Bottom),
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Keypad { ch -> act.dtmf(ch) }
+                        Spacer(Modifier.height(14.dp))
                     }
                 }
-                Spacer(Modifier.height(26.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (keypad) {
-                        Text(
-                            "הסתר",
-                            color = Soft,
-                            fontSize = 15.sp,
-                            modifier = Modifier
-                                .clickable { keypad = false }
-                                .padding(16.dp),
-                        )
+                // השתקה, מקלדת, רמקול: תמיד במקום. כשהמקלדת פתוחה הם קטנים קצת, והכפתור "מקלדת" לבן (לחיצה סוגרת)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    RoundBtn(CallIcons.mute, if (v.muted) "בטל השתקה" else "השתק", v.muted, small = keypad) { act.mute() }
+                    RoundBtn(CallIcons.keys, if (keypad) "הסתר" else "מקלדת", keypad, small = keypad) { keypad = !keypad }
+                    RoundBtn(CallIcons.speaker, "רמקול", v.speaker, small = keypad) { act.speaker() }
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !keypad,
+                    enter = androidx.compose.animation.fadeIn(tween(240)) + androidx.compose.animation.expandVertically(tween(300)),
+                    exit = androidx.compose.animation.fadeOut(tween(140)) + androidx.compose.animation.shrinkVertically(tween(260)),
+                ) {
+                    Column {
+                        Spacer(Modifier.height(18.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            RoundBtn(CallIcons.hold, if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
+                            if (v.canSwap) RoundBtn(CallIcons.swap, "החלף", false) { act.swap() }
+                        }
                     }
+                }
+                val gap by androidx.compose.animation.core.animateDpAsState(if (keypad) 16.dp else 26.dp, tween(300), label = "gap")
+                Spacer(Modifier.height(gap))
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         Modifier
                             .size(70.dp)
@@ -547,7 +567,9 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                         CallIcon(CallIcons.phone, Color.White, 30.dp, rotate = 135f)
                     }
                 }
-                Spacer(Modifier.height(84.dp)) // הכפתורים קצת יותר למעלה, נוח יותר לאגודל
+                // הכפתורים קצת יותר למעלה, נוח יותר לאגודל (עם המקלדת פחות, שיהיה לה מקום)
+                val bottom by androidx.compose.animation.core.animateDpAsState(if (keypad) 40.dp else 84.dp, tween(300), label = "bottom")
+                Spacer(Modifier.height(bottom))
             }
         }
     }
@@ -665,12 +687,14 @@ private fun SlideToAnswer(onAnswer: () -> Unit) {
 }
 
 @Composable
-private fun RoundBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean, onClick: () -> Unit) {
+private fun RoundBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean, small: Boolean = false, onClick: () -> Unit) {
+    // קטן כשהמקלדת פתוחה, בתנועה רכה
+    val sz by androidx.compose.animation.core.animateDpAsState(if (small) 52.dp else 64.dp, tween(300), label = "btn")
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(84.dp)) {
         // כפתור זכוכית: לבן שקוף עם ברק למעלה ומסגרת דקה; דלוק = לבן מלא וסמל כהה
         Box(
             Modifier
-                .size(64.dp)
+                .size(sz)
                 .shadow(10.dp, CircleShape)
                 .clip(CircleShape)
                 .background(
@@ -693,15 +717,25 @@ private fun Keypad(onKey: (Char) -> Unit) {
     var typed by remember { mutableStateOf("") }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(typed, color = Color.White, fontSize = 24.sp, modifier = Modifier.height(34.dp))
-            listOf("123", "456", "789", "*0#").forEach { row ->
-                Row(Modifier.padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    row.forEach { ch ->
+            Text(typed.takeLast(16), color = Color.White, fontSize = 24.sp, maxLines = 1, modifier = Modifier.height(34.dp))
+            listOf("123", "456", "789", "*0#").forEachIndexed { r, row ->
+                Row(Modifier.padding(vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    row.forEachIndexed { c, ch ->
+                        // המקשים מופיעים אחד אחרי השני, מלמטה למעלה (קרוב לאצבע קודם)
+                        val show = remember { Animatable(0f) }
+                        LaunchedEffect(Unit) {
+                            kotlinx.coroutines.delay(((3 - r) * 3 + c) * 18L)
+                            show.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = 500f))
+                        }
                         Box(
                             Modifier
-                                .size(64.dp)
+                                .size(62.dp)
+                                .scale(0.6f + 0.4f * show.value)
+                                .alpha(show.value.coerceIn(0f, 1f))
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.08f))
+                                // זכוכית כמו שאר הכפתורים: ברק עדין למעלה ומסגרת דקה
+                                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.05f))))
+                                .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
                                 .clickable {
                                     typed += ch
                                     onKey(ch)
