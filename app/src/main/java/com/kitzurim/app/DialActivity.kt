@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -347,7 +348,7 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
                     fontSize = 14.sp,
                     modifier = Modifier.clickable { keypad = false }.padding(18.dp),
                 )
-                Box(Modifier.weight(1f)) { Keypad(start, contacts, onCall) }
+                Box(Modifier.weight(1f)) { Keypad(start, contacts, recents, onCall) }
             }
         } else {
             Column(Modifier.fillMaxSize()) {
@@ -607,13 +608,30 @@ private fun smartSearch(digits: String, contacts: List<PhoneEntry>, limit: Int =
     }.sortedWith(compareBy({ it.first }, { it.second.name })).map { it.second }.take(limit)
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -> Unit) {
+private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<PhoneEntry>, onCall: (String) -> Unit) {
+    val ctx = LocalContext.current
+    // רטט קל בכל הקשה, כמו במקלדת של הטלפון
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    fun buzz() = haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
     var number by remember { mutableStateOf(start) }
     // המקשים פתוחים. גוררים את התוצאות: המקשים יורדים, ויש מקום לגלול בכל התוצאות
     var pad by remember { mutableStateOf(true) }
     // חיפוש חכם: תוך כדי הקלדה מופיעים אנשי הקשר שמתאימים (לפי המספר או לפי האותיות שעל המקשים)
-    val found = remember(number, contacts) { smartSearch(number, contacts, 50) }
+    // וגם מספרים מהשיחות האחרונות שאינם שמורים כאנשי קשר
+    val found = remember(number, contacts, recents) {
+        val people = smartSearch(number, contacts, 50)
+        val known = people.map { it.number.filter(Char::isDigit) }.toSet() + contacts.map { it.number.filter(Char::isDigit) }
+        val digits = number.filter(Char::isDigit)
+        val strangers = if (digits.length < 2) emptyList() else recents
+            .filter { val k = it.number.filter(Char::isDigit); k.contains(digits) && k !in known }
+            .distinctBy { it.number.filter(Char::isDigit) }.take(20)
+        people + strangers
+    }
+    // מספר שהוקלד ואינו שמור: אפשר להוסיף אותו לאנשי הקשר
+    val digitsNow = number.filter(Char::isDigit)
+    val unknown = digitsNow.length >= 6 && contacts.none { it.number.filter(Char::isDigit).takeLast(9) == digitsNow.takeLast(9) }
     val foldPad = remember {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
@@ -659,15 +677,43 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -
                 }
             }
         }
-        // המספר שהוקלד. הקשה עליו מחזירה את המקשים
+        // המספר שהוקלד. הקשה עליו מחזירה את המקשים, ולחיצה ארוכה מדביקה מספר שהועתק
         Text(
             number.ifEmpty { " " },
             color = Color.White,
             fontSize = if (number.length > 12) 28.sp else 36.sp,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).clickable { pad = true },
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).combinedClickable(
+                onClick = { pad = true },
+                onLongClick = {
+                    val clip = runCatching {
+                        ctx.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString()
+                    }.getOrNull().orEmpty()
+                    val pasted = clip.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
+                    if (pasted.isNotEmpty()) { number = pasted; pad = true; buzz() } else Actions.toast(ctx, "אין מספר להדביק")
+                },
+            ),
         )
+        if (unknown) {
+            Text(
+                "＋ הוסף לאנשי קשר",
+                color = G,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
+                        runCatching {
+                            ctx.startActivity(
+                                android.content.Intent(android.content.Intent.ACTION_INSERT_OR_EDIT)
+                                    .setType(ContactsContract.Contacts.CONTENT_ITEM_TYPE)
+                                    .putExtra(ContactsContract.Intents.Insert.PHONE, number),
+                            )
+                        }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 androidx.compose.animation.AnimatedVisibility(
@@ -687,7 +733,11 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -
                                             .size(70.dp)
                                             .clip(CircleShape)
                                             .background(Color.White.copy(alpha = 0.07f))
-                                            .clickable { number += ch },
+                                            // הקשה: הספרה. לחיצה ארוכה על 0: "+" (מספר מחו"ל)
+                                            .combinedClickable(
+                                                onClick = { number += ch; buzz() },
+                                                onLongClick = if (ch == '0') ({ number += '+'; buzz() }) else null,
+                                            ),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -727,7 +777,11 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -
                         Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .clickable { number = number.dropLast(1) },
+                            // הקשה: מוחקת ספרה. לחיצה ארוכה: מוחקת הכול
+                            .combinedClickable(
+                                onClick = { number = number.dropLast(1); buzz() },
+                                onLongClick = { number = ""; buzz() },
+                            ),
                         contentAlignment = Alignment.Center,
                     ) { Text("⌫", color = Muted, fontSize = 26.sp) }
                 }
@@ -736,6 +790,7 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit, onChanged: () -> Unit = {}) {
     val ctx = LocalContext.current
@@ -749,11 +804,75 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
     // רק שורה אחת פתוחה בכל פעם
     var open by remember { mutableStateOf<String?>(null) }
     val weekAgo = remember { System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000 }
+    // בחירה של כמה שיחות למחיקה: לחיצה ארוכה על שיחה מתחילה, ואז הקשה מסמנת עוד
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    val selecting = selected.isNotEmpty()
+    fun selKey(e: PhoneEntry) = "${e.number}|${e.date}"
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    androidx.activity.compose.BackHandler(enabled = selecting) { selected = emptySet() }
+    val deletable = list.filter { showTime && it.date > 0 }
+    Column(Modifier.fillMaxSize()) {
+    if (selecting) {
+        // למעלה: כמה נבחרו, בחר הכול, מחק, ביטול
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF1A1E27))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("${selected.size} נבחרו", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            val all = selected.size == deletable.size
+            Text(
+                if (all) "בטל הכול" else "בחר הכול",
+                color = G,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { selected = if (all) emptySet() else deletable.map { selKey(it) }.toSet() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            Text(
+                "🗑 מחק",
+                color = Red,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable {
+                        var n = 0
+                        for (e in deletable) {
+                            if (selKey(e) !in selected) continue
+                            if (PhoneBook.delete(ctx, e)) n++ else if (n == 0) break
+                        }
+                        if (n > 0) {
+                            Actions.toast(ctx, if (n == 1) "שיחה אחת נמחקה" else "$n שיחות נמחקו")
+                            selected = emptySet()
+                            onChanged()
+                        }
+                    }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            Text(
+                "ביטול",
+                color = Muted,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { selected = emptySet() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+    }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
         items(list.size) { idx ->
             val e = list[idx]
             val key = "$idx|${e.number}|${e.date}"
-            val isOpen = open == key
+            val isOpen = open == key && !selecting
+            val canSel = showTime && e.date > 0
+            val isSel = selKey(e) in selected
             val (c1, c2) = dialColors(e.name)
             Column(
                 Modifier
@@ -766,11 +885,34 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .clickable { open = if (isOpen) null else key }
+                        // לחיצה ארוכה על שיחה: מתחילים לבחור כמה למחיקה. במצב בחירה הקשה מסמנת
+                        .combinedClickable(
+                            onClick = {
+                                if (selecting) {
+                                    if (canSel) selected = if (isSel) selected - selKey(e) else selected + selKey(e)
+                                } else {
+                                    open = if (isOpen) null else key
+                                }
+                            },
+                            onLongClick = if (canSel) ({
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                selected = if (isSel) selected - selKey(e) else selected + selKey(e)
+                            }) else null,
+                        )
                         .padding(horizontal = 10.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
+                    if (selecting && canSel) {
+                        // מצב בחירה: עיגול סימון במקום התמונה
+                        Box(
+                            Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(if (isSel) G else Color.White.copy(alpha = 0.08f))
+                                .border(1.5.dp, if (isSel) G else Muted, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) { if (isSel) Text("✓", color = Color(0xFF04261A), fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                    } else Box(
                         Modifier
                             .size(42.dp)
                             .clip(CircleShape)
@@ -871,6 +1013,7 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                 }
             }
         }
+    }
     }
 }
 
