@@ -44,6 +44,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
@@ -293,12 +295,33 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
             ) = if (!low || available.y <= 0) androidx.compose.ui.geometry.Offset.Zero else take(available.y)
         }
     }
+    // המקלדת של החיפוש יורדת כשגוללים את הרשימה, או כשנוגעים במסך מתחת לשורת החיפוש
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    var searchBottom by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val hideKb = remember(focus) {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput && available.y != 0f) focus.clearFocus()
+                return androidx.compose.ui.geometry.Offset.Zero
+            }
+        }
+    }
     Box(
         Modifier
             .fillMaxSize()
             .background(Color(0xFF0B0D13))
             .statusBarsPadding()
             .navigationBarsPadding()
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                        val p = e.changes.firstOrNull() ?: continue
+                        if (p.pressed && !p.previousPressed && p.position.y > searchBottom) focus.clearFocus()
+                    }
+                }
+            }
+            .nestedScroll(hideKb)
             .then(if (low) Modifier.nestedScroll(shrink) else Modifier),
     ) {
         if (keypad) {
@@ -309,7 +332,7 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
                     fontSize = 14.sp,
                     modifier = Modifier.clickable { keypad = false }.padding(18.dp),
                 )
-                Box(Modifier.weight(1f)) { Keypad(start, onCall) }
+                Box(Modifier.weight(1f)) { Keypad(start, contacts, onCall) }
             }
         } else {
             Column(Modifier.fillMaxSize()) {
@@ -389,6 +412,8 @@ private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
                 Box(
                     Modifier
                         .fillMaxWidth()
+                        // איפה נגמרת שורת החיפוש: נגיעה מתחתיה מורידה את המקלדת
+                        .onGloballyPositioned { searchBottom = it.positionInParent().y + it.size.height }
                         .padding(start = 14.dp, end = 14.dp, top = 14.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color(0xFF1A1E27))
@@ -520,11 +545,79 @@ private fun dialColors(name: String): Pair<Color, Color> {
     return Color(p.first) to Color(p.second)
 }
 
+/** כל אות לאיזה מקש היא שייכת, כמו במקלדת טלפון (עברית ואנגלית). ככה מקלידים "476" ומוצאים את "משה" */
+private val T9: Map<Char, Char> = buildMap {
+    fun add(key: Char, letters: String) = letters.forEach { put(it, key) }
+    add('2', "abcדהו"); add('3', "defאבג"); add('4', "ghiמנםן"); add('5', "jklיכלך")
+    add('6', "mnoזחט"); add('7', "pqrsרשת"); add('8', "tuvצקץ"); add('9', "wxyzסעפף")
+}
+
+/** מה כתוב מתחת לכל מקש */
+private val KeyLetters = mapOf(
+    '2' to "דהו ABC", '3' to "אבג DEF", '4' to "מנ GHI", '5' to "יכל JKL",
+    '6' to "זחט MNO", '7' to "רשת PQRS", '8' to "צק TUV", '9' to "סעפ WXYZ",
+)
+
+private fun t9(s: String) = buildString { s.lowercase().forEach { ch -> if (ch.isDigit()) append(ch) else T9[ch]?.let { append(it) } ?: append(' ') } }
+
+/**
+ * חיפוש חכם במקלדת: אנשי הקשר שהמספר שלהם מכיל את הספרות, או שהשם שלהם מתאים לאותיות של המקשים.
+ * קודם מי ששם (או מילה בשם) מתחיל בזה, אחר כך מי שזה באמצע השם, ואחר כך לפי המספר
+ */
+private fun smartSearch(digits: String, contacts: List<PhoneEntry>): List<PhoneEntry> {
+    if (digits.isEmpty() || digits.any { !it.isDigit() }) return emptyList()
+    return contacts.distinctBy { it.number.filter(Char::isDigit) }.mapNotNull { e ->
+        val words = e.name.split(' ').filter { it.isNotBlank() }.map { t9(it) }
+        val whole = words.joinToString("")
+        val score = when {
+            words.any { it.startsWith(digits) } || whole.startsWith(digits) -> 0
+            whole.contains(digits) -> 1
+            e.number.filter(Char::isDigit).contains(digits) -> 2
+            else -> return@mapNotNull null
+        }
+        score to e
+    }.sortedWith(compareBy({ it.first }, { it.second.name })).map { it.second }.take(3)
+}
+
 @Composable
-private fun Keypad(start: String, onCall: (String) -> Unit) {
+private fun Keypad(start: String, contacts: List<PhoneEntry>, onCall: (String) -> Unit) {
     var number by remember { mutableStateOf(start) }
+    // חיפוש חכם: תוך כדי הקלדה מופיעים אנשי הקשר שמתאימים (לפי המספר או לפי האותיות שעל המקשים)
+    val found = remember(number, contacts) { smartSearch(number, contacts) }
     Column(Modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.weight(1f))
+        Column(
+            Modifier.weight(1f).fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
+        ) {
+            found.forEach { e ->
+                val (c1, c2) = dialColors(e.name)
+                // הקשה על איש קשר מחייגת אליו
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.05f))
+                        .clickable { onCall(e.number) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(c1, c2))),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(e.name.trim().take(1), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                    Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                        Text(e.name, color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(e.number, color = Muted, fontSize = 12.sp, maxLines = 1)
+                    }
+                    Text("✆︎", color = G, fontSize = 20.sp)
+                }
+            }
+        }
         Text(
             number.ifEmpty { " " },
             color = Color.White,
@@ -537,16 +630,23 @@ private fun Keypad(start: String, onCall: (String) -> Unit) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 listOf("123", "456", "789", "*0#").forEach { row ->
-                    Row(Modifier.padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         row.forEach { ch ->
                             Box(
                                 Modifier
-                                    .size(72.dp)
+                                    .size(70.dp)
                                     .clip(CircleShape)
                                     .background(Color.White.copy(alpha = 0.07f))
                                     .clickable { number += ch },
                                 contentAlignment = Alignment.Center,
-                            ) { Text(ch.toString(), color = Color.White, fontSize = 30.sp) }
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(ch.toString(), color = Color.White, fontSize = 28.sp, lineHeight = 30.sp)
+                                    // האותיות של המקש, כמו בטלפון רגיל (בשביל החיפוש החכם)
+                                    val letters = KeyLetters[ch]
+                                    if (letters != null) Text(letters, color = Muted, fontSize = 9.5.sp, lineHeight = 11.sp)
+                                }
+                            }
                         }
                     }
                 }
