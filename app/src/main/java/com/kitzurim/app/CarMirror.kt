@@ -4,11 +4,9 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.UiModeManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import androidx.core.app.NotificationCompat
@@ -41,9 +39,9 @@ object CarMirror {
             c.contentResolver.query(Uri.parse("content://androidx.car.app.connection"), arrayOf("CarConnectionState"), null, null, null)
                 ?.use { cur -> if (cur.moveToFirst()) cur.getInt(0) else 0 }
         }.getOrNull()
-        if (official != null) return official == 2
-        // אין תשובה רשמית: מצב רכב של הטלפון
-        return c.getSystemService(UiModeManager::class.java)?.currentModeType == Configuration.UI_MODE_TYPE_CAR
+        // רק אנדרואיד אוטו עצמו קובע. "מצב רכב" של הטלפון (למשל מצב "נהיגה" של סמסונג) נדלק גם בלי רכב,
+        // ואז כל הודעה הופיעה פעמיים בטלפון
+        return official == 2
     }
 
     /** לא מחוברים לרכב: מורידים מהטלפון את כל ההעתקים שנשארו (שלא יופיעו פעמיים) */
