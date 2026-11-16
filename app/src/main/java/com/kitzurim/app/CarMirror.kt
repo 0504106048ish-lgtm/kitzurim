@@ -60,6 +60,7 @@ object CarMirror {
         groupTitle: String?,
         reply: Notification.Action?,
         read: Notification.Action?,
+        icon: androidx.core.graphics.drawable.IconCompat? = null,
     ) {
         if (!NotchPrefs.carMirror(c) || !connected(c)) {
             clearAll(c)
@@ -79,7 +80,7 @@ object CarMirror {
         val style = NotificationCompat.MessagingStyle(me)
         if (groupTitle != null) style.setConversationTitle(groupTitle).setGroupConversation(true)
         old?.messages?.takeLast(5)?.forEach { style.addMessage(it) }
-        style.addMessage(NotificationCompat.MessagingStyle.Message(text, System.currentTimeMillis(), Person.Builder().setName(sender).build()))
+        style.addMessage(NotificationCompat.MessagingStyle.Message(text, System.currentTimeMillis(), Person.Builder().setName(sender).setIcon(icon).build()))
 
         fun pi(action: String, code: Int, mutable: Boolean) = PendingIntent.getBroadcast(
             c, code,

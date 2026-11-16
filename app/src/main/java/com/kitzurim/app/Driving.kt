@@ -173,10 +173,19 @@ class ReplyListener : NotificationListenerService() {
         val m = LastMsg(sender, text, color, n.contentIntent, reply, read, sbn.key)
         // אנדרואיד אוטו: מחוברים לרכב? ההודעה עוברת גם למסך הרכב (הקראה ותשובה בקול)
         // (הודעות SMS כבר מגיעות לרכב לבד, אז רק אפליקציות צ'אט, כדי שלא יהיו פעמיים)
-        if ((sbn.packageName in carApps || sbn.packageName in smsApps) && NotchPrefs.carApp(this, sbn.packageName)) {
+        // אפליקציה שכבר מגיעה לרכב לבד (כמו וואטסאפ: הודעה בסגנון צ'אט + "השב" + "סמן כנקרא"):
+        // לא מעבירים עותק, אחרת ההודעה מופיעה ברכב פעמיים
+        val native = style != null && reply != null && Build.VERSION.SDK_INT >= 28 &&
+            acts.any { it.semanticAction == Notification.Action.SEMANTIC_ACTION_MARK_AS_READ }
+        if (native) {
+            CarMirror.removed(this, sbn.key)
+        } else if ((sbn.packageName in carApps || sbn.packageName in smsApps) && NotchPrefs.carApp(this, sbn.packageName)) {
             val group = style?.isGroupConversation == true
             val who = last?.person?.name?.toString()?.takeIf { it.isNotBlank() } ?: sender
-            CarMirror.mirror(this, sbn.key, who, text, if (group) (style?.conversationTitle?.toString() ?: sender) else null, reply, read)
+            // תמונת הפרופיל של מי ששלח (כמו שוואטסאפ מראה), שתופיע גם ברכב
+            val icon = last?.person?.icon
+                ?: n.getLargeIcon()?.let { runCatching { androidx.core.graphics.drawable.IconCompat.createFromIcon(this, it) }.getOrNull() }
+            CarMirror.mirror(this, sbn.key, who, text, if (group) (style?.conversationTitle?.toString() ?: sender) else null, reply, read, icon)
         }
         NotchOverlay.notificationPosted(sbn.key, color, m)
         LivePill.showMessage(sender, text, color, n.contentIntent, msg = m)
