@@ -420,7 +420,8 @@ private fun CallScreenUi(c: Call?, version: Int) {
         speaker = Calls.route == CallAudioState.ROUTE_SPEAKER,
         holding = st == Call.STATE_HOLDING,
         canSwap = st == Call.STATE_ACTIVE && Calls.list.any { Calls.state(it) == Call.STATE_HOLDING },
-        canRecord = recOk && (st == Call.STATE_ACTIVE || st == Call.STATE_HOLDING),
+        // הקלטה: זמינה מרגע שענו (אם עוד לא אישרת מיקרופון, הלחיצה הראשונה מבקשת)
+        canRecord = st == Call.STATE_ACTIVE || st == Call.STATE_HOLDING,
         recording = CallRecorder.recording,
         hasBluetooth = Calls.hasBluetooth(),
         bluetoothOn = Calls.route == CallAudioState.ROUTE_BLUETOOTH,
@@ -438,7 +439,16 @@ private fun CallScreenUi(c: Call?, version: Int) {
             hold = { Calls.toggleHold(c) },
             swap = { Calls.swap() },
             dtmf = { ch -> Calls.dtmf(c, ch) },
-            record = { CallRecorder.toggle(ctx, name) },
+            record = {
+                if (!CallRecorder.permitted(ctx)) {
+                    // עוד אין אישור למיקרופון: מבקשים, ואחרי האישור לוחצים שוב "הקלט"
+                    (ctx as? android.app.Activity)?.requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 21)
+                    Actions.toast(ctx, "אשר מיקרופון ולחץ שוב \"הקלט\"")
+                } else {
+                    CallRecorder.setEnabled(ctx, true)
+                    CallRecorder.toggle(ctx, name)
+                }
+            },
             bluetooth = { Calls.toggleBluetooth() },
             // הוספת שיחה: נפתח החייגן עם המקלדת; כשמחייגים, השיחה הנוכחית עוברת להמתנה
             addCall = {
@@ -689,9 +699,10 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                             RoundBtn(CallIcons.hold, if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
                             if (v.canSwap) RoundBtn(CallIcons.swap, "החלף", false) { act.swap() }
                             if (v.canMerge) RoundBtn(CallIcons.merge, "מיזוג", false) { act.merge() }
-                            if (v.canAdd) RoundBtn(CallIcons.addCall, "הוסף שיחה", false) { act.addCall() }
+                            // הוסף שיחה והקלט: תמיד במקום (כמו בסמסונג). בזמן חיוג חלשים, ונדלקים כשעונים
+                            if (!v.canSwap) RoundBtn(CallIcons.addCall, "הוסף שיחה", false, enabled = v.canAdd) { act.addCall() }
                             // הקלטה: לבן ודלוק בזמן ההקלטה
-                            if (v.canRecord) RoundBtn(CallIcons.record, if (v.recording) "עצור הקלטה" else "הקלט", v.recording) { act.record() }
+                            RoundBtn(CallIcons.record, if (v.recording) "עצור הקלטה" else "הקלט", v.recording, enabled = v.canRecord) { act.record() }
                         }
                     }
                 }
@@ -835,10 +846,19 @@ private fun SlideToAnswer(onAnswer: () -> Unit) {
 }
 
 @Composable
-private fun RoundBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, on: Boolean, small: Boolean = false, onClick: () -> Unit) {
+private fun RoundBtn(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    on: Boolean,
+    small: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
     // קטן כשהמקלדת פתוחה, בתנועה רכה
     val sz by androidx.compose.animation.core.animateDpAsState(if (small) 52.dp else 64.dp, tween(300), label = "btn")
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(84.dp)) {
+    // כפתור שעוד לא זמין (למשל הוסף שיחה בזמן חיוג): מופיע חלש, ונדלק כשעונים
+    val fade by androidx.compose.animation.core.animateFloatAsState(if (enabled) 1f else 0.35f, tween(300), label = "en")
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(84.dp).alpha(fade)) {
         // כפתור זכוכית: לבן שקוף עם ברק למעלה ומסגרת דקה; דלוק = לבן מלא וסמל כהה
         Box(
             Modifier
@@ -850,7 +870,7 @@ private fun RoundBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, labe
                     else Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f), Color.White.copy(alpha = 0.08f))),
                 )
                 .border(1.dp, Color.White.copy(alpha = if (on) 0f else 0.22f), CircleShape)
-                .clickable { onClick() },
+                .clickable(enabled = enabled) { onClick() },
             contentAlignment = Alignment.Center,
         ) {
             CallIcon(icon, if (on) Color.Black else Color.White, 26.dp)
