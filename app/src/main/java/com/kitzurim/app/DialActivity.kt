@@ -390,11 +390,20 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                         ) {
                             Text("שיחות", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
                             Spacer(Modifier.height(8.dp))
-                            // רק שיחות שלא נענו מהיממה האחרונה (ישנות כבר לא "חשובות עכשיו")
-                            val fresh = remember(missed) { missed.filter { it.date > System.currentTimeMillis() - 24L * 60 * 60 * 1000 } }
+                            // שיחות שלא נענו שעוד מחכות לך: מהיממה האחרונה, ורק אם עוד לא דיברתם אחר כך
+                            // (התקשרת בחזרה או שהוא התקשר שוב וענית: נעלמת מכאן). אפשר גם להסתיר ב-✕
+                            var dismissedAt by remember { androidx.compose.runtime.mutableLongStateOf(ctx.getSharedPreferences("dial", 0).getLong("missed_seen", 0L)) }
+                            val fresh = remember(missed, recents, dismissedAt) {
+                                fun k(e: PhoneEntry) = e.number.filter(Char::isDigit).takeLast(9)
+                                missed.filter { m ->
+                                    m.date > System.currentTimeMillis() - 24L * 60 * 60 * 1000 && m.date > dismissedAt &&
+                                        recents.none { it.date > m.date && it.type != CallLog.Calls.MISSED_TYPE && k(it) == k(m) }
+                                }
+                            }
                             if (fresh.isNotEmpty()) {
                                 // שיחות שלא נענו: הקשה פותחת את הלשונית "לא נענו"
                                 val names = fresh.map { it.name }.distinct().take(2).joinToString(", ")
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     "↙ ${if (fresh.size == 1) "שיחה אחת שלא נענתה" else "${fresh.size} שיחות שלא נענו"} · $names",
                                     color = Color(0xFFFFB3B5),
@@ -408,6 +417,22 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                                         .clickable { tab = 3 }
                                         .padding(horizontal = 12.dp, vertical = 7.dp),
                                 )
+                                // ✕: ראיתי, להסתיר (שיחה חדשה שלא נענתה תופיע שוב)
+                                Text(
+                                    "✕",
+                                    color = Muted,
+                                    fontSize = 15.sp,
+                                    modifier = Modifier
+                                        .padding(start = 6.dp)
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            val now = System.currentTimeMillis()
+                                            ctx.getSharedPreferences("dial", 0).edit().putLong("missed_seen", now).apply()
+                                            dismissedAt = now
+                                        }
+                                        .padding(8.dp),
+                                )
+                                }
                             } else {
                                 // אין מה להשלים: כמה שיחות היו היום
                                 val dayStart = remember(recents) {
