@@ -215,6 +215,17 @@ object LivePill {
     private var dialSince = 0L // מתי התחיל החיוג (כדי להקטין אחרי 2 שניות)
     private var bigUntil = 0L
     private var menuOpen = false
+
+    /** המסגרת שהתרחבה לכל המסך: נשארת עד שמסך השיחה באמת מצויר, ואז נעלמת בהדרגה (בלי רגע שחור) */
+    private var growRoot: View? = null
+
+    /** מסך השיחה צייר את עצמו: המסגרת שמעליו נמוגה */
+    fun callScreenDrawn() {
+        val r = growRoot ?: return
+        growRoot = null
+        val wm = NotchOverlay.wm ?: return
+        r.animate().alpha(0f).setDuration(220).withEndAction { runCatching { wm.removeView(r) } }.start()
+    }
     // מה שההתראה של השיחה פותחת: מסך השיחה של אפליקציית הטלפון
     private var callScreen: PendingIntent? = null
 
@@ -372,10 +383,14 @@ object LivePill {
 
         // משמאל לימין: אחרת בעברית המיקום נמדד מצד ימין והמסגרת עפה לפינה במקום לחור
         val root = FrameLayout(s).apply { layoutDirection = View.LAYOUT_DIRECTION_LTR }
+        // צבעי מסך השיחה של מי שמדברים איתו (מהתמונה או לפי השם), כדי שהמעבר ייראה כמו המסך עצמו
+        val full = Calls.main()?.let { cl -> runCatching { contactArgb(Calls.name(s, cl), Calls.photo(s, cl)) }.getOrNull() }
+            ?.let { (a, _) -> intArrayOf(androidx.core.graphics.ColorUtils.blendARGB(Color.rgb(11, 13, 19), a, 0.5f), Color.rgb(11, 13, 19)) }
+            ?: intArrayOf(Color.rgb(24, 28, 40), Color.rgb(11, 13, 19))
         val bgDrawable = GradientDrawable().apply {
             cornerRadius = 40 * d
             // כמו הרקע של מסך השיחה (ניאון ירקרק)
-            colors = intArrayOf(Color.rgb(24, 28, 40), Color.rgb(11, 13, 19))
+            colors = full
             gradientType = GradientDrawable.RADIAL_GRADIENT
             gradientRadius = screenH * 0.6f
             setStroke((1.5f * d).toInt(), Color.TRANSPARENT)
@@ -409,7 +424,7 @@ object LivePill {
                     bgDrawable.colors = intArrayOf(GlassDrawable.TOP, GlassDrawable.TOP)
                     bgDrawable.setStroke((1.5f * d).toInt(), green)
                 } else {
-                    bgDrawable.colors = intArrayOf(Color.rgb(24, 28, 40), Color.rgb(11, 13, 19))
+                    bgDrawable.colors = full
                     bgDrawable.setStroke((1.5f * d).toInt(), Color.TRANSPARENT)
                 }
             }
@@ -418,7 +433,10 @@ object LivePill {
                     if (grow) {
                         // מסך השיחה נפתח מתחת, ורק אז המסגרת שהתרחבה נעלמת
                         onEnd()
-                        main.postDelayed({ runCatching { wm.removeView(root) } }, 350)
+                        // נשארת עד שמסך השיחה מצויר (callScreenDrawn), ולכל היותר 2 שניות
+                        growRoot?.let { old -> runCatching { wm.removeView(old) } }
+                        growRoot = root
+                        main.postDelayed({ if (growRoot === root) callScreenDrawn() }, 2000)
                     } else {
                         // הגלולה של השיחה נכנסת למקום, ורק אז המסגרת שהתכווצה נעלמת
                         inCall(99)

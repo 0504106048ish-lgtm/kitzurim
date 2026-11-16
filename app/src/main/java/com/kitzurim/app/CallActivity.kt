@@ -163,6 +163,9 @@ class CallActivity : ComponentActivity() {
         updateProximity()
         // המסך הגדול פתוח: ההתראה של השיחה נכנסת בשקט (בלי שורה קופצת למעלה)
         CallNotif.update(this)
+        // הגלולה שהתרחבה לכל המסך נמוגה רק אחרי שהמסך הזה באמת צויר (בלי רגע שחור באמצע)
+        if (Build.VERSION.SDK_INT >= 29) window.decorView.viewTreeObserver.registerFrameCommitCallback { window.decorView.postDelayed({ LivePill.callScreenDrawn() }, 40) }
+        else window.decorView.postDelayed({ LivePill.callScreenDrawn() }, 120)
     }
 
     override fun onPause() {
@@ -584,6 +587,12 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
         Column(
             Modifier
                 .fillMaxSize()
+                // מקלדת פתוחה: הקשה על מקום ריק במסך סוגרת אותה (המקשים והכפתורים לא)
+                .clickable(
+                    enabled = keypad && !v.ringing,
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                ) { keypad = false }
                 .graphicsLayer {
                     alpha = appear.value
                     translationY = (1f - appear.value) * 28.dp.toPx()
@@ -692,7 +701,11 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                     exit = androidx.compose.animation.fadeOut(tween(160)) +
                         androidx.compose.animation.shrinkVertically(tween(280, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Bottom),
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // הקשה ברווח בין המקשים לא סוגרת את המקלדת
+                    Column(
+                        Modifier.clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {},
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
                         Keypad { ch -> act.dtmf(ch) }
                         Spacer(Modifier.height(14.dp))
                     }
@@ -968,3 +981,10 @@ private fun clock(sec: Long): String {
     return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, (s / 60) % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
 }
 
+
+/** הצבעים של מסך השיחה כצבעים רגילים, בשביל הגלולה שמתרחבת לכל המסך (שתיראה כמו המסך עצמו) */
+internal fun contactArgb(name: String, photo: android.graphics.Bitmap?): Pair<Int, Int> =
+    contactColors(name, photo).let { (a, b) ->
+        android.graphics.Color.argb(255, (a.red * 255).toInt(), (a.green * 255).toInt(), (a.blue * 255).toInt()) to
+            android.graphics.Color.argb(255, (b.red * 255).toInt(), (b.green * 255).toInt(), (b.blue * 255).toInt())
+    }
