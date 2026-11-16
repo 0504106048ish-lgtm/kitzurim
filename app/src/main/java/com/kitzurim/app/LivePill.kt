@@ -1174,10 +1174,75 @@ object LivePill {
         }
     }
 
+    /**
+     * צילום מסך: הבזק עדין על כל המסך, ותמונת הצילום עפה בקו ישר אל המצלמה ונבלעת בה.
+     * כשהיא נבלעת, הגלולה "נוטפת" מהחור עם "צילום מסך נשמר"
+     */
+    private fun shotFlight(thumb: Bitmap?, then: () -> Unit) {
+        val s = NotchOverlay.service
+        val wm = NotchOverlay.wm
+        val locked = runCatching { s?.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true }.getOrDefault(false)
+        if (s == null || wm == null || locked) { then(); return }
+        val dm = s.resources.displayMetrics
+        val d = dm.density
+        val c = NotchOverlay.cutout(s)
+        val holeX = c.exactCenterX() + NotchPrefs.offsetX(s) * d
+        val holeY = c.exactCenterY() + NotchPrefs.offsetY(s) * d
+        val sw = dm.widthPixels
+        val sh = dm.heightPixels
+        val root = FrameLayout(s)
+        val flash = View(s).apply { setBackgroundColor(Color.WHITE); alpha = 0f }
+        root.addView(flash, FrameLayout.LayoutParams(-1, -1))
+        // התמונה מתחילה כמעט בגודל המסך, באמצע, עם מסגרת לבנה ופינות מעוגלות
+        val w = (sw * 0.86f).toInt()
+        val hh = (sh * 0.86f).toInt()
+        val img = ImageView(s).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            if (thumb != null) setImageBitmap(thumb) else setBackgroundColor(Color.rgb(40, 50, 70))
+            foreground = GradientDrawable().apply {
+                cornerRadius = 22 * d
+                setStroke((3 * d).toInt(), Color.WHITE)
+            }
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(v: View, o: android.graphics.Outline) = o.setRoundRect(0, 0, v.width, v.height, 22 * d)
+            }
+            clipToOutline = true
+            elevation = 12 * d
+        }
+        root.addView(img, FrameLayout.LayoutParams(w, hh).apply {
+            leftMargin = (sw - w) / 2
+            topMargin = (sh - hh) / 2
+        })
+        val lp = NotchOverlay.params(sw, sh, 0, 0, touchable = false)
+        if (runCatching { wm.addView(root, lp) }.isFailure) { then(); return }
+        flash.animate().alpha(0.75f).setDuration(80).withEndAction {
+            flash.animate().alpha(0f).setDuration(260).start()
+        }.start()
+        // בקו ישר אל מרכז החור: מהמרכז של התמונה אל המצלמה, וקטנה עד שהיא נעלמת בתוכה
+        img.animate()
+            .setStartDelay(160)
+            .setDuration(560)
+            .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator())
+            .translationX(holeX - sw / 2f)
+            .translationY(holeY - sh / 2f)
+            .scaleX(0.015f)
+            .scaleY(0.015f)
+            .withEndAction {
+                runCatching { wm.removeView(root) }
+                then()
+            }
+            .start()
+    }
+
     /** צילום מסך נשמר: תמונה קטנה של הצילום ו"נשמר". הקשה פותחת את הצילום */
     fun showScreenshot(thumb: Bitmap?, uri: android.net.Uri) {
         val s = NotchOverlay.service ?: return
         if (inCallPill() || kind == "player") return
+        shotFlight(thumb) { showScreenshotPill(thumb, uri) }
+    }
+
+    private fun showScreenshotPill(thumb: Bitmap?, uri: android.net.Uri) {
+        val s = NotchOverlay.service ?: return
         val blue = NotchPrefs.tint(s, "shot", Color.rgb(79, 179, 255))
         val d = s.resources.displayMetrics.density
         val open = {
@@ -1570,9 +1635,35 @@ object LivePill {
                 // הסמל או התמונה בקצה הימני, לא צמוד לחור
                 right.gravity = Gravity.END or Gravity.CENTER_VERTICAL
             } else {
-                // ארוך: עובר לאורך כל הגלולה וזז פעם אחת עד הסוף
-                longMarquee = MarqueeText(s, flat, 12.5f, col)
-                left.addView(longMarquee, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (4 * d).toInt() })
+                // בינוני: נכנס בשני הצדדים. מחלקים בין מילים (לא באמצע מילה), חלק מכל צד של החור,
+                // כך ששום מילה לא יושבת מתחת למצלמה ולא נחתכת
+                right.measure(free, free)
+                val iconW = right.measuredWidth
+                val pad = (20 * d).toInt()
+                val parts = splitAtWord(flat, probe, maxSide - pad, maxSide - pad - iconW)
+                if (parts != null) {
+                    val heb = flat.any { it in 'א'..'ת' }
+                    val first = label(s, parts.first, 12.5f, col)
+                    val rest = label(s, parts.second, 12.5f, col)
+                    if (heb) {
+                        // עברית: מתחילים מימין לחור (ליד הסמל) וממשיכים משמאל לו
+                        first.textDirection = View.TEXT_DIRECTION_RTL
+                        rest.textDirection = View.TEXT_DIRECTION_RTL
+                        right.addView(first, 0)
+                        left.addView(rest)
+                    } else {
+                        // אנגלית: מתחילים משמאל לחור וממשיכים מימין לו
+                        first.textDirection = View.TEXT_DIRECTION_LTR
+                        rest.textDirection = View.TEXT_DIRECTION_LTR
+                        left.addView(first)
+                        right.addView(rest, 0)
+                    }
+                    right.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                } else {
+                    // ארוך: עובר לאורך כל הגלולה וזז פעם אחת עד הסוף
+                    longMarquee = MarqueeText(s, flat, 12.5f, col)
+                    left.addView(longMarquee, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (4 * d).toInt() })
+                }
             }
         }
         fit(left, maxSide)
@@ -1690,8 +1781,36 @@ object LivePill {
         this.body = body
         kind = newKind
 
+        // טיפה מהחור: קודם עיגול קטן "נוטף" מהמצלמה (יורד, נמתח, קופץ חזרה), ורק אז נמתח לגלולה
+        val drop = !instant && extra == null
+        val dropMs = if (drop) 320L else 0L
+        if (drop) {
+            b.pivotX = collapsedW / 2f
+            b.pivotY = 0f
+            ValueAnimator.ofFloat(0f, 1f).apply {
+                duration = dropMs
+                interpolator = android.view.animation.LinearInterpolator()
+                addUpdateListener {
+                    val f = it.animatedValue as Float
+                    // עד 45%: יורדת ונמתחת למטה. אחר כך: חוזרת למעלה ונמעכת קצת לרוחב, ונרגעת
+                    val down = if (f < 0.45f) f / 0.45f else 1f - (f - 0.45f) / 0.55f
+                    val ease = (1f - kotlin.math.cos(down * Math.PI.toFloat())) / 2f
+                    b.translationY = ease * 6 * d
+                    val stretch = if (f < 0.45f) 1f + 0.28f * ease else 1f - 0.12f * kotlin.math.sin(((f - 0.45f) / 0.55f) * Math.PI.toFloat())
+                    b.scaleY = stretch
+                    b.scaleX = 1f / kotlin.math.sqrt(stretch)
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        b.translationY = 0f; b.scaleX = 1f; b.scaleY = 1f
+                    }
+                })
+                start()
+            }
+        }
         // מתיחה אלסטית: קודם לצדדים, ואם צריך גם למטה, ועוצרת עם קפיצה קטנה ועדינה
         ValueAnimator.ofFloat(0f, 1f).apply {
+            startDelay = dropMs
             duration = if (instant) 0L else if (expanded) 520L else 420L
             interpolator = OvershootInterpolator(0.9f)
             addUpdateListener {
@@ -1707,8 +1826,8 @@ object LivePill {
             start()
         }
         val dl = if (instant) 0L else 1L
-        left.animate().alpha(1f).setStartDelay(220 * dl).setDuration(180 * dl).start()
-        right.animate().alpha(1f).setStartDelay(220 * dl).setDuration(180 * dl).start()
+        left.animate().alpha(1f).setStartDelay(220 * dl + dropMs).setDuration(180 * dl).start()
+        right.animate().alpha(1f).setStartDelay(220 * dl + dropMs).setDuration(180 * dl).start()
         body?.animate()?.alpha(1f)?.setStartDelay(340)?.setDuration(180)?.start()
         extra?.animate()?.alpha(1f)?.setStartDelay(360)?.setDuration(180)?.start()
         this.extra = extra
@@ -1728,7 +1847,7 @@ object LivePill {
             left.alpha = 1f; right.alpha = 1f; extra?.alpha = 1f
             val blp = b.layoutParams
             if (blp.width < targetW) { blp.width = targetW; blp.height = targetH; b.layoutParams = blp }
-        }, 750)
+        }, 750 + dropMs)
 
         if (autoMs != null) main.postDelayed(autoClose, autoMs)
         // טקסט שזז: נסגרת רק אחרי שסיים לזוז, ועוד שנייה לקרוא את הסוף
@@ -1789,6 +1908,28 @@ object LivePill {
      * צד שלא נכנס: קודם מקטינים קצת את הכתב, ואם עדיין ארוך מקצרים רק את הטקסט,
      * כך שהעיגולים והכפתורים תמיד נשארים שלמים
      */
+    /**
+     * מחלק טקסט לשני חלקים בין מילים: החלק הראשון עד maxFirst והשני עד maxRest.
+     * בוחר את החלוקה הכי מאוזנת. null אם אי אפשר (טקסט ארוך מדי לשני הצדדים)
+     */
+    private fun splitAtWord(text: CharSequence, paint: android.text.TextPaint, maxFirst: Int, maxRest: Int): Pair<CharSequence, CharSequence>? {
+        var best: Pair<CharSequence, CharSequence>? = null
+        var bestDiff = Float.MAX_VALUE
+        for (i in text.indices) {
+            if (text[i] != ' ') continue
+            val a = text.subSequence(0, i).trimEnd()
+            val b = text.subSequence(i + 1, text.length).trimStart()
+            if (a.isEmpty() || b.isEmpty()) continue
+            val wa = android.text.Layout.getDesiredWidth(a, paint)
+            val wb = android.text.Layout.getDesiredWidth(b, paint)
+            if (wa <= maxFirst && wb <= maxRest) {
+                val diff = kotlin.math.abs(wa - wb)
+                if (diff < bestDiff) { bestDiff = diff; best = a to b }
+            }
+        }
+        return best
+    }
+
     private fun fit(side: LinearLayout, maxSide: Int) {
         val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         side.measure(free, free)
