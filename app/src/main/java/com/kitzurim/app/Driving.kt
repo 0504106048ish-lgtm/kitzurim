@@ -185,7 +185,7 @@ class ReplyListener : NotificationListenerService() {
             // תמונת הפרופיל של מי ששלח (כמו שוואטסאפ מראה), שתופיע גם ברכב
             val icon = last?.person?.icon
                 ?: n.getLargeIcon()?.let { runCatching { androidx.core.graphics.drawable.IconCompat.createFromIcon(this, it) }.getOrNull() }
-            CarMirror.mirror(this, sbn.key, who, text, if (group) (style?.conversationTitle?.toString() ?: sender) else null, reply, read, icon)
+            CarMirror.mirror(this, sbn.key, who, text, if (group) (style?.conversationTitle?.toString() ?: sender) else null, reply, read, icon, n.contentIntent)
         }
         NotchOverlay.notificationPosted(sbn.key, color, m)
         LivePill.showMessage(sender, text, color, n.contentIntent, msg = m)

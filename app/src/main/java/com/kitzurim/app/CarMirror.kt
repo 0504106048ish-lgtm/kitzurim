@@ -61,6 +61,7 @@ object CarMirror {
         reply: Notification.Action?,
         read: Notification.Action?,
         icon: androidx.core.graphics.drawable.IconCompat? = null,
+        open: PendingIntent? = null,
     ) {
         if (!NotchPrefs.carMirror(c) || !connected(c)) {
             clearAll(c)
@@ -95,6 +96,8 @@ object CarMirror {
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            // הקשה על ההתראה פותחת את הצ'אט באפליקציה המקורית (וואטסאפ)
+            .setContentIntent(open)
             .setOnlyAlertOnce(false)
         if (reply != null) {
             // "השב": בלי לפתוח אפליקציה, עם הקלטת תשובה (חובה בשביל אנדרואיד אוטו)
