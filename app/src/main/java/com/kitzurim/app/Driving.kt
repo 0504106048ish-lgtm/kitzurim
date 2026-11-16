@@ -209,6 +209,7 @@ class ReplyListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         lightFor(sbn)
         runCatching { CallerId.onNotification(this, sbn) }
+        runCatching { LastChat.record(this, sbn) }
         if (!AutoPrefs.drivingActive(this)) return
         if (sbn.packageName != "com.whatsapp" && sbn.packageName != "com.whatsapp.w4b") return
         val n = sbn.notification

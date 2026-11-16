@@ -527,6 +527,26 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                     2 -> "אין מועדפים. מסמנים ⭐ באנשי הקשר של סמסונג"
                     else -> "אין שיחות שלא נענו 👍"
                 }
+                // מספרים בלי שם ברשימה: כפתור שמזהה את כולם ב-Truecaller
+                val unknownNums = remember(recents) {
+                    recents.filter { it.number.isNotBlank() && it.name == it.number }.map { it.number }.distinctBy { CallerId.key(it) }
+                }
+                val hasTc = remember { CallerId.installed(ctx) }
+                if (!searching && tab == 0 && hasTc && unknownNums.isNotEmpty()) {
+                    val busy = CallerId.batchText
+                    Text(
+                        busy ?: "🔎 זהה ${unknownNums.size} מספרים עם Truecaller",
+                        color = Color(0xFF64B5F6),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(0xFF64B5F6).copy(alpha = 0.14f))
+                            .clickable(enabled = busy == null) { CallerId.identifyAll(ctx, unknownNums) }
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                    )
+                }
                 Box(Modifier.weight(1f)) {
                     EntryList(shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall, onChanged = { changed++ })
                 }

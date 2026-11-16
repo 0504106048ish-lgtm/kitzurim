@@ -262,6 +262,10 @@ private class CallView(
     val canMerge: Boolean = false,
     // השם הגיע מ-Truecaller (לא שמור אצלך)
     val fromTruecaller: Boolean = false,
+    // ספאם לפי Truecaller
+    val spam: Boolean = false,
+    // ההודעה האחרונה שלו בוואטסאפ
+    val lastMsg: String? = null,
     // שיחה נכנסת: הצלצול הושתק
     val silenced: Boolean = false,
 )
@@ -413,6 +417,8 @@ private fun CallScreenUi(c: Call?, version: Int) {
     val view = CallView(
         name = name,
         fromTruecaller = remember(c, version) { Calls.lookup(ctx, number) == null && CallerId.nameFor(ctx, number) != null },
+        spam = remember(c, version) { Calls.lookup(ctx, number) == null && CallerId.isSpam(ctx, number) },
+        lastMsg = remember(c, name) { LastChat.forCall(ctx, number, Calls.name(ctx, c)) },
         number = number,
         photo = photo,
         ringing = ringing,
@@ -607,7 +613,24 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
             Text(v.name, color = Color.White, fontSize = nameSize.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2)
             if (v.number != null && v.number != v.name) {
                 Text(v.number, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-                if (v.fromTruecaller) Text("זוהה ע״י Truecaller", color = Color(0xFF64B5F6), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                if (v.spam) Text("⚠️ ספאם לפי Truecaller", color = Color(0xFFFF6B6B), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
+                else if (v.fromTruecaller) Text("זוהה ע״י Truecaller", color = Color(0xFF64B5F6), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+            // "על מה דיברנו": ההודעה האחרונה שלו בוואטסאפ (לא כשהמקלדת פתוחה)
+            if (v.lastMsg != null && (v.ringing || !keypad)) {
+                Text(
+                    v.lastMsg,
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .padding(top = 10.dp, start = 28.dp, end = 28.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                )
             }
             if (!v.ringing) {
                 Text(
