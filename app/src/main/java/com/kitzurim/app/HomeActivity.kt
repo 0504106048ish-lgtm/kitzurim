@@ -585,11 +585,6 @@ fun HomeScreen(resumes: Int) {
                                 if (on) DialerHome.install(ctx.applicationContext) else DialerHome.remove(ctx.applicationContext)
                                 refresh++
                             }
-                            // יד אחת: הרשימה מתחילה נמוך, כמו בסמסונג
-                            SwitchLine("👍 רשימה נמוכה (יד אחת): כותרת גדולה למעלה והרשימה בהישג האגודל", NotchPrefs.dialLow(ctx)) { on ->
-                                NotchPrefs.setDialLow(ctx, on)
-                                refresh++
-                            }
                             // ספאם לפי Truecaller: הצלצול משתתק לבד
                             SwitchLine("🚫 ספאם משתתק לבד: כש-Truecaller מסמנת שיחה כספאם, הצלצול נעצר", NotchPrefs.spamSilence(ctx)) { on ->
                                 NotchPrefs.setSpamSilence(ctx, on)

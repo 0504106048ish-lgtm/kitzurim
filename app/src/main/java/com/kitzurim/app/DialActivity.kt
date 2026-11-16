@@ -293,7 +293,8 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
 
     // יד אחת (כמו בסמסונג): למעלה כותרת גדולה ומה שחשוב עכשיו, והרשימה מתחילה נמוך.
     // כשגוללים למעלה הכותרת מתכווצת לשורה קטנה, וכשחוזרים לראש הרשימה היא נפתחת שוב
-    val low = remember { NotchPrefs.dialLow(ctx) }
+    // יד אחת: תמיד (כמו בסמסונג)
+    val low = true
     val density = androidx.compose.ui.platform.LocalDensity.current
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
     val smallPx = with(density) { 44.dp.toPx() }
