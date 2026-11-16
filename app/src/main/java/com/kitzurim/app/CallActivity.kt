@@ -91,6 +91,8 @@ class CallActivity : ComponentActivity() {
             )
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // הרקע של החלון באותו צבע כהה של מסך השיחה, כדי שלא יהבהב שחור לפני שהמסך מצויר
+        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.rgb(11, 13, 19)))
         neonBars()
         // תצוגה מקדימה מההגדרות: שיחה לדוגמא, ואז "להפעיל" או "לא עכשיו"
         if (intent?.getBooleanExtra(PREVIEW, false) == true) {
@@ -511,10 +513,20 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
     var keypad by remember { mutableStateOf(false) }
     // זכוכית בצבעי איש הקשר: רקע כהה עם הילה בשני צבעים (מהתמונה שלו, או צבעים קבועים לפי השם)
     val acc = remember(v.name, v.photo) { contactColors(v.name, v.photo) }
+    // כניסה רכה: הכול מופיע יחד ומיד, עולה קצת למעלה ומתבהר (בלי רקע שחור שמחכה לכפתורים)
+    val appear = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { appear.animateTo(1f, tween(420, easing = FastOutSlowInEasing)) }
     GlassBg(acc) {
         Column(
             Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    alpha = appear.value
+                    translationY = (1f - appear.value) * 28.dp.toPx()
+                    val s = 0.97f + 0.03f * appear.value
+                    scaleX = s
+                    scaleY = s
+                }
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
