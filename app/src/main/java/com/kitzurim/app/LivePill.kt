@@ -1158,7 +1158,8 @@ object LivePill {
         val blue = NotchPrefs.tint(s, "shot", Color.rgb(79, 179, 255))
         val clean = text.replace('\n', ' ').trim().take(300)
         if (clean.isEmpty()) return
-        show("clip", 260, blue, 3000, onTap = {
+        // כשיש פעולה (חייג / נווט / פתח) הגלולה נשארת קצת יותר, כדי שיהיה זמן ללחוץ
+        show("clip", 260, blue, if (clipAction(s, text) != null) 5000 else 3000, onTap = {
             runCatching {
                 s.startActivity(
                     android.content.Intent.createChooser(
@@ -1170,8 +1171,62 @@ object LivePill {
             }
             Unit
         }, long = "הועתק:  $clean", longColor = Color.rgb(225, 230, 238)) { ctx, _, right ->
+            // פעולה לפי מה שהועתק: מספר טלפון = חייג, כתובת = נווט בוויז, קישור = פתח
+            clipAction(ctx, text)?.let { (title, go) ->
+                right.addView(actionChip(ctx, title, blue) { go(); hide() })
+            }
             right.addView(label(ctx, "📋", 14f, Color.WHITE))
         }
+    }
+
+    /** מה אפשר לעשות עם מה שהועתק (או null): שם הכפתור ומה הוא עושה */
+    private fun clipAction(ctx: Context, raw: String): Pair<String, () -> Unit>? {
+        val t = raw.trim()
+        fun start(i: android.content.Intent) {
+            runCatching { ctx.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        }
+        // קישור
+        val url = android.util.Patterns.WEB_URL.matcher(t).takeIf { it.find() }?.group()
+        if (url != null && (url.startsWith("http") || url.startsWith("www.") || url.contains('/'))) {
+            val full = if (url.startsWith("http")) url else "https://$url"
+            return "🔗 פתח" to { start(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(full))) }
+        }
+        // מספר טלפון: רק ספרות, מקפים, רווחים ו-+, בין 9 ל-13 ספרות
+        val digits = t.filter { it.isDigit() }
+        if (t.all { it.isDigit() || it in "-+ ()" } && digits.length in 9..13) {
+            val number = t.filter { it.isDigit() || it == '+' }
+            return "📞 חייג" to { start(android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$number"))) }
+        }
+        // כתובת: "רחוב 12", "שדרות ...", "דרך ..." (קצר, עם מספר בית או מילת רחוב)
+        val street = Regex("""(רחוב|רח'|שדרות|שד'|דרך|סמטת|כיכר|מבוא)\s""").containsMatchIn(t)
+        val nameNum = Regex("""[א-ת]{2,}\s+\d{1,4}(\s|,|$)""").containsMatchIn(t)
+        if (t.length in 5..90 && (street || nameNum) && t.count { it == '\n' } <= 1) {
+            val q = android.net.Uri.encode(t.replace('\n', ' '))
+            return "🧭 נווט" to {
+                start(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://waze.com/ul?q=$q&navigate=yes")))
+            }
+        }
+        return null
+    }
+
+    /** כפתור קטן עם מילה (לפעולות בגלולה) */
+    private fun actionChip(ctx: Context, title: String, color: Int, onClick: () -> Unit) = TextView(ctx).apply {
+        val d = ctx.resources.displayMetrics.density
+        text = title
+        setTextColor(Color.rgb(4, 20, 30))
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f)
+        typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        setPadding((9 * d).toInt(), 0, (9 * d).toInt(), 0)
+        background = GradientDrawable().apply {
+            cornerRadius = 10 * d
+            setColor(color)
+        }
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, (20 * d).toInt()).apply {
+            marginStart = (2 * d).toInt()
+            marginEnd = (4 * d).toInt()
+        }
+        setOnClickListener { onClick() }
     }
 
     /**
