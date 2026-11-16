@@ -83,7 +83,11 @@ object LivePill {
         val hole = max(c.width(), c.height())
         val maxSide = (s.resources.displayMetrics.widthPixels - 2 * NotchPrefs.pillMargin(s) * d - (hole * 0.75f + 4 * d) - 2 * 12 * d) / 2 - 10 * d
         val paint = android.text.TextPaint().apply { textSize = 12.5f * s.resources.displayMetrics.scaledDensity }
-        if (paint.measureText(msgText) <= maxSide) {
+        // מחלקים לשניים רק אם גם ההודעה וגם השם (עם העיגול) נכנסים שלמים, עם מקום לריווח.
+        // אחרת: שורה אחת שזזה, כדי ששום מילה לא תיחתך
+        val boldPaint = android.text.TextPaint(paint).apply { typeface = Typeface.DEFAULT_BOLD }
+        val nameW = boldPaint.measureText(sender.trim() + ":") + 40 * d
+        if (paint.measureText(msgText) + 16 * d <= maxSide && nameW <= maxSide) {
             val grey = Color.rgb(210, 216, 228)
             show("msg", 300, color, 3000, onTap = { launch(open) }) { ctx, left, right ->
                 left.addView(label(ctx, msgText, 12.5f, grey))
@@ -1559,7 +1563,8 @@ object LivePill {
             }
             val col = if (longColor == Color.WHITE) Color.rgb(225, 230, 238) else longColor
             val probe = android.text.TextPaint().apply { textSize = 12.5f * s.resources.displayMetrics.scaledDensity }
-            if (android.text.Layout.getDesiredWidth(flat, probe) + 10 * d <= maxSide) {
+            // נכנס בצד אחד רק אם יש מרווח אמיתי (הריווח של התווית והאוויר מסביב), אחרת זז ולא נחתך
+            if (android.text.Layout.getDesiredWidth(flat, probe) + 20 * d <= maxSide) {
                 // קצר: נכנס בצד אחד, אז מחולק לשניים כמו הודעה קצרה (הטקסט משמאל לחור, הסמל מימין) ולא זז
                 left.addView(label(s, flat, 12.5f, col).apply { textDirection = View.TEXT_DIRECTION_RTL })
                 // הסמל או התמונה בקצה הימני, לא צמוד לחור
@@ -1803,7 +1808,7 @@ object LivePill {
             // קודם מקטינים קצת את הכתב
             val scale = max(0.85f, maxSide.toFloat() / need)
             texts.forEach { it.setTextSize(TypedValue.COMPLEX_UNIT_PX, it.textSize * scale) }
-            // ואם עדיין ארוך: מקצרים כל טקסט בכמה שחסר (עם "…"), כמה פעמים עד שנכנס
+            // ואם עדיין ארוך: הטקסט לא נחתך ב-"…" אלא זז בתוך המקום שיש לו, כך שכל מילה נקראת
             repeat(4) {
                 side.measure(free, free)
                 val over = side.measuredWidth - maxSide
@@ -1812,6 +1817,11 @@ object LivePill {
                 texts.forEach { t ->
                     t.measure(free, free)
                     t.maxWidth = (t.measuredWidth - over).coerceAtLeast(minW)
+                    t.isSingleLine = true
+                    t.ellipsize = TextUtils.TruncateAt.MARQUEE
+                    t.marqueeRepeatLimit = -1
+                    t.isHorizontalFadingEdgeEnabled = true
+                    t.isSelected = true
                 }
             }
         }
