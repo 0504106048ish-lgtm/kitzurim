@@ -537,7 +537,7 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                 if (!searching && tab == 0 && hasTc && unknownNums.isNotEmpty()) {
                     val busy = CallerId.batchText
                     Text(
-                        busy ?: "🔎 זהה ${unknownNums.size} מספרים עם Truecaller",
+                        busy ?: "🔎 זהה ${unknownNums.size} מספרים עם ${CallerId.appName(ctx)}",
                         color = Color(0xFF64B5F6),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,

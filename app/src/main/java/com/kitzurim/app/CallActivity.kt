@@ -281,6 +281,8 @@ private class CallView(
     val fromTruecaller: Boolean = false,
     // ספאם לפי Truecaller
     val spam: Boolean = false,
+    // מאיזו אפליקציה הגיע הזיהוי (Truecaller או Me)
+    val idSource: String = "Truecaller",
     // ההודעה האחרונה שלו בוואטסאפ
     val lastMsg: String? = null,
     // שיחה נכנסת: הצלצול הושתק
@@ -434,6 +436,7 @@ private fun CallScreenUi(c: Call?, version: Int) {
     val view = CallView(
         name = name,
         fromTruecaller = remember(c, version) { Calls.lookup(ctx, number) == null && CallerId.nameFor(ctx, number) != null },
+        idSource = remember(c, version) { CallerId.sourceFor(ctx, number) },
         spam = remember(c, version) { Calls.lookup(ctx, number) == null && CallerId.isSpam(ctx, number) },
         lastMsg = remember(c, name) { LastChat.forCall(ctx, number, Calls.name(ctx, c)) },
         number = number,
@@ -636,8 +639,8 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
             Text(v.name, color = Color.White, fontSize = nameSize.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2)
             if (v.number != null && v.number != v.name) {
                 Text(v.number, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-                if (v.spam) Text("⚠️ ספאם לפי Truecaller", color = Color(0xFFFF6B6B), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
-                else if (v.fromTruecaller) Text("זוהה ע״י Truecaller", color = Color(0xFF64B5F6), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                if (v.spam) Text("⚠️ ספאם לפי ${v.idSource}", color = Color(0xFFFF6B6B), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
+                else if (v.fromTruecaller) Text("זוהה ע״י ${v.idSource}", color = Color(0xFF64B5F6), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
             }
             // "על מה דיברנו": ההודעה האחרונה שלו בוואטסאפ (לא כשהמקלדת פתוחה)
             if (v.lastMsg != null && (v.ringing || !keypad)) {

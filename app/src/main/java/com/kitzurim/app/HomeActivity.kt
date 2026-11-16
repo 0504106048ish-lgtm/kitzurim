@@ -586,7 +586,7 @@ fun HomeScreen(resumes: Int) {
                                 refresh++
                             }
                             // ספאם לפי Truecaller: הצלצול משתתק לבד
-                            SwitchLine("🚫 ספאם משתתק לבד: כש-Truecaller מסמנת שיחה כספאם, הצלצול נעצר", NotchPrefs.spamSilence(ctx)) { on ->
+                            SwitchLine("🚫 ספאם משתתק לבד: כש-Truecaller או Me מסמנות שיחה כספאם, הצלצול נעצר", NotchPrefs.spamSilence(ctx)) { on ->
                                 NotchPrefs.setSpamSilence(ctx, on)
                                 refresh++
                             }

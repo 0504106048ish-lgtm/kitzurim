@@ -25,6 +25,26 @@ import androidx.core.app.NotificationCompat
 object CallerId {
     private const val PREFS = "caller_id"
     private const val TC = "com.truecaller"
+    private const val ME = "com.nfo.me.android"
+
+    /** אפליקציות זיהוי מתקשר שקיצורים יודעת לקרוא מהן: Truecaller ו-Me */
+    private val APPS = listOf(TC to "Truecaller", ME to "Me")
+    private fun srcOf(pkg: String?) = APPS.firstOrNull { pkg?.startsWith(it.first) == true }
+
+    /** מאיזו אפליקציה הגיע השם שקוראים עכשיו */
+    @Volatile private var curSrc = "Truecaller"
+
+    /** מאיזו אפליקציה הגיע השם (או הספאם) של המספר */
+    fun sourceFor(c: Context, number: String?): String {
+        val k = key(number) ?: return "Truecaller"
+        return runCatching { sp(c).getString("src:$k", null) }.getOrNull() ?: "Truecaller"
+    }
+
+    /** האפליקציות שמותקנות בטלפון (Truecaller קודם, כי רק בה אפשר לחפש מספר ישירות) */
+    private fun installedApps(c: Context) = APPS.filter { (p, _) -> runCatching { c.packageManager.getPackageInfo(p, 0); true }.getOrDefault(false) }
+
+    /** השם של אפליקציית הזיהוי שיש לך (בשביל הכפתורים) */
+    fun appName(c: Context) = installedApps(c).joinToString(" / ") { it.second }.ifBlank { "Truecaller" }
 
     /** המספר האחרון שהיה בשיחה, ומתי (כדי לשייך שם גם קצת אחרי שהשיחה נגמרה) */
     @Volatile private var lastNumber: String? = null
@@ -75,7 +95,7 @@ object CallerId {
         return runCatching { sp(c).getBoolean("spam:$k", false) }.getOrDefault(false)
     }
 
-    fun installed(c: Context) = runCatching { c.packageManager.getPackageInfo(TC, 0); true }.getOrDefault(false)
+    fun installed(c: Context) = installedApps(c).isNotEmpty()
 
     /** שיחה התחילה: זוכרים את המספר שלה */
     fun callSeen(number: String?) {
@@ -95,7 +115,7 @@ object CallerId {
         // מי ששמור אצלך באנשי הקשר: השם שלך קובע
         if (Calls.lookup(c, number)?.first != null) return
         if (nameFor(c, number) == name) return
-        runCatching { sp(c).edit().putString(k, name).apply() }
+        runCatching { sp(c).edit().putString(k, name).putString("src:$k", curSrc).apply() }
         Calls.changed()
         runCatching { CallNotif.update(c) }
     }
@@ -117,7 +137,7 @@ object CallerId {
 
     fun onEvent(svc: AccessibilityService, e: AccessibilityEvent) {
         val pkg = e.packageName?.toString() ?: return
-        if (!pkg.startsWith(TC)) return
+        curSrc = srcOf(pkg)?.second ?: return
         val now = System.currentTimeMillis()
         val lookup = lookupNumber?.takeIf { now - lookupAt < 8000 }
         val number = lookup ?: target() ?: return
@@ -126,7 +146,7 @@ object CallerId {
         val roots = ArrayList<AccessibilityNodeInfo>()
         e.source?.let { roots += it }
         runCatching {
-            svc.windows.forEach { w -> w.root?.takeIf { it.packageName?.toString()?.startsWith(TC) == true }?.let { roots += it } }
+            svc.windows.forEach { w -> w.root?.takeIf { srcOf(it.packageName?.toString())?.second == curSrc }?.let { roots += it } }
         }
         for (r in roots) {
             val texts = texts(r)
@@ -189,11 +209,11 @@ object CallerId {
         // מי ששמור אצלך לא ספאם
         if (Calls.lookup(svc, number)?.first != null) return
         val first = !isSpam(svc, number)
-        runCatching { sp(svc).edit().putBoolean("spam:$k", true).apply() }
+        runCatching { sp(svc).edit().putBoolean("spam:$k", true).putString("src:$k", curSrc).apply() }
         val ringing = Calls.list.any { it.state == Call.STATE_RINGING && key(Calls.number(it)) == k }
         if (ringing && !Calls.silenced && NotchPrefs.spamSilence(svc)) {
             Calls.silence(svc)
-            Actions.toast(svc, "🚫 ספאם לפי Truecaller, הצלצול הושתק")
+            Actions.toast(svc, "🚫 ספאם לפי $curSrc, הצלצול הושתק")
         }
         if (first) Calls.changed()
     }
@@ -204,10 +224,15 @@ object CallerId {
     private fun open(c: Context, number: String): Boolean {
         val d = number.filter { it.isDigit() }
         val local = if (d.startsWith("972")) "0" + d.drop(3) else d
+        // Truecaller: דף החיפוש או המקלדת שלה. Me: פותחים אותה על המספר (אם היא מקבלת)
         val tries = listOf(
             Intent(Intent.ACTION_VIEW, Uri.parse("https://www.truecaller.com/search/il/$local")),
             Intent(Intent.ACTION_DIAL, Uri.parse("tel:$local")),
-        ).map { it.setPackage(TC).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        ).map { it.setPackage(TC) } + listOf(
+            Intent(Intent.ACTION_DIAL, Uri.parse("tel:$local")),
+            Intent(Intent.ACTION_VIEW, Uri.parse("tel:$local")),
+        ).map { it.setPackage(ME) }
+        tries.forEach { it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         for (i in tries) {
             if (i.resolveActivity(c.packageManager) == null) continue
             if (runCatching { c.startActivity(i) }.isSuccess) return true
@@ -217,7 +242,7 @@ object CallerId {
 
     fun identifyAll(c: Context, numbers: List<String>) {
         if (batchText != null) return
-        if (!installed(c)) { Actions.toast(c, "Truecaller לא מותקנת"); return }
+        if (!installed(c)) { Actions.toast(c, "צריך Truecaller או Me"); return }
         if (!AutoSend.allowed(c)) { Actions.toast(c, "צריך להדליק את שירות הנגישות של קיצורים"); return }
         val list = numbers.filter { key(it) != null }.distinctBy { key(it) }.take(30)
         if (list.isEmpty()) return
@@ -225,7 +250,7 @@ object CallerId {
         val h = Handler(Looper.getMainLooper())
         var i = 0
         var found = 0
-        Actions.toast(app, "🔎 מזהה ${list.size} מספרים ב-Truecaller. לא לגעת רגע…")
+        Actions.toast(app, "🔎 מזהה ${list.size} מספרים ב-${appName(app)}. לא לגעת רגע…")
         fun finish() {
             lookupNumber = null
             batchText = null
@@ -235,7 +260,7 @@ object CallerId {
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
                 )
             }
-            Actions.toast(app, if (found > 0) "✓ זוהו $found מתוך ${list.size}" else "Truecaller לא מצאה שמות")
+            Actions.toast(app, if (found > 0) "✓ זוהו $found מתוך ${list.size}" else "${appName(app)} לא מצאה שמות")
         }
         fun next() {
             if (i > 0 && lookupFound) found++
@@ -245,7 +270,7 @@ object CallerId {
             lookupNumber = n
             lookupFound = false
             lookupAt = System.currentTimeMillis()
-            if (!open(app, n)) { found = 0; i = list.size; finish(); Actions.toast(app, "לא הצלחתי לפתוח את Truecaller"); return }
+            if (!open(app, n)) { found = 0; i = list.size; finish(); Actions.toast(app, "לא הצלחתי לפתוח את ${appName(app)}"); return }
             var waited = 0
             h.postDelayed(object : Runnable {
                 override fun run() {
@@ -262,7 +287,7 @@ object CallerId {
     // ── מההתראות של Truecaller (שיחה שלא נענתה, שיחה נכנסת) ──
 
     fun onNotification(c: Context, sbn: StatusBarNotification) {
-        if (!sbn.packageName.startsWith(TC)) return
+        curSrc = srcOf(sbn.packageName)?.second ?: return
         val x = sbn.notification?.extras ?: return
         val title = x.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim() ?: return
         val text = listOfNotNull(
