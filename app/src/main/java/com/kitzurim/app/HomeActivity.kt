@@ -124,9 +124,9 @@ fun HomeScreen(resumes: Int) {
     val shotPerm = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { refresh++ }
     // הקלטת שיחות: מבקשים את המיקרופון, ובודקים אם הטלפון בכלל מאפשר להקליט שיחות
     val recPerm = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
-        val can = ok && CallRecorder.supported(ctx)
-        CallRecorder.setEnabled(ctx, can)
-        Actions.toast(ctx, if (can) "🎙️ בשיחה יופיע כפתור \"הקלט\"" else "הטלפון הזה לא מאפשר לקיצורים להקליט שיחות")
+        // הכפתור מופיע תמיד אחרי האישור; אם הטלפון לא נותן את קול השיחה עצמו, מקליטים דרך שירות הנגישות
+        CallRecorder.setEnabled(ctx, ok)
+        if (ok) Actions.toast(ctx, CallRecorder.howText(ctx))
         refresh++
     }
     val contactLauncher = rememberLauncherForActivityResult(PickPhone()) { uri ->
@@ -591,14 +591,13 @@ fun HomeScreen(resumes: Int) {
                                 refresh++
                             }
                             // הקלטת שיחות: רק בטלפון שמאפשר (נבדק כשמדליקים)
-                            SwitchLine("🎙️ כפתור \"הקלט\" בשיחה (רק אם הטלפון מאפשר)", CallRecorder.enabled(ctx)) { on ->
+                            SwitchLine("🎙️ כפתור \"הקלט\" בשיחה", CallRecorder.enabled(ctx)) { on ->
                                 if (!on) {
                                     CallRecorder.setEnabled(ctx, false)
                                     refresh++
                                 } else if (CallRecorder.permitted(ctx)) {
-                                    val can = CallRecorder.supported(ctx)
-                                    CallRecorder.setEnabled(ctx, can)
-                                    Actions.toast(ctx, if (can) "🎙️ בשיחה יופיע כפתור \"הקלט\"" else "הטלפון הזה לא מאפשר לקיצורים להקליט שיחות")
+                                    CallRecorder.setEnabled(ctx, true)
+                                    Actions.toast(ctx, CallRecorder.howText(ctx))
                                     refresh++
                                 } else {
                                     recPerm.launch(android.Manifest.permission.RECORD_AUDIO)

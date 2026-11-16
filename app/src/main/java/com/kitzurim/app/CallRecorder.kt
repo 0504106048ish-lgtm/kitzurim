@@ -56,6 +56,11 @@ object CallRecorder {
         }.getOrDefault(false)
     }
 
+    /** הסבר קצר איך תוקלט השיחה בטלפון הזה */
+    fun howText(c: Context): String =
+        if (supported(c)) "🎙️ בשיחה יופיע כפתור \"הקלט\": שני הצדדים יוקלטו"
+        else "🎙️ בשיחה יופיע כפתור \"הקלט\". הטלפון לא נותן את קול השיחה ישירות, אז מקליטים דרך המיקרופון: הצד השני נשמע הכי טוב ברמקול"
+
     fun toggle(c: Context, who: String) {
         if (recording) stop(c) else start(c, who)
     }
@@ -78,9 +83,13 @@ object CallRecorder {
             uri = u
             val fd = c.contentResolver.openFileDescriptor(u, "w") ?: error("no fd")
             pfd = fd
+            // הדרך הטובה (קול השיחה עצמו, שני הצדדים) רק אם הטלפון מאפשר. אחרת, כמו אפליקציות הקלטת שיחות:
+            // מקליטים דרך שירות הנגישות של קיצורים (לו אנדרואיד נותן להקליט גם בזמן שיחה). הצד השני נשמע הכי טוב ברמקול
+            val direct = supported(c)
+            val owner: Context = if (direct) c else (NotchOverlay.service ?: c)
             @Suppress("DEPRECATION")
-            val r = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(c) else MediaRecorder()
-            r.setAudioSource(MediaRecorder.AudioSource.VOICE_CALL)
+            val r = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(owner) else MediaRecorder()
+            r.setAudioSource(if (direct) MediaRecorder.AudioSource.VOICE_CALL else MediaRecorder.AudioSource.VOICE_RECOGNITION)
             r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
             r.setAudioSamplingRate(44100)
