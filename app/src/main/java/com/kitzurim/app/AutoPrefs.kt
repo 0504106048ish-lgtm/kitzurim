@@ -161,16 +161,6 @@ object AutoPrefs {
 
     private fun now(): String = SimpleDateFormat("dd/MM HH:mm", Locale("he")).format(Date())
 
-    // ---------- שיחות לא מוכרות בלילה ----------
-    fun nightCallsEnabled(c: Context) = sp(c).getBoolean("night_calls", false)
-    fun setNightCallsEnabled(c: Context, on: Boolean) = sp(c).edit().putBoolean("night_calls", on).apply()
-
-    fun rejectedCalls(c: Context) = list(c, "rejected")
-    fun addRejected(c: Context, number: String) {
-        setList(c, "rejected", (listOf("${now()} · $number") + rejectedCalls(c)).take(30))
-    }
-    fun clearRejected(c: Context) = setList(c, "rejected", emptyList())
-
     // ---------- שקט לפי מקום ----------
     fun quietEnabled(c: Context) = sp(c).getBoolean("quiet_enabled", false)
     fun setQuietEnabled(c: Context, on: Boolean) = sp(c).edit().putBoolean("quiet_enabled", on).apply()

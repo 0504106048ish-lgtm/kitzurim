@@ -68,7 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 
-/** מסך האוטומציות: מצב נהיגה, שיחות לא מוכרות בלילה, שקט לפי מקום */
+/** מסך האוטומציות: מצב נהיגה, שקט לפי מקום */
 class AutomationsActivity : ComponentActivity() {
     // כשחוזרים מההגדרות של הטלפון (אחרי אישור הרשאה), המסך מתעדכן
     private val resumes = mutableIntStateOf(0)
@@ -125,10 +125,6 @@ fun AutomationsScreen(resumes: Int) {
         refresh++
     }
     val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh++ }
-    val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (NightCalls.roleHeld(ctx)) AutoPrefs.setNightCallsEnabled(ctx, true)
-        refresh++
-    }
     // בחירת איש קשר שלא יקבל מענה אוטומטי. נשמרים גם השם וגם המספר,
     // כדי לזהות אותו גם כשהשם בוואטסאפ שונה מאנשי הקשר (בלי הרשאה: הטלפון נותן רק את מי שבחרת)
     val contactLauncher = rememberLauncherForActivityResult(PickPhone()) { uri ->
@@ -673,39 +669,6 @@ fun AutomationsScreen(resumes: Int) {
             }
             }
 
-            if (folder == "night") {
-            // ---------- שיחות לא מוכרות בלילה ----------
-            Section(
-                "📵 מספרים לא מוכרים בלילה",
-                checked = AutoPrefs.nightCallsEnabled(ctx) && NightCalls.roleHeld(ctx),
-                onCheck = { on ->
-                    if (on && !NightCalls.roleHeld(ctx)) {
-                        if (Build.VERSION.SDK_INT >= 29) {
-                            val rm = ctx.getSystemService(android.app.role.RoleManager::class.java)
-                            rm?.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING)
-                                ?.let { roleLauncher.launch(it) }
-                        } else {
-                            Actions.toast(ctx, "הטלפון הזה ישן מדי בשביל זה")
-                        }
-                    } else {
-                        AutoPrefs.setNightCallsEnabled(ctx, on)
-                        refresh++
-                    }
-                },
-            ) {
-                Text(
-                    "בין 23:00 ל־07:00, שיחה ממספר שלא שמור אצלך נדחית בשקט ונרשמת כאן. אנשי קשר מצלצלים כרגיל.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val rejected = AutoPrefs.rejectedCalls(ctx)
-                if (rejected.isNotEmpty()) {
-                    Text("שיחות שנדחו", fontWeight = FontWeight.Medium)
-                    rejected.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
-                    TextButton(onClick = { AutoPrefs.clearRejected(ctx); refresh++ }) { Text("ניקוי הרשימה") }
-                }
-            }
-            }
-
             if (folder == "quiet") {
             // ---------- שקט לפי מקום ----------
             Section(
@@ -883,7 +846,6 @@ private data class Folder(val id: String, val emoji: String, val title: String)
 private val FOLDERS = listOf(
     Folder("drive", "🚗", "נהיגה"),
     Folder("quiet", "🤫", "שקט (לפי מקום ולפי שעות)"),
-    Folder("night", "📵", "שיחות בלילה"),
     Folder("places", "📍", "מקומות: תזכורות והתראות"),
 )
 
@@ -901,7 +863,6 @@ private fun folderStatus(ctx: Context, id: String): String = when (id) {
         if (AutoPrefs.scheduleEnabled(ctx)) parts += "${AutoPrefs.rules(ctx).size} טווחי שעות"
         if (parts.isEmpty()) "כבוי" else "פעיל · " + parts.joinToString(" · ")
     }
-    "night" -> if (AutoPrefs.nightCallsEnabled(ctx) && NightCalls.roleHeld(ctx)) "פעיל · 23:00–07:00" else "כבוי"
     "places" -> {
         val alerts = PlaceAlerts.all(ctx).count { it.onArrive || it.onLeave }
         val rem = AutoPrefs.reminders(ctx).size

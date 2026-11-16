@@ -233,16 +233,6 @@
                 android:resource="@xml/favorites_widget" />
         </receiver>
 
-        <!-- מספרים לא מוכרים בלילה -->
-        <service
-            android:name=".NightCallScreener"
-            android:exported="true"
-            android:permission="android.permission.BIND_SCREENING_SERVICE">
-            <intent-filter>
-                <action android:name="android.telecom.CallScreeningService" />
-            </intent-filter>
-        </service>
-
         <!-- שקט לפי מקום -->
         <receiver
             android:name=".GeofenceReceiver"
