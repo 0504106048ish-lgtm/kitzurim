@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
@@ -1013,22 +1014,22 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                 ) {
                     Column(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 12.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            ActionDot("✆︎", "חיוג", G, Color(0xFF04261A)) { onCall(e.number) }
-                            ActionDot("💬", "הודעה", Color.White.copy(alpha = 0.1f), Color.White) {
+                            ActionDot(DialIcons.call, "חיוג", G, Color(0xFF04261A)) { onCall(e.number) }
+                            ActionDot(DialIcons.message, "הודעה", Color(0xFF4FB3FF).copy(alpha = 0.16f), Color(0xFF7CC6FF)) {
                                 runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, Uri.parse("smsto:" + e.number))) }
                             }
-                            ActionDot("🟢", "וואטסאפ", Color(0x3325D366), Color.White) {
+                            WhatsAppDot {
                                 val n = Actions.normalizePhone(e.number)
                                 runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("https://wa.me/$n"))) }
                             }
-                            ActionDot("📋", "העתקה", Color.White.copy(alpha = 0.1f), Color.White) {
+                            ActionDot(DialIcons.copy, "העתקה", Color(0xFFFFB340).copy(alpha = 0.16f), Color(0xFFFFC56B)) {
                                 runCatching {
                                     ctx.getSystemService(android.content.ClipboardManager::class.java)
                                         ?.setPrimaryClip(android.content.ClipData.newPlainText("מספר", e.number))
                                 }
                                 Actions.toast(ctx, "📋 המספר הועתק")
                             }
-                            ActionDot("👤", "איש קשר", Color.White.copy(alpha = 0.1f), Color.White) {
+                            ActionDot(DialIcons.contact, "איש קשר", Color(0xFFB388FF).copy(alpha = 0.16f), Color(0xFFC9A8FF)) {
                                 runCatching {
                                     ctx.startActivity(
                                         android.content.Intent(ContactsContract.Intents.SHOW_OR_CREATE_CONTACT, Uri.parse("tel:" + e.number)),
@@ -1071,15 +1072,61 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
 
 /** כפתור עגול קטן בחלון שנפתח מתחת לאיש הקשר */
 @Composable
-private fun ActionDot(icon: String, label: String, bg: Color, fg: Color, onClick: () -> Unit) {
+private fun ActionDot(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, bg: Color, fg: Color, onClick: () -> Unit) {
+    DotShell(label, bg, onClick) {
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.graphics.vector.rememberVectorPainter(icon),
+            null,
+            Modifier.size(21.dp),
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(fg),
+        )
+    }
+}
+
+/** העיגול עם הסמל והשם מתחתיו (זכוכית בצבע עדין, עם קו דק מסביב) */
+@Composable
+private fun DotShell(label: String, bg: Color, onClick: () -> Unit, content: @Composable () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clip(RoundedCornerShape(14.dp)).clickable { onClick() }.padding(4.dp),
     ) {
         Box(
-            Modifier.size(44.dp).clip(CircleShape).background(bg),
+            Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(bg)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape),
             contentAlignment = Alignment.Center,
-        ) { Text(icon, color = fg, fontSize = 18.sp) }
-        Text(label, color = Color(0xFFC3C8D2), fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+        ) { content() }
+        Text(label, color = Color(0xFFC3C8D2), fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
     }
+}
+
+/** וואטסאפ: הסמל האמיתי של האפליקציה שמותקנת בטלפון (ואם אין וואטסאפ, הכפתור לא מופיע) */
+@Composable
+private fun WhatsAppDot(onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    val logo = remember {
+        listOf("com.whatsapp", "com.whatsapp.w4b").firstNotNullOfOrNull { p ->
+            runCatching { ctx.packageManager.getApplicationIcon(p) }.getOrNull()
+        }?.let { d ->
+            runCatching {
+                val b = android.graphics.Bitmap.createBitmap(144, 144, android.graphics.Bitmap.Config.ARGB_8888)
+                d.setBounds(0, 0, 144, 144)
+                d.draw(android.graphics.Canvas(b))
+                b.asImageBitmap()
+            }.getOrNull()
+        }
+    } ?: return
+    DotShell("וואטסאפ", Color(0xFF25D366).copy(alpha = 0.16f), onClick) {
+        androidx.compose.foundation.Image(logo, null, Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)))
+    }
+}
+
+/** סמלים בקו דק, באותו סגנון של מסך השיחה */
+private object DialIcons {
+    val call = CallIcons.phone
+    val message = lineIcon("M4.5 5h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1 -1.5 1.5H10l-4.5 3.5V17H4.5A1.5 1.5 0 0 1 3 15.5v-9A1.5 1.5 0 0 1 4.5 5z M7.5 10h9 M7.5 13h5.5")
+    val copy = lineIcon("M9.5 8.5h9a1.5 1.5 0 0 1 1.5 1.5v9.5a1.5 1.5 0 0 1 -1.5 1.5h-9A1.5 1.5 0 0 1 8 19.5V10a1.5 1.5 0 0 1 1.5 -1.5z M5 15.5V4.5A1.5 1.5 0 0 1 6.5 3h9")
+    val contact = lineIcon("M12 4a3.8 3.8 0 1 1 0 7.6a3.8 3.8 0 1 1 0 -7.6z M4.5 20.5a7.5 7.5 0 0 1 15 0")
 }

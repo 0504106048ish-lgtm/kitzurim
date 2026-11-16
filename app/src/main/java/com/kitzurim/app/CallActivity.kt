@@ -215,7 +215,7 @@ private val Red = Color(0xFFFF4D5E)
 private val Soft = Color(0xFFA8B0C0)
 
 /** סמלים בקו דק (במקום אימוג'י), מצוירים מנתיב כמו ב-SVG */
-private fun lineIcon(d: String, fill: Boolean = false, stroke: Float = 1.7f) =
+internal fun lineIcon(d: String, fill: Boolean = false, stroke: Float = 1.7f) =
     androidx.compose.ui.graphics.vector.ImageVector.Builder(
         defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f,
     ).addPath(
@@ -227,7 +227,7 @@ private fun lineIcon(d: String, fill: Boolean = false, stroke: Float = 1.7f) =
         strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
     ).build()
 
-private object CallIcons {
+internal object CallIcons {
     val mute = lineIcon("M9 5.5a3 3 0 0 1 6 0v6a3 3 0 0 1 -6 0z M5 11a7 7 0 0 0 14 0 M12 18v3.5 M8.5 21.5h7")
     val keys = lineIcon("M6 5h0 M12 5h0 M18 5h0 M6 11h0 M12 11h0 M18 11h0 M6 17h0 M12 17h0 M18 17h0 M12 22h0", stroke = 2.8f)
     val speaker = lineIcon("M3.5 9.5v5h3.5l5 4.5v-14l-5 4.5z M15.5 9a4 4 0 0 1 0 6 M18.5 6a8 8 0 0 1 0 12")
