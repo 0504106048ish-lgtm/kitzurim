@@ -111,7 +111,7 @@ object PhoneBook {
             )?.use { c ->
                 while (c.moveToNext() && out.size < 80) {
                     val num = c.getString(0) ?: ""
-                    val name = c.getString(1)?.takeIf { it.isNotBlank() } ?: num.ifBlank { "מספר חסוי" }
+                    val name = c.getString(1)?.takeIf { it.isNotBlank() } ?: CallerId.nameFor(ctx, num) ?: num.ifBlank { "מספר חסוי" }
                     out += PhoneEntry(name, num, type = c.getInt(2), date = c.getLong(3))
                 }
             }
@@ -240,7 +240,7 @@ class DialActivity : ComponentActivity() {
             return
         }
         // אותם צבעים כמו במסך השיחה, כדי שהמעבר יהיה רציף
-        val name = Calls.lookup(this, number)?.first ?: number
+        val name = Calls.lookup(this, number)?.first ?: CallerId.nameFor(this, number) ?: number
         val (a, b) = dialColors(name)
         val dm = resources.displayMetrics
         reveal = Reveal(lastTouch ?: androidx.compose.ui.geometry.Offset(dm.widthPixels / 2f, dm.heightPixels * 0.8f), a, b)

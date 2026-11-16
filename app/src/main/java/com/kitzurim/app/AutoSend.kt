@@ -53,6 +53,9 @@ class AutoSendService : AccessibilityService() {
         // העתקת טקסט: הגלולה מראה מה הועתק
         if (event != null) ClipWatch.onEvent(this, event)
 
+        // זיהוי מתקשר: השם מהחלון של Truecaller
+        if (event != null) runCatching { CallerId.onEvent(this, event) }
+
         if (!AutoSend.armed(this)) return
         if (event?.packageName?.toString()?.startsWith("com.whatsapp") != true) return
         val root = rootInActiveWindow ?: return

@@ -75,6 +75,8 @@ object Calls {
         d?.callerDisplayName?.takeIf { it.isNotBlank() }?.let { return it }
         val n = number(c)
         lookup(ctx, n)?.first?.let { return it }
+        // לא שמור אצלך: השם ש-Truecaller הראתה
+        CallerId.nameFor(ctx, n)?.let { return it }
         return n?.takeIf { it.isNotBlank() } ?: "מספר חסוי"
     }
 
@@ -202,6 +204,7 @@ class KitzInCallService : InCallService() {
         Calls.service = this
         Calls.silenced = false
         Calls.list.add(call)
+        CallerId.callSeen(Calls.number(call))
         call.registerCallback(cb)
         onState(call)
         // מסך השיחה בניאון

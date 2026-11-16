@@ -260,6 +260,8 @@ private class CallView(
     // הוספת שיחה, ומיזוג כשיש שתי שיחות
     val canAdd: Boolean = false,
     val canMerge: Boolean = false,
+    // השם הגיע מ-Truecaller (לא שמור אצלך)
+    val fromTruecaller: Boolean = false,
     // שיחה נכנסת: הצלצול הושתק
     val silenced: Boolean = false,
 )
@@ -410,6 +412,7 @@ private fun CallScreenUi(c: Call?, version: Int) {
     }
     val view = CallView(
         name = name,
+        fromTruecaller = remember(c, version) { Calls.lookup(ctx, number) == null && CallerId.nameFor(ctx, number) != null },
         number = number,
         photo = photo,
         ringing = ringing,
@@ -604,6 +607,7 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
             Text(v.name, color = Color.White, fontSize = nameSize.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2)
             if (v.number != null && v.number != v.name) {
                 Text(v.number, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                if (v.fromTruecaller) Text("זוהה ע״י Truecaller", color = Color(0xFF64B5F6), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
             }
             if (!v.ringing) {
                 Text(
