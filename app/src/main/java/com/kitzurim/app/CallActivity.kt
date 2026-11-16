@@ -670,21 +670,13 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                         Spacer(Modifier.height(14.dp))
                     }
                 }
-                // השתקה, מקלדת, רמקול: תמיד במקום. כשהמקלדת פתוחה הם קטנים קצת, והכפתור "מקלדת" לבן (לחיצה סוגרת)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    RoundBtn(CallIcons.mute, if (v.muted) "בטל השתקה" else "השתק", v.muted, small = keypad) { act.mute() }
-                    RoundBtn(CallIcons.keys, if (keypad) "הסתר" else "מקלדת", keypad, small = keypad) { keypad = !keypad }
-                    RoundBtn(CallIcons.speaker, "רמקול", v.speaker, small = keypad) { act.speaker() }
-                    // בלוטוס: כפתור נפרד, רק כשיש אוזניות או רכב מחוברים
-                    if (v.hasBluetooth) RoundBtn(CallIcons.bluetooth, "בלוטוס", v.bluetoothOn, small = keypad) { act.bluetooth() }
-                }
+                // למעלה: המתנה, הוסף שיחה, הקלט (נעלמים כשהמקלדת פתוחה)
                 androidx.compose.animation.AnimatedVisibility(
                     visible = !keypad,
                     enter = androidx.compose.animation.fadeIn(tween(240)) + androidx.compose.animation.expandVertically(tween(300)),
                     exit = androidx.compose.animation.fadeOut(tween(140)) + androidx.compose.animation.shrinkVertically(tween(260)),
                 ) {
                     Column {
-                        Spacer(Modifier.height(18.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             RoundBtn(CallIcons.hold, if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
                             if (v.canSwap) RoundBtn(CallIcons.swap, "החלף", false) { act.swap() }
@@ -694,7 +686,16 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                             // הקלטה: לבן ודלוק בזמן ההקלטה
                             RoundBtn(CallIcons.record, if (v.recording) "עצור הקלטה" else "הקלט", v.recording, enabled = v.canRecord) { act.record() }
                         }
+                        Spacer(Modifier.height(18.dp))
                     }
+                }
+                // למטה, קרוב לאגודל: השתקה, מקלדת, רמקול, בלוטוס. תמיד במקום; כשהמקלדת פתוחה הם קטנים קצת
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    RoundBtn(CallIcons.mute, if (v.muted) "בטל השתקה" else "השתק", v.muted, small = keypad) { act.mute() }
+                    RoundBtn(CallIcons.keys, if (keypad) "הסתר" else "מקלדת", keypad, small = keypad) { keypad = !keypad }
+                    RoundBtn(CallIcons.speaker, "רמקול", v.speaker, small = keypad) { act.speaker() }
+                    // בלוטוס: כפתור נפרד, רק כשיש אוזניות או רכב מחוברים
+                    if (v.hasBluetooth) RoundBtn(CallIcons.bluetooth, "בלוטוס", v.bluetoothOn, small = keypad) { act.bluetooth() }
                 }
                 val gap by androidx.compose.animation.core.animateDpAsState(if (keypad) 16.dp else 26.dp, tween(300), label = "gap")
                 Spacer(Modifier.height(gap))
