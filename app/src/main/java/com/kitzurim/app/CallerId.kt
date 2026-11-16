@@ -73,7 +73,10 @@ object CallerId {
 
     /** טקסטים שמסמנים ספאם, וכפתורים שמכילים את המילה אבל הם לא סימון */
     private val spamWords = listOf("spam", "ספאם", "הונאה", "fraud", "scam", "telemarketing", "טלמרקטינג")
-    private val spamButtons = listOf("report", "not spam", "דווח", "לא ספאם", "סמן", "mark", "block", "חסום")
+    private val spamButtons = listOf(
+        "report", "not spam", "דווח", "דיווח", "לא ספאם", "סמן", "mark", "block", "חסום", "protection", "הגנ", "no spam", "אין",
+        "blocked", "נחסמ", "filter", "סינון", "settings", "הגדרות",
+    )
 
     private fun sp(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -92,7 +95,7 @@ object CallerId {
     /** Truecaller סימנה את המספר כספאם */
     fun isSpam(c: Context, number: String?): Boolean {
         val k = key(number) ?: return false
-        return runCatching { sp(c).getBoolean("spam:$k", false) }.getOrDefault(false)
+        return runCatching { sp(c).getBoolean("spam2:$k", false) }.getOrDefault(false)
     }
 
     fun installed(c: Context) = installedApps(c).isNotEmpty()
@@ -107,7 +110,7 @@ object CallerId {
     /** המספר שאנחנו מחפשים לו שם: שיחה פעילה עכשיו, או עד 2 דקות אחרי */
     private fun target(): String? {
         Calls.main()?.let { Calls.number(it) }?.let { if (key(it) != null) { callSeen(it); return it } }
-        return lastNumber?.takeIf { System.currentTimeMillis() - lastAt < 120_000 }
+        return lastNumber?.takeIf { System.currentTimeMillis() - lastAt < 30_000 }
     }
 
     private fun save(c: Context, number: String, name: String) {
@@ -144,9 +147,20 @@ object CallerId {
         if (now - lastScan < 300) return
         lastScan = now
         val roots = ArrayList<AccessibilityNodeInfo>()
-        e.source?.let { roots += it }
+        // בזמן שיחה קוראים רק את החלון הקטן שקופץ (לא את האפליקציה עצמה, שיש בה רשימות שמות ולשונית "ספאם").
+        // ב"זהה את כולם" קוראים את דף החיפוש המלא
+        if (lookup != null) e.source?.let { roots += it }
         runCatching {
-            svc.windows.forEach { w -> w.root?.takeIf { srcOf(it.packageName?.toString())?.second == curSrc }?.let { roots += it } }
+            val screenH = svc.resources.displayMetrics.heightPixels
+            val b = android.graphics.Rect()
+            svc.windows.forEach { w ->
+                val r = w.root ?: return@forEach
+                if (srcOf(r.packageName?.toString())?.second != curSrc) return@forEach
+                w.getBoundsInScreen(b)
+                val popup = w.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION || b.height() < screenH * 0.7f
+                // מסך מלא של זיהוי מתקשר בזמן צלצול גם נחשב. אחרי השיחה: רק חלון קטן
+                if (lookup != null || popup || Calls.list.any { it.state == Call.STATE_RINGING }) roots += r
+            }
         }
         for (r in roots) {
             val texts = texts(r)
@@ -209,9 +223,11 @@ object CallerId {
         // מי ששמור אצלך לא ספאם
         if (Calls.lookup(svc, number)?.first != null) return
         val first = !isSpam(svc, number)
-        runCatching { sp(svc).edit().putBoolean("spam:$k", true).putString("src:$k", curSrc).apply() }
+        // ספאם נקבע רק בשיחה נכנסת שמצלצלת עכשיו (לא בשיחה שאתה מתקשר, ולא אחרי השיחה)
         val ringing = Calls.list.any { it.state == Call.STATE_RINGING && key(Calls.number(it)) == k }
-        if (ringing && !Calls.silenced && NotchPrefs.spamSilence(svc)) {
+        if (!ringing) return
+        runCatching { sp(svc).edit().putBoolean("spam2:$k", true).putString("src:$k", curSrc).apply() }
+        if (!Calls.silenced && NotchPrefs.spamSilence(svc)) {
             Calls.silence(svc)
             Actions.toast(svc, "🚫 ספאם לפי $curSrc, הצלצול הושתק")
         }

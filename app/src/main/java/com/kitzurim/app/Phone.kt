@@ -77,7 +77,24 @@ object Calls {
         lookup(ctx, n)?.first?.let { return it }
         // לא שמור אצלך: השם ש-Truecaller הראתה
         CallerId.nameFor(ctx, n)?.let { return it }
+        // השם שרשום ברשימת השיחות של הטלפון (למשל ש-Me או סמסונג זיהו)
+        logName(ctx, n)?.let { return it }
         return n?.takeIf { it.isNotBlank() } ?: "מספר חסוי"
+    }
+
+    /** השם האחרון שנרשם למספר ברשימת השיחות (גם למספר שלא שמור) */
+    fun logName(ctx: Context, number: String?): String? {
+        val k = CallerId.key(number) ?: return null
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) return null
+        return runCatching {
+            ctx.contentResolver.query(
+                android.provider.CallLog.Calls.CONTENT_URI,
+                arrayOf(android.provider.CallLog.Calls.CACHED_NAME),
+                android.provider.CallLog.Calls.NUMBER + " LIKE ? AND " + android.provider.CallLog.Calls.CACHED_NAME + " <> ''",
+                arrayOf("%$k"),
+                android.provider.CallLog.Calls.DATE + " DESC",
+            )?.use { c -> if (c.moveToFirst()) c.getString(0)?.takeIf { it.isNotBlank() } else null }
+        }.getOrNull()
     }
 
     /** שם ותמונה מאנשי הקשר לפי המספר */
