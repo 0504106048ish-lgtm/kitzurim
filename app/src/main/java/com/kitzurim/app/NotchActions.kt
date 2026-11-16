@@ -383,6 +383,9 @@ object NotchPrefs {
     /** חייגן: הרשימה מתחילה נמוך (יד אחת), עם כותרת גדולה למעלה שמתכווצת בגלילה */
     fun dialLow(c: Context) = sp(c).getBoolean("dial_low", true)
     fun setDialLow(c: Context, v: Boolean) = sp(c).edit().putBoolean("dial_low", v).apply()
+    /** שיחת ספאם לפי Truecaller: משתיקים את הצלצול לבד */
+    fun spamSilence(c: Context) = sp(c).getBoolean("spam_silence", true)
+    fun setSpamSilence(c: Context, v: Boolean) = sp(c).edit().putBoolean("spam_silence", v).apply()
     /** גם הודעות SMS לרכב (כבוי: אפליקציית ההודעות כבר שולחת אותן לרכב לבד) */
     fun carSms(c: Context) = sp(c).getBoolean("car_sms", false)
     fun setCarSms(c: Context, v: Boolean) = sp(c).edit().putBoolean("car_sms", v).apply()

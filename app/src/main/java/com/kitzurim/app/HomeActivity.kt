@@ -590,6 +590,11 @@ fun HomeScreen(resumes: Int) {
                                 NotchPrefs.setDialLow(ctx, on)
                                 refresh++
                             }
+                            // ספאם לפי Truecaller: הצלצול משתתק לבד
+                            SwitchLine("🚫 ספאם משתתק לבד: כש-Truecaller מסמנת שיחה כספאם, הצלצול נעצר", NotchPrefs.spamSilence(ctx)) { on ->
+                                NotchPrefs.setSpamSilence(ctx, on)
+                                refresh++
+                            }
                             // הקלטת שיחות: רק בטלפון שמאפשר (נבדק כשמדליקים)
                             SwitchLine("🎙️ כפתור \"הקלט\" בשיחה", CallRecorder.enabled(ctx)) { on ->
                                 if (!on) {

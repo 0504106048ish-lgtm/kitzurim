@@ -191,7 +191,7 @@ object CallerId {
         val first = !isSpam(svc, number)
         runCatching { sp(svc).edit().putBoolean("spam:$k", true).apply() }
         val ringing = Calls.list.any { it.state == Call.STATE_RINGING && key(Calls.number(it)) == k }
-        if (ringing && !Calls.silenced) {
+        if (ringing && !Calls.silenced && NotchPrefs.spamSilence(svc)) {
             Calls.silence(svc)
             Actions.toast(svc, "🚫 ספאם לפי Truecaller, הצלצול הושתק")
         }
