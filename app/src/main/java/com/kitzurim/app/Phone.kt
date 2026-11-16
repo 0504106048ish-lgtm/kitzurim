@@ -111,6 +111,15 @@ object Calls {
         )
     }
 
+    /** הצלצול של השיחה הנכנסת הושתק (השיחה ממשיכה לצלצל בשקט) */
+    var silenced by mutableStateOf(false)
+
+    fun silence(ctx: Context) {
+        @Suppress("MissingPermission")
+        runCatching { ctx.getSystemService(android.telecom.TelecomManager::class.java)?.silenceRinger() }
+        silenced = true
+    }
+
     /** בלוטוס: מעבירים את השיחה לאוזניות/לרכב, או מחזירים לטלפון */
     fun toggleBluetooth() {
         service?.setAudioRoute(
@@ -191,6 +200,7 @@ class KitzInCallService : InCallService() {
 
     override fun onCallAdded(call: Call) {
         Calls.service = this
+        Calls.silenced = false
         Calls.list.add(call)
         call.registerCallback(cb)
         onState(call)

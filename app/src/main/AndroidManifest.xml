@@ -67,6 +67,11 @@
             android:name=".CarReplyReceiver"
             android:exported="false" />
 
+        <!-- "תזכיר לי" בשיחה נכנסת: התזכורת להתקשר בחזרה -->
+        <receiver
+            android:name=".CallBackReceiver"
+            android:exported="false" />
+
         <!-- הכניסה מהאייקון ומהלחצן הצדדי: שקופה ומעבירה מיד הלאה (כמו בגרסה הראשונה, שעבדה עם הלחצן הצדדי) -->
         <activity
             android:name=".LaunchActivity"

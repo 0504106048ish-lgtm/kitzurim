@@ -260,7 +260,39 @@ private class CallView(
     // הוספת שיחה, ומיזוג כשיש שתי שיחות
     val canAdd: Boolean = false,
     val canMerge: Boolean = false,
+    // שיחה נכנסת: הצלצול הושתק
+    val silenced: Boolean = false,
 )
+
+/** הודעות מוכנות כשדוחים שיחה */
+private val QuickReplies = listOf(
+    "אני לא יכול לדבר עכשיו, אחזור אליך",
+    "אני בנהיגה, אחזור אליך בהקדם",
+    "אני באמצע משהו, כתוב לי",
+    "אחזור אליך בעוד כמה דקות",
+)
+
+/** כפתור קטן בפס הזכוכית של שיחה נכנסת */
+@Composable
+private fun QuickAction(icon: String, label: String, on: Boolean, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Box(
+            Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(if (on) Color.White.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.12f))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Text(icon, fontSize = 17.sp) }
+        Text(label, color = Color.White.copy(alpha = 0.88f), fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+    }
+}
 
 /** מה קורה כשלוחצים על הכפתורים */
 private class CallAct(
@@ -276,6 +308,9 @@ private class CallAct(
     val bluetooth: () -> Unit = {},
     val addCall: () -> Unit = {},
     val merge: () -> Unit = {},
+    val rejectWithMessage: (String) -> Unit = {},
+    val remind: () -> Unit = {},
+    val silence: () -> Unit = {},
 )
 
 @Composable
@@ -391,6 +426,7 @@ private fun CallScreenUi(c: Call?, version: Int) {
         bluetoothOn = Calls.route == CallAudioState.ROUTE_BLUETOOTH,
         canAdd = st == Call.STATE_ACTIVE && Calls.list.size < 2,
         canMerge = Calls.canMerge(),
+        silenced = Calls.silenced,
     )
     val act = remember(c) {
         CallAct(
@@ -415,6 +451,15 @@ private fun CallScreenUi(c: Call?, version: Int) {
                 }
             },
             merge = { Calls.merge() },
+            // דוחים ושולחים הודעה מוכנה (אנדרואיד שולח אותה כ-SMS)
+            rejectWithMessage = { m -> runCatching { c.reject(true, m) } },
+            // דוחים, ובעוד שעה תזכורת להתקשר בחזרה (הקשה עליה מחייגת)
+            remind = {
+                CallBackReminder.schedule(ctx, Calls.name(ctx, c), number ?: "", 60)
+                Actions.toast(ctx, "⏰ אזכיר לך להתקשר בעוד שעה")
+                Calls.reject(c)
+            },
+            silence = { Calls.silence(ctx) },
         )
     }
     CallFace(view, act)
@@ -561,19 +606,54 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
             Spacer(Modifier.weight(1f))
 
             if (v.ringing) {
-                SlideToAnswer { act.answer() }
-                Spacer(Modifier.height(26.dp))
-                Box(
+                // פס זכוכית למטה: שלוש פעולות מהירות, החלקה לענות, ודחה
+                var msgs by remember { mutableStateOf(false) }
+                Column(
                     Modifier
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Red.copy(alpha = 0.15f))
-                        .border(1.5.dp, Red, RoundedCornerShape(24.dp))
-                        .clickable { act.reject() }
-                        .padding(horizontal = 28.dp, vertical = 12.dp),
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.13f), Color.White.copy(alpha = 0.06f))))
+                        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(28.dp))
+                        .padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("✕  דחה", color = Red, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    // שלח הודעה: נפתחת רשימה של הודעות מוכנות. בחירה דוחה את השיחה ושולחת את ההודעה
+                    androidx.compose.animation.AnimatedVisibility(visible = msgs) {
+                        Column(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            QuickReplies.forEach { m ->
+                                Text(
+                                    m,
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Color.White.copy(alpha = 0.08f))
+                                        .clickable { act.rejectWithMessage(m) }
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                )
+                            }
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.SpaceAround) {
+                        QuickAction("💬", "שלח הודעה", msgs) { msgs = !msgs }
+                        QuickAction("⏰", "תזכיר לי", false) { act.remind() }
+                        QuickAction("🔕", "השתק", v.silenced) { act.silence() }
+                    }
+                    SlideToAnswer { act.answer() }
+                    Text(
+                        "✕  דחה",
+                        color = Color(0xFFFF8A94),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .padding(top = 6.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { act.reject() }
+                            .padding(horizontal = 22.dp, vertical = 10.dp),
+                    )
                 }
-                Spacer(Modifier.height(84.dp)) // הכפתורים קצת יותר למעלה, נוח יותר לאגודל
+                Spacer(Modifier.height(30.dp))
             } else {
                 // המקלדת נפתחת מעל הכפתורים (נפרשת למעלה ומתבהרת, והמקשים מופיעים אחד אחרי השני),
                 // כך שהשתקה ורמקול תמיד נשארים גלויים מתחתיה
@@ -641,18 +721,23 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
 /** תמונה או האות הראשונה, עם שתי טבעות ירוקות שנושמות כשמצלצלים */
 @Composable
 private fun Avatar(name: String, photo: android.graphics.Bitmap?, sizeDp: Int, breathing: Boolean, acc: Pair<Color, Color>) {
-    val t = rememberInfiniteTransition(label = "breath")
-    val a by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "a")
-    val b by t.animateFloat(1f, 0f, infiniteRepeatable(tween(1600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "b")
+    // כשמצלצל: גלים בצבע של איש הקשר יוצאים מהתמונה כל הזמן, כמו טבעות במים
+    val t = rememberInfiniteTransition(label = "waves")
+    val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(2200, easing = androidx.compose.animation.core.LinearEasing)), label = "p")
     Box(Modifier.size((sizeDp + 34).dp), contentAlignment = Alignment.Center) {
         if (breathing) {
-            listOf(a, b).forEach { f ->
+            for (k in 0 until 3) {
+                val f = (p + k / 3f) % 1f
                 Box(
                     Modifier
-                        .size((sizeDp + 26).dp)
-                        .scale(1f + 0.14f * f)
-                        .alpha(0.9f - 0.7f * f)
-                        .border(2.dp, Color.White.copy(alpha = 0.7f), CircleShape),
+                        .size(sizeDp.dp)
+                        .graphicsLayer {
+                            val s = 1f + 1.3f * f
+                            scaleX = s
+                            scaleY = s
+                            alpha = (1f - f) * 0.85f
+                        }
+                        .border(2.dp, if (k % 2 == 0) acc.second else acc.first, CircleShape),
                 )
             }
         }
