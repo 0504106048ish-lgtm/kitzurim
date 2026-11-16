@@ -154,7 +154,7 @@ object LivePill {
         return ImageView(ctx).apply {
             setImageResource(icon)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            val pad = (5 * d).toInt()
+            val pad = (6 * d).toInt()
             setPadding(pad, pad, pad, pad)
             // כפתור זכוכית: אפור כהה הופך ללבן שקוף עם מסגרת בהירה; כפתור צבעוני (נתק, ענה) נשאר בצבע שלו עם ברק
             background = GradientDrawable().apply {
@@ -168,8 +168,8 @@ object LivePill {
                     setStroke((0.8f * d).toInt().coerceAtLeast(1), Color.argb(70, 255, 255, 255))
                 }
             }
-            // נכנס בגלולה הצרה (בגובה החור)
-            layoutParams = LinearLayout.LayoutParams(((if (wide) 32 else 26) * d).toInt(), (22 * d).toInt()).apply {
+            // גדול מספיק כדי לראות את הסמל וללחוץ בנוחות (הגלולה עם הכפתורים גבוהה יותר בשביל זה)
+            layoutParams = LinearLayout.LayoutParams(((if (wide) 40 else 32) * d).toInt(), (30 * d).toInt()).apply {
                 marginStart = (2 * d).toInt()
                 marginEnd = (2 * d).toInt()
             }
@@ -1478,7 +1478,13 @@ object LivePill {
         // כל השאר: שורה אחת, קצת יותר גבוהה מהחור (לא כרטיס גבוה), כדי שהגלולה תהיה צמודה אליו
         // כל הגלולות צרות, בגובה החור (חוץ מהנגן, שנפתח מתחת לשורת המצב)
         // המלבן שהטלפון נותן לחור גדול בהרבה מהחור שרואים, אז הגובה לפי הטקסט: שורה אחת ועוד מעט (בין 22 ל-26)
-        val h = if (newKind != "player") (hole * 0.7f + 2 * d).coerceIn(22 * d, 26 * d).toInt() else max(hole + 12 * d, 30 * d).toInt()
+        // גלולה עם כפתורים (שיחה נכנסת, תפריט השיחה): קצת יותר גבוהה, כדי שהכפתורים יהיו ברורים
+        val withButtons = newKind == "call" || newKind == "callmenu"
+        val h = when {
+            newKind == "player" -> max(hole + 12 * d, 30 * d).toInt()
+            withButtons -> (34 * d).toInt()
+            else -> (hole * 0.7f + 2 * d).coerceIn(22 * d, 26 * d).toInt()
+        }
         // רוחב לפי התוכן, עד הרווח שבין השעה לסוללה (שלא נכסה אותן)
         // רחבה עד השעה ועד הסוללה (אפשר לכוון ב"גודל ומיקום"), כדי שלא יראו חתיכות של סמלים בצדדים
         // הנגן: רחב כמעט עד הקצוות (הוא נפתח מתחת לשורת המצב, אז אין שעה לכסות)
@@ -1580,9 +1586,12 @@ object LivePill {
         // קצת אוויר מסביב לתוכן (בגלולות הזעירות, כמו סימן השיחה, כמעט בלי)
         val air = ((if (tight) 2 else 8) * d).toInt()
         val minSide = if (tight) 0 else (16 * d).toInt()
-        val leftW = if (small) min(max(left.measuredWidth + air, minSide), maxSide) else side
-        val rightW = if (small) min(max(right.measuredWidth + air, minSide), maxSide) else side
-        val shift = (rightW - leftW) / 2f
+        // שני הצדדים תמיד באותו רוחב (של הצד הרחב יותר), כדי שהגלולה תשב בדיוק באמצע סביב המצלמה
+        // ולא תזוז הצידה. הגלולה עדיין קטנה כשיש מעט תוכן
+        val even = if (small) min(max(max(left.measuredWidth, right.measuredWidth) + air, minSide), maxSide) else side
+        val leftW = even
+        val rightW = even
+        val shift = 0f
 
         // גובה הכרטיס לפי כמות הטקסט: כמה שורות שצריך (עד 3), ולא יותר
         var bodyH = 0

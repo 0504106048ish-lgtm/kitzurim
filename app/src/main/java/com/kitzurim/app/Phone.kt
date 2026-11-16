@@ -203,6 +203,8 @@ class KitzInCallService : InCallService() {
         Calls.route = audioState.route
         Proximity.update(this)
         Calls.changed()
+        // ההשתקה או הרמקול השתנו: הכפתורים בהתראה נצבעים לפי המצב החדש
+        CallNotif.update(this)
     }
 
     override fun onDestroy() {
@@ -300,9 +302,10 @@ object CallNotif {
             val night = (ctx.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
                 android.content.res.Configuration.UI_MODE_NIGHT_YES
             val softBg = if (night) R.drawable.nb_soft_dark else R.drawable.nb_soft_light
-            val onBg = if (night) R.drawable.nb_on_dark else R.drawable.nb_on_light
+            // כפתור דלוק (השתקה או רמקול פועלים): ירוק עם סמל לבן, כדי שיהיה ברור שהוא פועל
+            val onBg = R.drawable.nb_green
             val softIcon = if (night) android.graphics.Color.rgb(233, 236, 242) else android.graphics.Color.rgb(42, 47, 58)
-            val onIcon = if (night) android.graphics.Color.rgb(17, 17, 17) else android.graphics.Color.WHITE
+            val onIcon = android.graphics.Color.WHITE
             fun soft(id: Int, icon: Int, on: Boolean) {
                 v.setImageViewResource(id, icon)
                 v.setInt(id, "setBackgroundResource", if (on) onBg else softBg)
