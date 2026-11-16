@@ -83,22 +83,8 @@ object LivePill {
         val hole = max(c.width(), c.height())
         val maxSide = (s.resources.displayMetrics.widthPixels - 2 * NotchPrefs.pillMargin(s) * d - (hole * 0.75f + 4 * d) - 2 * 12 * d) / 2 - 10 * d
         val paint = android.text.TextPaint().apply { textSize = 12.5f * s.resources.displayMetrics.scaledDensity }
-        // מחלקים לשניים רק אם גם ההודעה וגם השם (עם העיגול) נכנסים שלמים, עם מקום לריווח.
-        // אחרת: שורה אחת שזזה, כדי ששום מילה לא תיחתך
-        val boldPaint = android.text.TextPaint(paint).apply { typeface = Typeface.DEFAULT_BOLD }
-        val nameW = boldPaint.measureText(sender.trim() + ":") + 40 * d
-        if (paint.measureText(msgText) + 16 * d <= maxSide && nameW <= maxSide) {
-            val grey = Color.rgb(210, 216, 228)
-            show("msg", 300, color, 3000, onTap = { launch(open) }) { ctx, left, right ->
-                left.addView(label(ctx, msgText, 12.5f, grey))
-                right.addView(label(ctx, sender.trim() + ":", 12.5f, Color.WHITE, bold = true).apply { textDirection = View.TEXT_DIRECTION_RTL })
-                // השם צמוד לחור, ומיד אחריו העיגול עם האות (בלי רווח שחור באמצע: הגלולה בגודל התוכן)
-                right.addView(View(ctx), LinearLayout.LayoutParams((6 * d).toInt(), 1))
-                right.addView(letter(ctx, sender, color))
-            }
-            return null
-        }
-        // שורה אחת לכל רוחב הגלולה: "דני:  ההודעה" זז פעם אחת עד הסוף, והעיגול עם האות בקצה הימני
+        // "דני: ההודעה" כשורה אחת: מתחלקת בין מילים לשני צידי החור באופן מאוזן (בלי חצי ריק),
+        // ואם היא ארוכה מדי לשני הצדדים, זזה פעם אחת עד הסוף. העיגול עם האות בקצה הימני
         val line = android.text.SpannableStringBuilder().apply {
             append(sender.trim())
             setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -1245,7 +1231,8 @@ object LivePill {
         val holeY = c.exactCenterY() + NotchPrefs.offsetY(s) * d
         val sw = dm.widthPixels
         val sh = dm.heightPixels
-        val root = FrameLayout(s)
+        // משמאל לימין: בטלפון בעברית אנדרואיד מצמיד את התמונה לימין, ואז היא עפה קצת ימינה מהחור
+        val root = FrameLayout(s).apply { layoutDirection = View.LAYOUT_DIRECTION_LTR }
         val flash = View(s).apply { setBackgroundColor(Color.WHITE); alpha = 0f }
         root.addView(flash, FrameLayout.LayoutParams(-1, -1))
         // התמונה מתחילה כמעט בגודל המסך, באמצע, עם מסגרת לבנה ופינות מעוגלות
@@ -1264,7 +1251,7 @@ object LivePill {
             clipToOutline = true
             elevation = 12 * d
         }
-        root.addView(img, FrameLayout.LayoutParams(w, hh).apply {
+        root.addView(img, FrameLayout.LayoutParams(w, hh, Gravity.TOP or Gravity.LEFT).apply {
             leftMargin = (sw - w) / 2
             topMargin = (sh - hh) / 2
         })
@@ -1683,21 +1670,21 @@ object LivePill {
             }
             val col = if (longColor == Color.WHITE) Color.rgb(225, 230, 238) else longColor
             val probe = android.text.TextPaint().apply { textSize = 12.5f * s.resources.displayMetrics.scaledDensity }
-            // נכנס בצד אחד רק אם יש מרווח אמיתי (הריווח של התווית והאוויר מסביב), אחרת זז ולא נחתך
-            if (android.text.Layout.getDesiredWidth(flat, probe) + 20 * d <= maxSide) {
-                // קצר: נכנס בצד אחד, אז מחולק לשניים כמו הודעה קצרה (הטקסט משמאל לחור, הסמל מימין) ולא זז
+            // הטקסט מתחלק בין מילים לשני צידי החור, כך ששני הצדדים בערך באותו רוחב:
+            // הגלולה באמצע סביב המצלמה, בלי חצי ריק, ושום מילה לא מתחת לחור ולא חתוכה
+            right.measure(free, free)
+            val iconW = right.measuredWidth
+            val pad = (20 * d).toInt()
+            val heb = flat.any { it in 'א'..'ת' }
+            // בעברית החלק הראשון יושב מימין לחור יחד עם הסמל; באנגלית החלק השני
+            val parts = if (heb) splitAtWord(flat, probe, maxSide - pad - iconW, maxSide - pad, iconW, 0)
+            else splitAtWord(flat, probe, maxSide - pad, maxSide - pad - iconW, 0, iconW)
+            if (parts == null && android.text.Layout.getDesiredWidth(flat, probe) + 20 * d <= maxSide) {
+                // מילה אחת קצרה: בצד אחד (משמאל לחור), והסמל מימין
                 left.addView(label(s, flat, 12.5f, col).apply { textDirection = View.TEXT_DIRECTION_RTL })
-                // הסמל או התמונה בקצה הימני, לא צמוד לחור
-                right.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                right.gravity = Gravity.START or Gravity.CENTER_VERTICAL
             } else {
-                // בינוני: נכנס בשני הצדדים. מחלקים בין מילים (לא באמצע מילה), חלק מכל צד של החור,
-                // כך ששום מילה לא יושבת מתחת למצלמה ולא נחתכת
-                right.measure(free, free)
-                val iconW = right.measuredWidth
-                val pad = (20 * d).toInt()
-                val parts = splitAtWord(flat, probe, maxSide - pad, maxSide - pad - iconW)
                 if (parts != null) {
-                    val heb = flat.any { it in 'א'..'ת' }
                     val first = label(s, parts.first, 12.5f, col)
                     val rest = label(s, parts.second, 12.5f, col)
                     if (heb) {
@@ -1967,7 +1954,14 @@ object LivePill {
      * מחלק טקסט לשני חלקים בין מילים: החלק הראשון עד maxFirst והשני עד maxRest.
      * בוחר את החלוקה הכי מאוזנת. null אם אי אפשר (טקסט ארוך מדי לשני הצדדים)
      */
-    private fun splitAtWord(text: CharSequence, paint: android.text.TextPaint, maxFirst: Int, maxRest: Int): Pair<CharSequence, CharSequence>? {
+    private fun splitAtWord(
+        text: CharSequence,
+        paint: android.text.TextPaint,
+        maxFirst: Int,
+        maxRest: Int,
+        firstExtra: Int = 0,
+        restExtra: Int = 0,
+    ): Pair<CharSequence, CharSequence>? {
         var best: Pair<CharSequence, CharSequence>? = null
         var bestDiff = Float.MAX_VALUE
         for (i in text.indices) {
@@ -1978,7 +1972,8 @@ object LivePill {
             val wa = android.text.Layout.getDesiredWidth(a, paint)
             val wb = android.text.Layout.getDesiredWidth(b, paint)
             if (wa <= maxFirst && wb <= maxRest) {
-                val diff = kotlin.math.abs(wa - wb)
+                // מאזנים את שני הצדדים כולל מה שכבר יושב בהם (הסמל), כדי שהגלולה תהיה צמודה
+                val diff = kotlin.math.abs((wa + firstExtra) - (wb + restExtra))
                 if (diff < bestDiff) { bestDiff = diff; best = a to b }
             }
         }
