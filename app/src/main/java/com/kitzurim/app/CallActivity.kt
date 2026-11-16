@@ -125,8 +125,10 @@ class CallActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (Calls.main() != null) {
+                    // רק אנימציה אחת: המסך מתכווץ לחור. המסך עצמו נעלם מיד, כדי שהטלפון לא יעיף אותו גם לאייקון
+                    if (Calls.state(Calls.main()!!) != Call.STATE_RINGING) { vanish(); LivePill.shrinkFromScreen() }
                     moveTaskToBack(true)
-                    if (Calls.state(Calls.main()!!) != Call.STATE_RINGING) LivePill.shrinkFromScreen()
+                    noSystemAnim()
                 } else {
                     finish()
                 }
@@ -138,7 +140,7 @@ class CallActivity : ComponentActivity() {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         val c = Calls.main()
-        if (!preview && c != null && Calls.state(c) != Call.STATE_RINGING) LivePill.shrinkFromScreen()
+        if (!preview && c != null && Calls.state(c) != Call.STATE_RINGING) { vanish(); LivePill.shrinkFromScreen() }
     }
 
     /** חזרנו מהשאלה של הטלפון "להפוך לאפליקציית הטלפון?": סוגרים את התצוגה המקדימה */
@@ -155,8 +157,20 @@ class CallActivity : ComponentActivity() {
         }
     }
 
+    /** המסך נעלם מיד (שקוף), כך שהאנימציה של הטלפון ("עף לאייקון") לא נראית, רק הגלולה שמתכווצת לחור */
+    private fun vanish() {
+        window.attributes = window.attributes.apply { alpha = 0f }
+    }
+
+    private fun noSystemAnim() {
+        @Suppress("DEPRECATION")
+        if (Build.VERSION.SDK_INT >= 34) overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0) else overridePendingTransition(0, 0)
+    }
+
     override fun onResume() {
         super.onResume()
+        // חוזרים למסך: שוב גלוי
+        if (window.attributes.alpha != 1f) window.attributes = window.attributes.apply { alpha = 1f }
         if (preview) return
         visible = true
         LivePill.callEnded() // בזמן שהמסך הזה פתוח לא צריך את הגלולה
