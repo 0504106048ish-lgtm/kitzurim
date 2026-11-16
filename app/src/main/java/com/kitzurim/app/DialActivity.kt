@@ -162,6 +162,7 @@ class DialActivity : ComponentActivity() {
         neonBars()
         askPermissions()
         start = intent?.data?.schemeSpecificPart ?: ""
+        if (intent?.getBooleanExtra(EXTRA_KEYPAD, false) == true) padReq++
         ui = true
         setContent {
             KitzurimTheme {
@@ -179,8 +180,8 @@ class DialActivity : ComponentActivity() {
                         },
                 ) {
                     // מספר חדש (מקישור או מאפליקציה אחרת): החייגן נפתח מחדש עם המספר
-                    androidx.compose.runtime.key(start) {
-                        DialerUi(start, reload) { call(it) }
+                    androidx.compose.runtime.key(start, padReq) {
+                        DialerUi(start, reload, openPad = padReq > 0) { call(it) }
                     }
                     CallReveal(reveal)
                 }
@@ -190,6 +191,9 @@ class DialActivity : ComponentActivity() {
 
     // מספר החיוג שהגיע מבחוץ (קישור טלפון). מתחלף כשהחייגן כבר פתוח ומגיע מספר חדש
     private var start by mutableStateOf("")
+
+    // "הוסף שיחה" ממסך השיחה: החייגן נפתח ישר על המקלדת (כל בקשה חדשה פותחת אותה מחדש)
+    private var padReq by mutableIntStateOf(0)
 
     /**
      * החייגן כבר פתוח: לא פותחים עוד עותק מעליו (אחרת צריך ללחוץ "חזור" שוב ושוב),
@@ -203,6 +207,7 @@ class DialActivity : ComponentActivity() {
             return
         }
         intent.data?.schemeSpecificPart?.takeIf { it.isNotBlank() }?.let { start = it }
+        if (intent.getBooleanExtra(EXTRA_KEYPAD, false)) padReq++
     }
 
     override fun onResume() {
@@ -262,6 +267,7 @@ class DialActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_CALL = "call_number"
+        const val EXTRA_KEYPAD = "open_keypad"
     }
 }
 
@@ -273,10 +279,10 @@ private val Red = Color(0xFFFF4D5E)
 private val DialTabs = listOf("אחרונות", "אנשי קשר", "מועדפים", "לא נענו")
 
 @Composable
-private fun DialerUi(start: String, reload: Int, onCall: (String) -> Unit) {
+private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCall: (String) -> Unit) {
     val ctx = LocalContext.current
     var tab by remember { mutableIntStateOf(0) }
-    var keypad by remember { mutableStateOf(start.isNotEmpty()) }
+    var keypad by remember { mutableStateOf(start.isNotEmpty() || openPad) }
     var q by remember { mutableStateOf("") }
     // אחרי מחיקת שיחה: טוענים את הרשימה מחדש
     var changed by remember { mutableIntStateOf(0) }

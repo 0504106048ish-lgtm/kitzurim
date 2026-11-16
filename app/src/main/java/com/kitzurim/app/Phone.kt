@@ -43,6 +43,12 @@ object Calls {
     var muted by mutableStateOf(false)
     var route by mutableIntStateOf(CallAudioState.ROUTE_EARPIECE)
 
+    /** לאן אפשר להעביר את הקול עכשיו (אוזנייה, רמקול, בלוטוס...) */
+    var routes by mutableIntStateOf(0)
+
+    /** יש אוזניות או רכב בבלוטוס מחוברים */
+    fun hasBluetooth() = routes and CallAudioState.ROUTE_BLUETOOTH != 0
+
     /** מתי כל שיחה התחילה באמת (אחרי שענו), בשעון רגיל */
     val answeredAt = HashMap<Call, Long>()
 
@@ -103,6 +109,23 @@ object Calls {
         service?.setAudioRoute(
             if (route == CallAudioState.ROUTE_SPEAKER) CallAudioState.ROUTE_WIRED_OR_EARPIECE else CallAudioState.ROUTE_SPEAKER
         )
+    }
+
+    /** בלוטוס: מעבירים את השיחה לאוזניות/לרכב, או מחזירים לטלפון */
+    fun toggleBluetooth() {
+        service?.setAudioRoute(
+            if (route == CallAudioState.ROUTE_BLUETOOTH) CallAudioState.ROUTE_WIRED_OR_EARPIECE else CallAudioState.ROUTE_BLUETOOTH
+        )
+    }
+
+    /** שתי שיחות שאפשר לחבר לשיחת ועידה */
+    fun canMerge(): Boolean = list.size >= 2 && list.any { it.conferenceableCalls.isNotEmpty() }
+
+    /** מחברים את השיחות לשיחה אחת (ועידה) */
+    fun merge() {
+        val active = list.firstOrNull { state(it) == Call.STATE_ACTIVE } ?: return
+        val other = active.conferenceableCalls.firstOrNull() ?: list.firstOrNull { it != active } ?: return
+        active.conference(other)
     }
 
     fun toggleHold(c: Call) {
@@ -201,6 +224,7 @@ class KitzInCallService : InCallService() {
     override fun onCallAudioStateChanged(audioState: CallAudioState) {
         Calls.muted = audioState.isMuted
         Calls.route = audioState.route
+        Calls.routes = audioState.supportedRouteMask
         Proximity.update(this)
         Calls.changed()
         // ההשתקה או הרמקול השתנו: הכפתורים בהתראה נצבעים לפי המצב החדש

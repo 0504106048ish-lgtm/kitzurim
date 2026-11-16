@@ -215,6 +215,9 @@ private object CallIcons {
     val hold = lineIcon("M8.5 5.5v13 M15.5 5.5v13", stroke = 2.6f)
     val swap = lineIcon("M5 8h13 M15 5l3 3 -3 3 M19 16h-13 M9 13l-3 3 3 3")
     val record = lineIcon("M12 4.5a7.5 7.5 0 1 0 0.01 0 M12 9a3 3 0 1 0 0.01 0", stroke = 2.2f)
+    val bluetooth = lineIcon("M7 7.5l10 9 -5 4.5v-18l5 4.5 -10 9")
+    val addCall = lineIcon("M9.5 4.5a3.5 3.5 0 1 1 0 7a3.5 3.5 0 1 1 0 -7z M3.5 20a6 6 0 0 1 12 0 M19 8v6 M16 11h6")
+    val merge = lineIcon("M6 4v5a6 6 0 0 0 6 6 M18 4v5a6 6 0 0 1 -6 6v5 M9 18l3 3 3 -3")
     val phone = lineIcon(
         "M5 3.5h3.6a1 1 0 0 1 0.9 0.6l1.8 4.3a1 1 0 0 1 -0.3 1.2L9 11a12 12 0 0 0 4 4l1.4 -2a1 1 0 0 1 1.2 -0.3l4.3 1.8a1 1 0 0 1 0.6 0.9V19a2 2 0 0 1 -2 2A16 16 0 0 1 3 5.5a2 2 0 0 1 2 -2z",
         fill = true,
@@ -249,6 +252,12 @@ private class CallView(
     // הקלטת שיחה: הכפתור מופיע רק אם הטלפון מאפשר (ומדליקים בהגדרות)
     val canRecord: Boolean = false,
     val recording: Boolean = false,
+    // בלוטוס: הכפתור מופיע רק כשיש אוזניות/רכב מחוברים, ודלוק כשהקול עובר אליהם
+    val hasBluetooth: Boolean = false,
+    val bluetoothOn: Boolean = false,
+    // הוספת שיחה, ומיזוג כשיש שתי שיחות
+    val canAdd: Boolean = false,
+    val canMerge: Boolean = false,
 )
 
 /** מה קורה כשלוחצים על הכפתורים */
@@ -262,6 +271,9 @@ private class CallAct(
     val swap: () -> Unit,
     val dtmf: (Char) -> Unit,
     val record: () -> Unit = {},
+    val bluetooth: () -> Unit = {},
+    val addCall: () -> Unit = {},
+    val merge: () -> Unit = {},
 )
 
 @Composable
@@ -336,7 +348,10 @@ private fun CallScreenUi(c: Call?, version: Int) {
     // מספר (כמו *8787) נכתב משמאל לימין, כדי שהכוכבית לא תקפוץ לצד השני
     val name = remember(c, version) { Calls.name(ctx, c).let { n -> if (n.any { it in 'א'..'ת' }) n else "\u2066" + n + "\u2069" } }
     val number = remember(c) { Calls.number(c) }
-    val photo = remember(c) { Calls.photo(ctx, c) }
+    // התמונה נטענת ברקע, כדי שהמסך ייפתח מיד (בלי רגע שחור עד שהתמונה מוכנה)
+    val photo by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, c) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Calls.photo(ctx, c) }
+    }
     val ringing = st == Call.STATE_RINGING
     // הקלטת שיחה: רק אם הודלקה בהגדרות (ושם כבר נבדק שהטלפון מאפשר)
     val recOk = remember(c) { CallRecorder.enabled(ctx) }
@@ -370,6 +385,10 @@ private fun CallScreenUi(c: Call?, version: Int) {
         canSwap = st == Call.STATE_ACTIVE && Calls.list.any { Calls.state(it) == Call.STATE_HOLDING },
         canRecord = recOk && (st == Call.STATE_ACTIVE || st == Call.STATE_HOLDING),
         recording = CallRecorder.recording,
+        hasBluetooth = Calls.hasBluetooth(),
+        bluetoothOn = Calls.route == CallAudioState.ROUTE_BLUETOOTH,
+        canAdd = st == Call.STATE_ACTIVE && Calls.list.size < 2,
+        canMerge = Calls.canMerge(),
     )
     val act = remember(c) {
         CallAct(
@@ -382,6 +401,18 @@ private fun CallScreenUi(c: Call?, version: Int) {
             swap = { Calls.swap() },
             dtmf = { ch -> Calls.dtmf(c, ch) },
             record = { CallRecorder.toggle(ctx, name) },
+            bluetooth = { Calls.toggleBluetooth() },
+            // הוספת שיחה: נפתח החייגן עם המקלדת; כשמחייגים, השיחה הנוכחית עוברת להמתנה
+            addCall = {
+                runCatching {
+                    ctx.startActivity(
+                        android.content.Intent(ctx, DialActivity::class.java)
+                            .putExtra(DialActivity.EXTRA_KEYPAD, true)
+                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            },
+            merge = { Calls.merge() },
         )
     }
     CallFace(view, act)
@@ -552,6 +583,8 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                     RoundBtn(CallIcons.mute, if (v.muted) "בטל השתקה" else "השתק", v.muted, small = keypad) { act.mute() }
                     RoundBtn(CallIcons.keys, if (keypad) "הסתר" else "מקלדת", keypad, small = keypad) { keypad = !keypad }
                     RoundBtn(CallIcons.speaker, "רמקול", v.speaker, small = keypad) { act.speaker() }
+                    // בלוטוס: כפתור נפרד, רק כשיש אוזניות או רכב מחוברים
+                    if (v.hasBluetooth) RoundBtn(CallIcons.bluetooth, "בלוטוס", v.bluetoothOn, small = keypad) { act.bluetooth() }
                 }
                 androidx.compose.animation.AnimatedVisibility(
                     visible = !keypad,
@@ -563,6 +596,8 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             RoundBtn(CallIcons.hold, if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
                             if (v.canSwap) RoundBtn(CallIcons.swap, "החלף", false) { act.swap() }
+                            if (v.canMerge) RoundBtn(CallIcons.merge, "מיזוג", false) { act.merge() }
+                            if (v.canAdd) RoundBtn(CallIcons.addCall, "הוסף שיחה", false) { act.addCall() }
                             // הקלטה: לבן ודלוק בזמן ההקלטה
                             if (v.canRecord) RoundBtn(CallIcons.record, if (v.recording) "עצור הקלטה" else "הקלט", v.recording) { act.record() }
                         }
