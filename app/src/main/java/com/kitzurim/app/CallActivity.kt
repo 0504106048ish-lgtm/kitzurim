@@ -650,18 +650,8 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                         QuickAction("⏰", "תזכיר לי", false) { act.remind() }
                         QuickAction("🔕", "השתק", v.silenced) { act.silence() }
                     }
-                    SlideToAnswer { act.answer() }
-                    Text(
-                        "✕  דחה",
-                        color = Color(0xFFFF8A94),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .padding(top = 6.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable { act.reject() }
-                            .padding(horizontal = 22.dp, vertical = 10.dp),
-                    )
+                    // ענה ודחה באותה החלקה: ימינה לענות, שמאלה לדחות (אין כפתור שאפשר ללחוץ בטעות)
+                    SlideAnswerDecline(onAnswer = { act.answer() }, onDecline = { act.reject() })
                 }
                 Spacer(Modifier.height(30.dp))
             } else {
@@ -778,9 +768,12 @@ private fun Avatar(name: String, photo: android.graphics.Bitmap?, sizeDp: Int, b
     }
 }
 
-/** מחליקים את הכפתור הירוק ימינה כדי לענות. לא עד הסוף: הוא חוזר, כדי שלא יענו בטעות */
+/**
+ * כפתור אחד באמצע: מחליקים ימינה לענות (ירוק), שמאלה לדחות (אדום).
+ * רק החלקה של רוב הדרך עושה משהו; נגיעה או החלקה קטנה, הכפתור חוזר לאמצע. ככה אי אפשר לדחות או לענות בטעות
+ */
 @Composable
-private fun SlideToAnswer(onAnswer: () -> Unit) {
+private fun SlideAnswerDecline(onAnswer: () -> Unit, onDecline: () -> Unit) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(
             Modifier
@@ -793,53 +786,76 @@ private fun SlideToAnswer(onAnswer: () -> Unit) {
             val density = LocalDensity.current
             val knobPx = with(density) { 56.dp.toPx() }
             val padPx = with(density) { 5.dp.toPx() }
-            val maxX = (constraints.maxWidth - knobPx - 2 * padPx).coerceAtLeast(1f)
+            // כמה אפשר לזוז מהאמצע לכל צד
+            val reach = ((constraints.maxWidth - knobPx - 2 * padPx) / 2f).coerceAtLeast(1f)
             val x = remember { Animatable(0f) }
             val scope = rememberCoroutineScope()
             var done by remember { mutableStateOf(false) }
-            // רמז: הכפתור זז קצת ימינה כל כמה שניות
+            // רמז: הכפתור זז קצת ימינה ושמאלה כל כמה שניות
             LaunchedEffect(Unit) {
                 while (!done) {
-                    delay(1400)
-                    if (x.value == 0f) {
-                        x.animateTo(with(density) { 16.dp.toPx() }, tween(260))
+                    delay(1600)
+                    if (x.value == 0f && !done) {
+                        x.animateTo(with(density) { 14.dp.toPx() }, tween(240))
+                        x.animateTo(with(density) { -14.dp.toPx() }, tween(320))
                         x.animateTo(0f, spring())
                     }
                 }
             }
+            val f = x.value / reach // -1 (דחה) עד 1 (ענה)
+            // משמאל "דחה" באדום, מימין "ענה" בירוק; מתחזקים כשמתקרבים אליהם
             Text(
-                "החלק ימינה כדי לענות",
-                Modifier
-                    .align(Alignment.Center)
-                    .alpha(1f - x.value / maxX),
-                color = Color(0xFFB8C2D4),
+                "‹ דחה",
+                Modifier.align(Alignment.CenterStart).padding(start = 22.dp).alpha((0.55f + 0.45f * (-f).coerceAtLeast(0f)) * (1f - f.coerceAtLeast(0f))),
+                color = Color(0xFFFF8A94),
                 fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
             )
+            Text(
+                "ענה ›",
+                Modifier.align(Alignment.CenterEnd).padding(end = 22.dp).alpha((0.55f + 0.45f * f.coerceAtLeast(0f)) * (1f - (-f).coerceAtLeast(0f))),
+                color = Green,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            // צבע הכפתור: לבן באמצע, ירוק כשהולכים לענות, אדום כשהולכים לדחות
+            val knobColor = when {
+                f > 0f -> androidx.compose.ui.graphics.lerp(Color.White, Green, (f * 1.6f).coerceAtMost(1f))
+                f < 0f -> androidx.compose.ui.graphics.lerp(Color.White, Red, (-f * 1.6f).coerceAtMost(1f))
+                else -> Color.White
+            }
             Box(
                 Modifier
-                    .absoluteOffset { IntOffset((padPx + x.value).roundToInt(), 0) }
-                    .align(Alignment.CenterStart)
+                    .absoluteOffset { IntOffset(x.value.roundToInt(), 0) }
+                    .align(Alignment.Center)
                     .size(56.dp)
                     .clip(CircleShape)
-                    .background(Green)
+                    .background(knobColor)
                     .draggable(
                         orientation = Orientation.Horizontal,
-                        state = rememberDraggableState { d ->
-                            scope.launch { x.snapTo((x.value + d).coerceIn(0f, maxX)) }
+                        state = rememberDraggableState { dx ->
+                            if (!done) scope.launch { x.snapTo((x.value + dx).coerceIn(-reach, reach)) }
                         },
                         onDragStopped = {
-                            if (x.value > maxX * 0.7f) {
-                                done = true
-                                x.animateTo(maxX, tween(120))
-                                onAnswer()
-                            } else {
-                                x.animateTo(0f, spring())
+                            when {
+                                x.value > reach * 0.75f -> {
+                                    done = true
+                                    x.animateTo(reach, tween(120))
+                                    onAnswer()
+                                }
+                                x.value < -reach * 0.75f -> {
+                                    done = true
+                                    x.animateTo(-reach, tween(120))
+                                    onDecline()
+                                }
+                                else -> x.animateTo(0f, spring())
                             }
                         },
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                CallIcon(CallIcons.phone, Color.Black, 26.dp)
+                // הטלפון מסתובב לניתוק כשמחליקים לדחות
+                CallIcon(CallIcons.phone, if (f < -0.3f) Color.White else Color.Black, 26.dp, rotate = if (f < 0f) 135f * (-f).coerceAtMost(1f) else 0f)
             }
         }
     }
