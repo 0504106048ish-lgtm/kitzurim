@@ -10,6 +10,7 @@ import android.provider.ContactsContract
 import android.telecom.TelecomManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -671,6 +672,8 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
     var number by remember { mutableStateOf(start) }
     // המקשים פתוחים. גוררים את התוצאות: המקשים יורדים, ויש מקום לגלול בכל התוצאות
     var pad by remember { mutableStateOf(true) }
+    // תוצאה שפתוחה עם הפעולות שלה (חיוג, הודעה, וואטסאפ...)
+    var openNum by remember { mutableStateOf<String?>(null) }
     // חיפוש חכם: תוך כדי הקלדה מופיעים אנשי הקשר שמתאימים (לפי המספר או לפי האותיות שעל המקשים)
     // וגם מספרים מהשיחות האחרונות שאינם שמורים כאנשי קשר
     val found = remember(number, contacts, recents) {
@@ -701,15 +704,24 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
             items(found.size) { i ->
                 val e = found[i]
                 val (c1, c2) = dialColors(e.name)
-                // הקשה על איש קשר: המספר שלו נכנס לשורה (לא מחייג). מחייגים בכפתור הירוק
-                Row(
+                val isOpen = openNum == e.number
+                // הקשה על איש קשר: המספר שלו נכנס לשורה (לא מחייג), ונפתחות הפעולות שלו
+                // (חיוג, הודעה, וואטסאפ, העתקה, איש קשר). הקשה נוספת סוגרת
+                Column(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
+                        .background(Color.White.copy(alpha = if (isOpen) 0.08f else 0.05f))
+                        .animateContentSize(androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 420f)),
+                ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
                         .clickable {
                             number = e.number.filter { c -> c.isDigit() || c == '+' || c == '*' || c == '#' }
-                            pad = true
+                            openNum = if (isOpen) null else e.number
+                            // נפתח: המקשים יורדים כדי שיהיה מקום לפעולות. נסגר: המקשים חוזרים
+                            pad = isOpen
                         }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -727,6 +739,11 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
                         Text(e.name, color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(e.number, color = Muted, fontSize = 12.sp, maxLines = 1)
                     }
+                    Text(if (isOpen) "˄" else "˅", color = Muted, fontSize = 14.sp)
+                }
+                if (isOpen) {
+                    Box(Modifier.padding(start = 4.dp, end = 4.dp, bottom = 10.dp)) { ContactActions(e.number, onCall) }
+                }
                 }
             }
         }
@@ -1013,30 +1030,7 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                         androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150)),
                 ) {
                     Column(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 12.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            ActionDot(DialIcons.call, "חיוג", G, Color(0xFF04261A)) { onCall(e.number) }
-                            ActionDot(DialIcons.message, "הודעה", Color(0xFF4FB3FF).copy(alpha = 0.16f), Color(0xFF7CC6FF)) {
-                                runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, Uri.parse("smsto:" + e.number))) }
-                            }
-                            WhatsAppDot {
-                                val n = Actions.normalizePhone(e.number)
-                                runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("https://wa.me/$n"))) }
-                            }
-                            ActionDot(DialIcons.copy, "העתקה", Color(0xFFFFB340).copy(alpha = 0.16f), Color(0xFFFFC56B)) {
-                                runCatching {
-                                    ctx.getSystemService(android.content.ClipboardManager::class.java)
-                                        ?.setPrimaryClip(android.content.ClipData.newPlainText("מספר", e.number))
-                                }
-                                Actions.toast(ctx, "📋 המספר הועתק")
-                            }
-                            ActionDot(DialIcons.contact, "איש קשר", Color(0xFFB388FF).copy(alpha = 0.16f), Color(0xFFC9A8FF)) {
-                                runCatching {
-                                    ctx.startActivity(
-                                        android.content.Intent(ContactsContract.Intents.SHOW_OR_CREATE_CONTACT, Uri.parse("tel:" + e.number)),
-                                    )
-                                }
-                            }
-                        }
+                        ContactActions(e.number, onCall)
                         val digits = e.number.filter { it.isDigit() }.takeLast(9)
                         val week = if (digits.isEmpty()) 0 else recents.count {
                             it.date > weekAgo && it.number.filter { c -> c.isDigit() }.takeLast(9) == digits
@@ -1129,4 +1123,32 @@ private object DialIcons {
     val message = lineIcon("M4.5 5h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1 -1.5 1.5H10l-4.5 3.5V17H4.5A1.5 1.5 0 0 1 3 15.5v-9A1.5 1.5 0 0 1 4.5 5z M7.5 10h9 M7.5 13h5.5")
     val copy = lineIcon("M9.5 8.5h9a1.5 1.5 0 0 1 1.5 1.5v9.5a1.5 1.5 0 0 1 -1.5 1.5h-9A1.5 1.5 0 0 1 8 19.5V10a1.5 1.5 0 0 1 1.5 -1.5z M5 15.5V4.5A1.5 1.5 0 0 1 6.5 3h9")
     val contact = lineIcon("M12 4a3.8 3.8 0 1 1 0 7.6a3.8 3.8 0 1 1 0 -7.6z M4.5 20.5a7.5 7.5 0 0 1 15 0")
+}
+
+/** שורת הפעולות של מספר: חיוג, הודעה, וואטסאפ, העתקה, איש קשר (ברשימה ובתוצאות של המקלדת) */
+@Composable
+private fun ContactActions(number: String, onCall: (String) -> Unit) {
+    val ctx = LocalContext.current
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        ActionDot(DialIcons.call, "חיוג", G, Color(0xFF04261A)) { onCall(number) }
+        ActionDot(DialIcons.message, "הודעה", Color(0xFF4FB3FF).copy(alpha = 0.16f), Color(0xFF7CC6FF)) {
+            runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_SENDTO, Uri.parse("smsto:" + number))) }
+        }
+        WhatsAppDot {
+            val n = Actions.normalizePhone(number)
+            runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse("https://wa.me/$n"))) }
+        }
+        ActionDot(DialIcons.copy, "העתקה", Color(0xFFFFB340).copy(alpha = 0.16f), Color(0xFFFFC56B)) {
+            runCatching {
+                ctx.getSystemService(android.content.ClipboardManager::class.java)
+                    ?.setPrimaryClip(android.content.ClipData.newPlainText("מספר", number))
+            }
+            Actions.toast(ctx, "📋 המספר הועתק")
+        }
+        ActionDot(DialIcons.contact, "איש קשר", Color(0xFFB388FF).copy(alpha = 0.16f), Color(0xFFC9A8FF)) {
+            runCatching {
+                ctx.startActivity(android.content.Intent(ContactsContract.Intents.SHOW_OR_CREATE_CONTACT, Uri.parse("tel:" + number)))
+            }
+        }
+    }
 }
