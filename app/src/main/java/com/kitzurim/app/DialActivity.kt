@@ -46,6 +46,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1035,7 +1036,9 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
             )
         }
     }
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    Box(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 8.dp), state = listState) {
         items(list.size) { idx ->
             val e = list[idx]
             val key = "$idx|${e.number}|${e.date}"
@@ -1172,6 +1175,28 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                 }
             }
         }
+    }
+    // התגית של היום נשארת צמודה למעלה בזמן גלילה (כמו בוואטסאפ): היום של השיחה הראשונה שרואים
+    if (days) {
+        val first by remember { androidx.compose.runtime.derivedStateOf { listState.firstVisibleItemIndex } }
+        val scrolled by remember { androidx.compose.runtime.derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+        val e = list.getOrNull(first)
+        if (scrolled && e != null && e.date > 0) {
+            Box(Modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    dayLabel(e.date),
+                    color = Color(0xFFCFD5DE),
+                    fontSize = 11.5.sp,
+                    modifier = Modifier
+                        .shadow(6.dp, RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF1C212B))
+                        .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
+        }
+    }
     }
     }
 }

@@ -64,7 +64,8 @@ object ClipWatch {
             pending = false
             val sel = lastSel?.takeIf { SystemClock.elapsedRealtime() - selAt < 60_000 }
             lastSel = null
-            if (!sel.isNullOrBlank()) show(sel) else readClip(s)
+            // יש טקסט מסומן: מראים אותו. אין: רק "הועתק" (בלי לקרוא את הלוח, כדי שהמקלדת של גוגל תציע להדביק)
+            if (!sel.isNullOrBlank()) show(sel) else LivePill.showCopied()
         }, 250)
     }
 
@@ -76,8 +77,8 @@ object ClipWatch {
         LivePill.showClip(text)
     }
 
-    /** חלון בגודל נקודה שמקבל מיקוד לרגע: רק כך מותר לקרוא את הלוח */
-    private fun readClip(s: AccessibilityService) {
+    /** חלון בגודל נקודה שמקבל מיקוד לרגע: רק כך מותר לקרוא את הלוח (רק כשמקישים על הגלולה) */
+    fun readClip(s: AccessibilityService, onText: (String) -> Unit) {
         val wm = s.getSystemService(WindowManager::class.java) ?: return
         val v = View(s)
         val lp = WindowManager.LayoutParams(
@@ -98,13 +99,7 @@ object ClipWatch {
             val data = runCatching { cm?.primaryClip }.getOrNull()
             val clip = runCatching { data?.getItemAt(0)?.coerceToText(s)?.toString() }.getOrNull()
             finish()
-            if (!clip.isNullOrBlank()) show(clip)
-            // הקריאה של הלוח גורמת למקלדת של גוגל לחשוב שההעתקה כבר "נוצלה", והקיצור של ההדבקה
-            // לא מופיע. אז מחזירים ללוח את אותו דבר בדיוק (עם כל הסימונים שלו), והמקלדת רואה העתקה טרייה
-            if (data != null) main.postDelayed({
-                ownUntil = SystemClock.elapsedRealtime() + 2500
-                runCatching { cm?.setPrimaryClip(data) }
-            }, 150)
+            if (!clip.isNullOrBlank()) onText(clip)
         }
         runCatching { wm.addView(v, lp) }.onFailure { return }
         main.postDelayed({ finish() }, 800)

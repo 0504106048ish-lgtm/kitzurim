@@ -1183,6 +1183,34 @@ object LivePill {
         }
     }
 
+    /**
+     * הועתק משהו שלא ידוע מה הוא: לא קוראים את הלוח מעצמנו (זה מעלים את הקיצור של ההדבקה במקלדת של גוגל).
+     * הגלולה רק אומרת "הועתק", והקשה עליה קוראת את הלוח ופותחת שיתוף
+     */
+    fun showCopied() {
+        val s = NotchOverlay.service ?: return
+        if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillClip(s))) return
+        if (inCallPill() || kind == "player" || kind == "code") return
+        if (!demoMode && (NotchOverlay.offHere() || NotchOverlay.pillBlocked("clip"))) return
+        val blue = NotchPrefs.tint(s, "shot", Color.rgb(79, 179, 255))
+        show("clip", 200, blue, 2500, onTap = {
+            ClipWatch.readClip(s) { text ->
+                runCatching {
+                    s.startActivity(
+                        android.content.Intent.createChooser(
+                            android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                                .putExtra(android.content.Intent.EXTRA_TEXT, text),
+                            "לשתף",
+                        ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            }
+            Unit
+        }, long = "📋 הועתק", longColor = Color.rgb(225, 230, 238)) { ctx, _, right ->
+            right.addView(label(ctx, "📋", 14f, Color.WHITE))
+        }
+    }
+
     /** מה אפשר לעשות עם מה שהועתק (או null): שם הכפתור ומה הוא עושה */
     private fun clipAction(ctx: Context, raw: String): Pair<String, () -> Unit>? {
         val t = raw.trim()
