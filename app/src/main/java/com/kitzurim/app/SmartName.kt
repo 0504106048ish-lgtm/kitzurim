@@ -138,7 +138,7 @@ internal fun dayLabel(t: Long): String {
 
 /** "אליהו אתמול", "אתמול אליהו", "דני 17/11", "אמא ביום שלישי": התאריך (מ-עד) ומה שנשאר בשביל השם */
 internal fun splitDate(q: String): Pair<Pair<Long, Long>, String>? {
-    val w = q.trim().split(Regex("\s+"))
+    val w = q.trim().split(Regex("""\s+"""))
     if (w.size < 2) return null
     for (k in w.size - 1 downTo 1) {
         SmartName.dateRange(w.takeLast(k).joinToString(" "))?.let { return it to w.dropLast(k).joinToString(" ") }
