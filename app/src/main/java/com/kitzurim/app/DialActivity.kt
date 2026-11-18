@@ -29,6 +29,9 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.layout
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -700,7 +703,20 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
     fun buzz() = haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
     var number by remember { mutableStateOf(start) }
     // המקשים פתוחים. גוררים את התוצאות: המקשים יורדים, ויש מקום לגלול בכל התוצאות
-    var pad by remember { mutableStateOf(true) }
+    // כמה המקשים פתוחים: 1 = פתוחים, 0 = מקופלים. הגלילה מקפלת אותם יחד עם האצבע (בלי קפיצה),
+    // וכשעוזבים הם נסגרים עד הסוף בתנועה רכה
+    var frac by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    val pad = frac > 0.02f
+    val fullH = remember { floatArrayOf(0f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val anim = remember { arrayOfNulls<kotlinx.coroutines.Job>(1) }
+    fun settle(to: Float) {
+        anim[0]?.cancel()
+        anim[0] = scope.launch {
+            androidx.compose.animation.core.animate(frac, to, animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 300f)) { v, _ -> frac = v }
+        }
+    }
+    fun openPad() = settle(1f)
     // תוצאה שפתוחה עם הפעולות שלה (חיוג, הודעה, וואטסאפ...)
     var openNum by remember { mutableStateOf<String?>(null) }
     // חיפוש חכם: תוך כדי הקלדה מופיעים אנשי הקשר שמתאימים (לפי המספר או לפי האותיות שעל המקשים)
@@ -719,9 +735,22 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
     val unknown = digitsNow.length >= 6 && contacts.none { it.number.filter(Char::isDigit).takeLast(9) == digitsNow.takeLast(9) }
     val foldPad = remember {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            // גוללים: קודם המקשים מתקפלים לפי התנועה של האצבע, ורק אחר כך הרשימה זזה
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                if (available.y != 0f && source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) pad = false
-                return androidx.compose.ui.geometry.Offset.Zero
+                if (available.y == 0f || source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) return androidx.compose.ui.geometry.Offset.Zero
+                val full = fullH[0]
+                if (frac <= 0f || full <= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                anim[0]?.cancel()
+                val d = kotlin.math.abs(available.y)
+                val next = (frac - d / full).coerceAtLeast(0f)
+                val used = (frac - next) * full
+                frac = next
+                return androidx.compose.ui.geometry.Offset(0f, if (available.y > 0) used else -used)
+            }
+            // עזבו את האצבע באמצע: נסגרים עד הסוף, ברכות
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                if (frac > 0f && frac < 1f) settle(0f)
+                return androidx.compose.ui.unit.Velocity.Zero
             }
         }
     }
@@ -784,13 +813,13 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
             textAlign = TextAlign.Center,
             maxLines = 1,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp).combinedClickable(
-                onClick = { pad = true },
+                onClick = { openPad() },
                 onLongClick = {
                     val clip = runCatching {
                         ctx.getSystemService(android.content.ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(ctx)?.toString()
                     }.getOrNull().orEmpty()
                     val pasted = clip.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
-                    if (pasted.isNotEmpty()) { number = pasted; pad = true; buzz() } else Actions.toast(ctx, "אין מספר להדביק")
+                    if (pasted.isNotEmpty()) { number = pasted; openPad(); buzz() } else Actions.toast(ctx, "אין מספר להדביק")
                 },
             ),
         )
@@ -815,12 +844,22 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
         }
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = pad,
-                    enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)) +
-                        androidx.compose.animation.expandVertically(androidx.compose.animation.core.tween(300), expandFrom = Alignment.Bottom),
-                    exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)) +
-                        androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(280), shrinkTowards = Alignment.Bottom),
+                // הגובה של המקשים לפי frac: הם שוקעים למטה ומתעמעמים יחד עם הגלילה
+                Box(
+                    Modifier
+                        .clipToBounds()
+                        .layout { m, cons ->
+                            val p = m.measure(cons)
+                            fullH[0] = p.height.toFloat()
+                            val h = (p.height * frac).roundToInt()
+                            layout(p.width, h) { p.placeRelative(0, h - p.height) }
+                        }
+                        .graphicsLayer {
+                            alpha = frac
+                            val s = 0.94f + 0.06f * frac
+                            scaleX = s
+                            scaleY = s
+                        },
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Spacer(Modifier.height(12.dp))
@@ -861,7 +900,7 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
                         Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .then(if (!pad) Modifier.clickable { pad = true } else Modifier),
+                            .then(if (!pad) Modifier.clickable { openPad() } else Modifier),
                         contentAlignment = Alignment.Center,
                     ) { if (!pad) Text("⌨︎", color = Muted, fontSize = 26.sp) }
                     Box(
