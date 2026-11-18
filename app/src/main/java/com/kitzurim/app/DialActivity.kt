@@ -107,17 +107,23 @@ object PhoneBook {
 
     fun favorites(ctx: Context): List<PhoneEntry> = contacts(ctx).filter { it.starred }.distinctBy { it.name }
 
-    fun recents(ctx: Context): List<PhoneEntry> {
+    fun recents(ctx: Context): List<PhoneEntry> = log(ctx, null, null, 80)
+
+    /** כל השיחות בין שני זמנים (בשביל חיפוש לפי תאריך: מכל ההיסטוריה, לא רק 80 האחרונות) */
+    fun between(ctx: Context, from: Long, to: Long): List<PhoneEntry> =
+        log(ctx, CallLog.Calls.DATE + " >= ? AND " + CallLog.Calls.DATE + " < ?", arrayOf(from.toString(), to.toString()), 1500)
+
+    private fun log(ctx: Context, where: String?, args: Array<String>?, max: Int): List<PhoneEntry> {
         if (!can(ctx, Manifest.permission.READ_CALL_LOG)) return emptyList()
         val out = ArrayList<PhoneEntry>()
         runCatching {
             ctx.contentResolver.query(
                 CallLog.Calls.CONTENT_URI,
                 arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.CACHED_NAME, CallLog.Calls.TYPE, CallLog.Calls.DATE),
-                null, null,
+                where, args,
                 CallLog.Calls.DATE + " DESC",
             )?.use { c ->
-                while (c.moveToNext() && out.size < 80) {
+                while (c.moveToNext() && out.size < max) {
                     val num = c.getString(0) ?: ""
                     val name = c.getString(1)?.takeIf { it.isNotBlank() } ?: CallerId.nameFor(ctx, num) ?: num.ifBlank { "מספר חסוי" }
                     out += PhoneEntry(name, num, type = c.getInt(2), date = c.getLong(3))
@@ -552,7 +558,10 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                     fun hit(e: PhoneEntry) = exact(e) || (!onlyDigits && SmartName.fuzzy(e.name, q))
                     // תאריך: "היום", "אתמול", "יום שלישי", "17/11", "נובמבר": השיחות של אותו יום (או חודש) קודם
                     val day = SmartName.dateRange(q)
-                    val byDate = if (day == null) emptyList() else recents.filter { it.date in day.first until day.second }
+                    // מכל ההיסטוריה (לא רק 80 השיחות האחרונות שברשימה), עם השם מאנשי הקשר
+                    val byName = contacts.associateBy({ it.number.filter(Char::isDigit).takeLast(9) }, { it.name })
+                    fun named(l: List<PhoneEntry>) = l.map { e -> byName[e.number.filter(Char::isDigit).takeLast(9)]?.let { e.copy(name = it) } ?: e }
+                    val byDate = if (day == null) emptyList() else named(PhoneBook.between(ctx, day.first, day.second))
                     val smart = if (onlyDigits && digits.isNotEmpty()) smartSearch(digits, contacts, 50) else emptyList()
                     // קודם השיחות האחרונות (מהחדשה לישנה), ואחר כך אנשי קשר שלא הופיעו בהן
                     fun key(e: PhoneEntry) = e.number.filter(Char::isDigit)
@@ -569,11 +578,11 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                     if (combo != null) {
                         val (range, who) = combo
                         val whoDigits = who.filter { it.isDigit() }
-                        recents.filter { e ->
-                            e.date in range.first until range.second &&
-                                (SmartName.exact(e.name, who) || SmartName.fuzzy(e.name, who) ||
-                                    (whoDigits.length >= 2 && e.number.filter { c -> c.isDigit() }.contains(whoDigits)))
-                        }
+                        fun isWho(e: PhoneEntry) = SmartName.exact(e.name, who) || SmartName.fuzzy(e.name, who) ||
+                            (whoDigits.length >= 2 && e.number.filter { c -> c.isDigit() }.contains(whoDigits))
+                        val both = named(PhoneBook.between(ctx, range.first, range.second)).filter { isWho(it) }
+                        // לא דיברתם באותו יום: מראים לפחות אותו (השיחות האחרונות איתו ואיש הקשר)
+                        both.ifEmpty { (recents + contacts).filter { isWho(it) }.distinctBy { key(it) } }
                     } else if (byDate.isNotEmpty()) byDate + (recent + people).filter { it !in dateSet } else recent + people
                 }
                 val empty = if (searching) "לא נמצא כלום" else when (tab) {
