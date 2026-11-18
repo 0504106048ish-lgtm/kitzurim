@@ -76,6 +76,7 @@ object CallerId {
         "contact", "איש קשר", "remind", "תזכורת", "pay", "תשלום", "options", "אפשרויות", "open", "פתח", "notes", "הערות",
         "הוספה", "add to contacts", "שמירה", "חסימה", "דיווח", "שיתוף", "העתקה", "עריכה", "שליחת הודעה", "הצגת פרופיל",
         "שיחה חוזרת", "פרטי איש קשר", "צור איש קשר", "create contact", "new contact", "איש קשר חדש",
+        "מחיקה", "מחק", "delete", "remove", "הסר", "מוכר", "known", "verified", "מאומת", "business", "עסק", "שירות לקוחות",
     )
 
     /** טקסטים שמסמנים ספאם, וכפתורים שמכילים את המילה אבל הם לא סימון */
@@ -208,8 +209,12 @@ object CallerId {
         }
         val seen = ArrayList<String>()
         for (r in roots) {
-            val texts = texts(r)
-            if (texts.isEmpty()) continue
+            val raw = texts(r)
+            if (raw.isEmpty()) continue
+            learnUi(svc, number, raw)
+            // מה שכבר למדנו שהוא כפתור או כותרת (מופיע ליד כל מספר) לא נחשב שם
+            val p = sp(svc)
+            val texts = raw.filterNot { p.getBoolean("bad:${it.second.trim()}", false) }
             seen += texts.take(10).map { it.second.replace('\n', ' ').take(30) }
             if (lookup == null) checkSpam(svc, number, texts)
             val name = readName(texts, number, strict = lookup != null) ?: continue
@@ -220,6 +225,33 @@ object CallerId {
         }
         // לא נמצא שם בשיחה: רושמים ב"מה קרה היום" מה קיצורים ראתה בחלון, כדי שאפשר יהיה לשפר
         if (lookup == null && inCall) diag(svc, number, "$curSrc: לא נמצא שם. בחלון: " + seen.distinct().take(10).joinToString(" | ").ifBlank { "(ריק)" })
+    }
+
+    /**
+     * לומד לבד מה הם כפתורים וכותרות (כמו "מחיקה", "מוכר"): שם אמיתי שונה בכל מספר,
+     * אבל כפתור מופיע ליד המספר בכל חיפוש. טקסט שהופיע ליד 3 מספרים שונים = לא שם,
+     * ונמחק מכל המספרים שקיבלו אותו בטעות (והם יזוהו מחדש)
+     */
+    private fun learnUi(c: Context, number: String, texts: List<Pair<String, String>>) {
+        val k = key(number) ?: return
+        val at = texts.indexOfFirst { key(it.second) == k }
+        if (at < 0) return
+        val p = sp(c)
+        val near = (at - 3..at + 3).mapNotNull { texts.getOrNull(it)?.second?.trim() }.filter { looksLikeName(it) }.distinct()
+        val e = p.edit()
+        var changed = false
+        for (t in near) {
+            if (p.getBoolean("bad:$t", false)) continue
+            val nums = (p.getStringSet("ui:$t", null) ?: emptySet()) + k
+            if (nums.size >= 3) {
+                e.putBoolean("bad:$t", true).remove("ui:$t")
+                p.all.forEach { (kk, vv) -> if (!kk.contains(':') && vv == t) e.remove(kk) }
+                diag(c, number, "🚫 למדתי ש\"$t\" הוא כפתור ולא שם")
+                changed = true
+            } else if (nums.size <= 10) e.putStringSet("ui:$t", nums.toHashSet())
+        }
+        runCatching { e.apply() }
+        if (changed) Calls.changed()
     }
 
     private fun diag(c: Context, number: String, text: String) {

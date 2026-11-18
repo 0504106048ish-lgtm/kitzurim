@@ -1121,7 +1121,9 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                                 CallLog.Calls.MISSED_TYPE -> "✕ לא נענתה"
                                 else -> ""
                             }
-                            "$kind · ${(if (days) timeFmt else fmt).format(Date(e.date))}"
+                            // שם שזוהה (לא מאנשי הקשר): גם המספר, כדי שתדע מי זה באמת
+                            val idNum = if (e.number.isNotBlank() && CallerId.nameFor(ctx, e.number) == e.name) " · ⁦${e.number}⁩" else ""
+                            "$kind · ${(if (days) timeFmt else fmt).format(Date(e.date))}$idNum"
                         } else {
                             e.number
                         }
