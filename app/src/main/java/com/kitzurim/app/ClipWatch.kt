@@ -54,8 +54,11 @@ object ClipWatch {
         }
     }
 
+    // ההחזרה שלנו ללוח (בשביל המקלדת) לא נחשבת העתקה חדשה
+    private var ownUntil = 0L
+
     private fun trigger(s: AccessibilityService) {
-        if (pending) return
+        if (pending || SystemClock.elapsedRealtime() < ownUntil) return
         pending = true
         main.postDelayed({
             pending = false
@@ -91,11 +94,17 @@ object ClipWatch {
         }
         v.viewTreeObserver.addOnWindowFocusChangeListener { has ->
             if (!has || done) return@addOnWindowFocusChangeListener
-            val clip = runCatching {
-                s.getSystemService(ClipboardManager::class.java)?.primaryClip?.getItemAt(0)?.coerceToText(s)?.toString()
-            }.getOrNull()
+            val cm = s.getSystemService(ClipboardManager::class.java)
+            val data = runCatching { cm?.primaryClip }.getOrNull()
+            val clip = runCatching { data?.getItemAt(0)?.coerceToText(s)?.toString() }.getOrNull()
             finish()
             if (!clip.isNullOrBlank()) show(clip)
+            // הקריאה של הלוח גורמת למקלדת של גוגל לחשוב שההעתקה כבר "נוצלה", והקיצור של ההדבקה
+            // לא מופיע. אז מחזירים ללוח את אותו דבר בדיוק (עם כל הסימונים שלו), והמקלדת רואה העתקה טרייה
+            if (data != null) main.postDelayed({
+                ownUntil = SystemClock.elapsedRealtime() + 2500
+                runCatching { cm?.setPrimaryClip(data) }
+            }, 150)
         }
         runCatching { wm.addView(v, lp) }.onFailure { return }
         main.postDelayed({ finish() }, 800)
