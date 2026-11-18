@@ -93,6 +93,8 @@ fun HomeScreen(resumes: Int) {
     val ctx = LocalContext.current
     var refresh by remember { mutableIntStateOf(0) }
     val scroll = rememberScrollState()
+    // המיקום בגלילה של כל דף נשמר מחוץ לבנייה מחדש (key למטה), כדי שהדלקת מתג לא תקפיץ לראש הדף
+    val pageScroll = remember { mutableMapOf<String?, androidx.compose.foundation.ScrollState>() }
     val scheme = MaterialTheme.colorScheme
 
     // בחירת פעולה: לתנועה בכל מקום (pkg = null), או לתנועה באפליקציה מסוימת
@@ -106,7 +108,7 @@ fun HomeScreen(resumes: Int) {
     // התפריט: null = מסך הבית עם האריחים; אחרת הדף של נושא אחד
     var openPage by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
-    androidx.activity.compose.BackHandler(enabled = openPage != null) { openPage = null }
+    androidx.activity.compose.BackHandler(enabled = openPage != null) { pageScroll.remove(openPage); openPage = null }
     var pendingContact by remember { mutableStateOf<Pair<Target, ActionType>?>(null) }
 
     /** שומר פעולה. באפליקציה מסוימת, null = "כמו בכל מקום" */
@@ -175,7 +177,7 @@ fun HomeScreen(resumes: Int) {
                 Modifier
                     .fillMaxSize()
                     .systemBarsPadding()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(pageScroll.getOrPut(page) { androidx.compose.foundation.ScrollState(0) })
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
@@ -183,7 +185,7 @@ fun HomeScreen(resumes: Int) {
                 if (current != null) {
                     // דף של נושא: חץ חזרה והשם
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { openPage = null }) {
+                        IconButton(onClick = { pageScroll.remove(openPage); openPage = null }) {
                             // חץ חזרה (בעברית הוא מצביע ימינה)
                             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "חזרה", tint = scheme.onSurface)
                         }
