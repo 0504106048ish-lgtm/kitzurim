@@ -594,6 +594,15 @@ fun HomeScreen(resumes: Int) {
                                     .clickable { ctx.startActivity(android.content.Intent(ctx, CallButtonsActivity::class.java)) }
                                     .padding(vertical = 10.dp),
                             )
+                            // מה קרה היום: מה קיצורים עשתה לבד, וזיהוי השיחות (מה זוהה ומה לא)
+                            Text(
+                                "🔎 מה קרה היום (זיהוי שיחות ועוד)",
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { ctx.startActivity(android.content.Intent(ctx, LogActivity::class.java)) }
+                                    .padding(vertical = 10.dp),
+                            )
                             // ספאם לפי Truecaller: הצלצול משתתק לבד
                             SwitchLine("🚫 ספאם משתתק לבד: כש-Truecaller או Me מסמנות שיחה כספאם, הצלצול נעצר", NotchPrefs.spamSilence(ctx)) { on ->
                                 NotchPrefs.setSpamSilence(ctx, on)
