@@ -245,6 +245,8 @@ class KitzInCallService : InCallService() {
         Calls.list.remove(call)
         Calls.answeredAt.remove(call)
         Calls.typed.remove(call)
+        // "מה קרה היום": אם Truecaller לא הקפיצה חלון בשיחה עם מספר לא שמור
+        runCatching { CallerId.callEnded(this, Calls.number(call)) }
         Calls.changed()
         Proximity.update(this)
         if (Calls.list.isEmpty()) {

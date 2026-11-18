@@ -114,6 +114,23 @@ object CallerId {
 
     fun installed(c: Context) = installedApps(c).isNotEmpty()
 
+    /** בשביל "מה קרה היום": באיזו שיחה כבר ראינו חלון של Truecaller / Me */
+    @Volatile private var windowFor: String? = null
+
+    /**
+     * שיחה נגמרה: אם המספר לא שמור אצלך ו-Truecaller לא הקפיצה שום חלון, רושמים את זה,
+     * כדי שיהיה ברור שהבעיה בהגדרה (אפליקציית זיהוי המתקשרים) ולא בקריאה
+     */
+    fun callEnded(c: Context, number: String?) {
+        val k = key(number) ?: return
+        if (!installed(c) || Calls.lookup(c, number!!)?.first != null) return
+        if (windowFor != k) {
+            val app = appName(c)
+            runCatching { ActivityLog.add(c, "🔎", "$app לא הקפיצה חלון בשיחה עם $number. צריך לבחור אותה בהגדרות: אפליקציות ברירת מחדל ← אפליקציה לזיהוי מתקשרים וספאם") }
+        }
+        windowFor = null
+    }
+
     /** שיחה התחילה: זוכרים את המספר שלה */
     fun callSeen(number: String?) {
         if (key(number) == null) return
@@ -127,11 +144,23 @@ object CallerId {
         return lastNumber?.takeIf { System.currentTimeMillis() - lastAt < 30_000 }
     }
 
+    /** "השם לא נכון": מוחקים את השם מהמספר, ולא שומרים לו שוב את אותו שם */
+    fun forget(c: Context, number: String) {
+        val k = key(number) ?: return
+        val p = sp(c)
+        val old = p.getString(k, null) ?: return
+        runCatching { p.edit().remove(k).remove("src:$k").putBoolean("wrong:$k|$old", true).apply() }
+        runCatching { ActivityLog.add(c, "🔎", "סימנת ש\"$old\" הוא לא השם של $number") }
+        Calls.changed()
+    }
+
     private fun save(c: Context, number: String, name: String) {
         val k = key(number) ?: return
         // מי ששמור אצלך באנשי הקשר: השם שלך קובע
         if (Calls.lookup(c, number)?.first != null) return
         if (nameFor(c, number) == name) return
+        // סימנת שהשם הזה לא נכון למספר הזה
+        if (sp(c).getBoolean("wrong:$k|$name", false)) return
         // לומד לבד: אותו "שם" בדיוק לשני מספרים אחרים כבר = כנראה כפתור או כותרת, לא שם.
         // מסמנים אותו ככזה, ומוחקים אותו מכל המספרים (והם יזוהו מחדש)
         val p = sp(c)
@@ -190,6 +219,7 @@ object CallerId {
         val lookup = lookupNumber?.takeIf { now - lookupAt < 8000 }
         val number = lookup ?: target() ?: return
         lastScan = now
+        if (lookup == null) windowFor = key(number)
         val roots = ArrayList<AccessibilityNodeInfo>()
         val inCall = Calls.main() != null
         // בזמן שיחה קוראים רק את החלון הקטן שקופץ (לא את האפליקציה עצמה, שיש בה רשימות שמות ולשונית "ספאם").
@@ -404,14 +434,15 @@ object CallerId {
             x.getCharSequence(Notification.EXTRA_TEXT), x.getCharSequence(Notification.EXTRA_SUB_TEXT),
             x.getCharSequence(Notification.EXTRA_BIG_TEXT),
         ).joinToString(" ")
-        // המספר מופיע בהתראה: זה הכי בטוח
-        val num = Regex("[+\\d][\\d\\- ]{6,}\\d").find(text)?.value
-            ?: target()?.takeIf { text.contains("שיחה") || text.lowercase().contains("call") }
-            ?: return
+        // רק התראה שהמספר עצמו כתוב בה (לא סתם התראה של Truecaller בזמן שיחה, כמו פרסומת או עסק אחר)
+        val num = Regex("[*+\\d][\\d\\- ]{2,}\\d").findAll(title + " " + text).map { it.value }
+            .firstOrNull { key(it) != null } ?: return
         val clean = title
-            .removePrefix("שיחה שלא נענתה מ").removePrefix("שיחה שלא נענתה מאת ")
+            .removePrefix("שיחה שלא נענתה מאת ").removePrefix("שיחה שלא נענתה מ")
             .removePrefix("Missed call from ").removePrefix("Incoming call from ").trim()
-        if (looksLikeName(clean)) save(c, num, clean)
+        if (key(clean) != null || !looksLikeName(clean)) return
+        save(c, num, clean)
+        diag(c, num, "✓ $curSrc זיהתה מהתראה: $clean ($num)")
     }
 }
 

@@ -1155,6 +1155,22 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                         Row(Modifier.fillMaxWidth().padding(top = 10.dp, start = 4.dp, end = 4.dp)) {
                             Text(e.number, color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
                             Text(if (week > 0) "$week שיחות השבוע" else "", color = Muted, fontSize = 12.sp)
+                            // שם שזוהה ולא נכון: מוחקים אותו (ולא יחזור לאותו מספר)
+                            if (e.number.isNotBlank() && CallerId.nameFor(ctx, e.number) == e.name) {
+                                Text(
+                                    "✕ שם לא נכון",
+                                    color = Color(0xFFF5B74F),
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .padding(start = 12.dp)
+                                        .clickable {
+                                            CallerId.forget(ctx, e.number)
+                                            open = null
+                                            Actions.toast(ctx, "השם נמחק")
+                                            onChanged()
+                                        },
+                                )
+                            }
                             // שיחה מהרשימה (יש לה זמן): אפשר למחוק אותה
                             if (showTime && e.date > 0) {
                                 Text(
