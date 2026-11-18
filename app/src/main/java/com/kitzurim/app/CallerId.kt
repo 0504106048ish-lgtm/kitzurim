@@ -69,6 +69,11 @@ object CallerId {
         "rami levy", "רמי לוי", "we4g", "xphone", "בזק", "bezeq", "flash call", "now", "עכשיו",
         "contacts", "אנשי קשר", "recents", "אחרונות", "history", "היסטוריה", "details", "פרטים", "copy", "העתק",
         "share", "שתף", "invite", "הזמן", "back", "חזור", "more", "עוד", "settings", "הגדרות",
+        // כפתורים בכרטיס של Truecaller ו-Me, שנקראו בטעות כשם
+        "חייג", "חיוג", "dial", "התקשר", "התקשרות", "call back", "חזור אליו", "שלח הודעה", "send message",
+        "chat", "צ'אט", "צאט", "voice", "קולי", "video", "וידאו", "שיחת וידאו", "answer", "ענה", "decline", "דחה",
+        "reply", "השב", "תשובה", "report", "דווח", "not spam", "לא ספאם", "add contact", "הוסף", "הוסף איש קשר",
+        "contact", "איש קשר", "remind", "תזכורת", "pay", "תשלום", "options", "אפשרויות", "open", "פתח", "notes", "הערות",
     )
 
     /** טקסטים שמסמנים ספאם, וכפתורים שמכילים את המילה אבל הם לא סימון */
@@ -89,7 +94,8 @@ object CallerId {
     /** השם ש-Truecaller נתנה למספר הזה (אם היה) */
     fun nameFor(c: Context, number: String?): String? {
         val k = key(number) ?: return null
-        return runCatching { sp(c).getString(k, null) }.getOrNull()
+        // שם ישן שנשמר בטעות (כמו "חייג") לא מוצג, וכך המספר יזוהה מחדש
+        return runCatching { sp(c).getString(k, null) }.getOrNull()?.takeIf { looksLikeName(it) }
     }
 
     /** Truecaller סימנה את המספר כספאם */
@@ -225,8 +231,13 @@ object CallerId {
      * אחרת הטקסט שנראה כמו שם, רק אם המספר שלנו מופיע בחלון. בחיפוש (strict) רק טקסט צמוד למספר,
      * כדי לא לקחת בטעות שם של מישהו אחר מהרשימה של Truecaller
      */
-    private fun readName(texts: List<Pair<String, String>>, number: String, strict: Boolean): String? {
+    private fun readName(all: List<Pair<String, String>>, number: String, strict: Boolean): String? {
         val k = key(number) ?: return null
+        // כפתורים (חייג, הודעה, צ'אט...) הם אף פעם לא השם
+        val texts = all.filter { (id, _) ->
+            val i = id.lowercase()
+            listOf("button", "btn", "action", "cta", "chip", "fab").none { i.contains(it) }
+        }
         val at = texts.indexOfFirst { key(it.second) == k }
         texts.firstOrNull { (id, t) ->
             val i = id.lowercase()
