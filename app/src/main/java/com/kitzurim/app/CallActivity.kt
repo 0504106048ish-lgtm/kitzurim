@@ -69,6 +69,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -626,6 +629,24 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
             "hang" -> HangBtn(big = big, small = small) { act.hangup() }
         }
     }
+
+    /** אותו כפתור בתוך הקפסולה (כשהמקלדת פתוחה): רק סמל */
+    @Composable
+    fun Cap(id: String) {
+        when (id) {
+            "hold" -> CapBtn(CallIcons.hold, if (v.holding) "המשך" else "המתנה", v.holding) { act.hold() }
+            "add" -> {
+                if (v.canSwap) CapBtn(CallIcons.swap, "החלף", false) { act.swap() }
+                else CapBtn(CallIcons.addCall, "הוסף שיחה", false, enabled = v.canAdd) { act.addCall() }
+                if (v.canMerge) CapBtn(CallIcons.merge, "מיזוג", false) { act.merge() }
+            }
+            "record" -> CapBtn(CallIcons.record, "הקלט", v.recording, enabled = v.canRecord) { act.record() }
+            "mute" -> CapBtn(CallIcons.mute, "השתק", v.muted) { act.mute() }
+            "keys" -> CapBtn(CallIcons.keys, "הסתר מקלדת", false, lit = true) { keypad = false }
+            "speaker" -> CapBtn(CallIcons.speaker, "רמקול", v.speaker) { act.speaker() }
+            "bt" -> if (v.hasBluetooth) CapBtn(CallIcons.bluetooth, "בלוטוס", v.bluetoothOn) { act.bluetooth() }
+        }
+    }
     GlassBg(acc) {
         Column(
             Modifier
@@ -766,17 +787,54 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                         Spacer(Modifier.height(18.dp))
                     }
                 }
-                // באמצע, קרוב לאגודל. כשהמקלדת פתוחה הם קטנים קצת. מקלדת וניתוק תמיד גלויים
-                // (אם הם בשורה העליונה, שנעלמת עם המקלדת, הם עוברים לכאן בינתיים)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    order[1].forEach { Btn(it, keypad) }
-                    if (keypad) order[0].filter { it == "keys" || it == "hang" }.forEach { Btn(it, true) }
-                }
-                val gap by androidx.compose.animation.core.animateDpAsState(if (keypad) 16.dp else 26.dp, tween(300), label = "gap")
-                Spacer(Modifier.height(gap))
-                // השורה של הניתוק (או מה שהועבר לשם)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    order[2].forEach { Btn(it, keypad, big = true) }
+                androidx.compose.animation.AnimatedContent(
+                    targetState = keypad,
+                    transitionSpec = {
+                        (androidx.compose.animation.fadeIn(tween(260, 80)) + androidx.compose.animation.scaleIn(tween(300, easing = FastOutSlowInEasing), initialScale = 0.9f)) togetherWith
+                            androidx.compose.animation.fadeOut(tween(140))
+                    },
+                    contentAlignment = Alignment.BottomCenter,
+                    label = "btns",
+                ) { open ->
+                    if (!open) Column(Modifier.fillMaxWidth()) {
+                        // באמצע, קרוב לאגודל
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            order[1].forEach { Btn(it, false) }
+                        }
+                        Spacer(Modifier.height(26.dp))
+                        // השורה של הניתוק (או מה שהועבר לשם)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            order[2].forEach { Btn(it, false, big = true) }
+                        }
+                    } else Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        // מקלדת פתוחה: כל הכפתורים שנשארים בקפסולת זכוכית צרה אחת, והניתוק מתחת כגלולה אדומה
+                        // (לפי הסידור שבחרת; הכפתורים מהשורה העליונה שנעלמת לא נכנסים, חוץ ממקלדת)
+                        val ids = (order[1] + order[2] + order[0].filter { it == "keys" || it == "hang" })
+                        Row(
+                            Modifier
+                                .shadow(12.dp, RoundedCornerShape(30.dp))
+                                .clip(RoundedCornerShape(30.dp))
+                                .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.07f))))
+                                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(30.dp))
+                                .padding(5.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            ids.filter { it != "hang" }.forEach { Cap(it) }
+                        }
+                        if ("hang" in ids) {
+                            Spacer(Modifier.height(14.dp))
+                            Box(
+                                Modifier
+                                    .size(width = 128.dp, height = 50.dp)
+                                    .shadow(14.dp, RoundedCornerShape(25.dp), ambientColor = Red, spotColor = Red)
+                                    .clip(RoundedCornerShape(25.dp))
+                                    .background(Red)
+                                    .semantics { contentDescription = "ניתוק" }
+                                    .clickable { act.hangup() },
+                                contentAlignment = Alignment.Center,
+                            ) { CallIcon(CallIcons.phone, Color.White, 26.dp, rotate = 135f) }
+                        }
+                    }
                 }
                 // הכפתורים קצת יותר למעלה, נוח יותר לאגודל (עם המקלדת פחות, שיהיה לה מקום)
                 val bottom by androidx.compose.animation.core.animateDpAsState(if (keypad) 40.dp else 84.dp, tween(300), label = "bottom")
@@ -1062,6 +1120,31 @@ internal object CallButtons {
 }
 
 /** כפתור הניתוק האדום: גדול כשהוא בשורה משלו, ובגודל של שאר הכפתורים כשהוא בתוך שורה */
+/** כפתור בקפסולה: סמל בלבד, דלוק = לבן מלא וסמל כהה */
+@Composable
+private fun CapBtn(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    on: Boolean,
+    enabled: Boolean = true,
+    lit: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val bg by androidx.compose.animation.animateColorAsState(
+        when { on -> Color.White; lit -> Color.White.copy(alpha = 0.2f); else -> Color.Transparent }, tween(200), label = "cap",
+    )
+    Box(
+        Modifier
+            .size(width = 50.dp, height = 44.dp)
+            .alpha(if (enabled) 1f else 0.35f)
+            .clip(RoundedCornerShape(22.dp))
+            .background(bg)
+            .semantics { contentDescription = label }
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) { CallIcon(icon, if (on) Color(0xFF15171C) else Color.White, 22.dp) }
+}
+
 @Composable
 private fun HangBtn(big: Boolean, small: Boolean = false, dim: Boolean = false, onClick: () -> Unit) {
     val sz = if (big) 70.dp else if (small) 52.dp else 64.dp
