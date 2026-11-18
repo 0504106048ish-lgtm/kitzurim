@@ -1326,7 +1326,9 @@ object LivePill {
     fun showScreenshot(thumb: Bitmap?, uri: android.net.Uri) {
         val s = NotchOverlay.service ?: return
         if (inCallPill() || kind == "player") return
-        shotFlight(thumb) { showScreenshotPill(thumb, uri) }
+        // בלי חלון על כל המסך (ההבזק והתמונה שעפה): הוא הסתיר מהמקלדת של גוגל את ההצעה להדביק את הצילום.
+        // רק הגלולה הקטנה עם הצילום
+        showScreenshotPill(thumb, uri)
     }
 
     private fun showScreenshotPill(thumb: Bitmap?, uri: android.net.Uri) {
