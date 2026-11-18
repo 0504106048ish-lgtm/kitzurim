@@ -131,7 +131,8 @@ internal fun dayLabel(t: Long): String {
         set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
     }
     if (t >= weekAgo.timeInMillis) return hebDays[c.get(Calendar.DAY_OF_WEEK) - 1]
-    val base = "${c.get(Calendar.DAY_OF_MONTH)} ${hebMonths[c.get(Calendar.MONTH)]}"
+    // יותר משבוע: גם היום בשבוע וגם התאריך ("יום שלישי 9 בנובמבר")
+    val base = "${hebDays[c.get(Calendar.DAY_OF_WEEK) - 1]} ${c.get(Calendar.DAY_OF_MONTH)} ${hebMonths[c.get(Calendar.MONTH)]}"
     return if (c.get(Calendar.YEAR) == now.get(Calendar.YEAR)) base else "$base ${c.get(Calendar.YEAR)}"
 }
 
@@ -144,4 +145,46 @@ internal fun splitDate(q: String): Pair<Pair<Long, Long>, String>? {
         SmartName.dateRange(w.take(k).joinToString(" "))?.let { return it to w.drop(k).joinToString(" ") }
     }
     return null
+}
+
+/** איפה בשם נמצא מה שחיפשת (מיקום באותיות של השם המקורי), כדי להדגיש. גם באמצע מילה ועם טעות הקלדה */
+internal fun SmartName.matchRange(name: String, q: String): IntRange? {
+    val finals = mapOf('ך' to 'כ', 'ם' to 'מ', 'ן' to 'נ', 'ף' to 'פ', 'ץ' to 'צ')
+    fun mapped(s: String): Pair<String, IntArray> {
+        val sb = StringBuilder()
+        val idx = ArrayList<Int>()
+        s.lowercase().forEachIndexed { i, ch ->
+            if (ch in '֑'..'ׇ' || ch == '\'' || ch == '"' || ch == '׳' || ch == '״' || ch == '-' || ch == '.') return@forEachIndexed
+            sb.append(finals[ch] ?: ch)
+            idx.add(i)
+        }
+        return sb.toString() to idx.toIntArray()
+    }
+    val (t, idx) = mapped(name)
+    val p = mapped(q.trim()).first.trim()
+    if (p.isEmpty() || t.isEmpty()) return null
+    val i = t.indexOf(p)
+    if (i >= 0) return idx[i]..idx[i + p.length - 1]
+    if (p.length < 5) return null
+    val max = if (p.length >= 9) 2 else 1
+    fun lev(a: String, b: String): Int {
+        var prev = IntArray(b.length + 1) { it }
+        for (x in 1..a.length) {
+            val cur = IntArray(b.length + 1)
+            cur[0] = x
+            for (y in 1..b.length) cur[y] = minOf(prev[y - 1] + if (a[x - 1] == b[y - 1]) 0 else 1, prev[y] + 1, cur[y - 1] + 1)
+            prev = cur
+        }
+        return prev[b.length]
+    }
+    var best = Int.MAX_VALUE
+    var at = -1
+    var len = 0
+    for (l in (p.length - max).coerceAtLeast(1)..(p.length + max)) {
+        for (s in 0..(t.length - l)) {
+            val d = lev(p, t.substring(s, s + l))
+            if (d < best) { best = d; at = s; len = l }
+        }
+    }
+    return if (best <= max && at >= 0) idx[at]..idx[at + len - 1] else null
 }

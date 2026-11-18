@@ -45,6 +45,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -602,7 +603,7 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                     )
                 }
                 Box(Modifier.weight(1f)) {
-                    EntryList(shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall, onChanged = { changed++ }, days = !searching && (tab == 0 || tab == 3))
+                    EntryList(shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall, onChanged = { changed++ }, days = !searching && (tab == 0 || tab == 3), hl = if (searching) splitDate(q)?.second ?: q else "")
                 }
             }
             // כפתור המקלדת, בפינה
@@ -949,7 +950,7 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit, onChanged: () -> Unit = {}, days: Boolean = false) {
+private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit, onChanged: () -> Unit = {}, days: Boolean = false, hl: String = "") {
     val ctx = LocalContext.current
     if (list.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1094,13 +1095,11 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                         contentAlignment = Alignment.Center,
                     ) { Text(e.name.trim().take(1), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Text(
+                        HlName(
                             e.name,
+                            hl,
                             color = if (e.type == CallLog.Calls.MISSED_TYPE) Red else Color.White,
                             fontSize = 15.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                         )
                         // שיחה (יש לה זמן): סוג השיחה והזמן. איש קשר: המספר
                         val sub = if (showTime && e.date > 0) {
@@ -1255,4 +1254,51 @@ private fun ContactActions(number: String, onCall: (String) -> Unit) {
             }
         }
     }
+}
+
+/**
+ * שם בתוצאה של חיפוש: האותיות שחיפשת מסומנות ברקע ירוק שקוף, בכתב עבה ולבן, וקו ירוק מתחתן
+ * (גם כשנמצא באמצע מילה או עם טעות הקלדה)
+ */
+@Composable
+private fun HlName(name: String, hl: String, color: Color, fontSize: androidx.compose.ui.unit.TextUnit) {
+    val range = remember(name, hl) { if (hl.isBlank()) null else SmartName.matchRange(name, hl) }
+    var layout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    val text = remember(name, range) {
+        androidx.compose.ui.text.buildAnnotatedString {
+            append(name)
+            if (range != null) addStyle(
+                androidx.compose.ui.text.SpanStyle(
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    background = G.copy(alpha = 0.25f),
+                ),
+                range.first,
+                range.last + 1,
+            )
+        }
+    }
+    Text(
+        text,
+        color = color,
+        fontSize = fontSize,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { layout = it },
+        modifier = Modifier.drawBehind {
+            val l = layout ?: return@drawBehind
+            val r = range ?: return@drawBehind
+            if (r.last >= l.layoutInput.text.length) return@drawBehind
+            // הקו הירוק מתחת לאותיות שחיפשת
+            val b = l.getPathForRange(r.first, r.last + 1).getBounds()
+            val h = 2.dp.toPx()
+            drawRoundRect(
+                G,
+                topLeft = androidx.compose.ui.geometry.Offset(b.left, b.bottom - h / 2),
+                size = androidx.compose.ui.geometry.Size(b.width, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(h / 2, h / 2),
+            )
+        },
+    )
 }
