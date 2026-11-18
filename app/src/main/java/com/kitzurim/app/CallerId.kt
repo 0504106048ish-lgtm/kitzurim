@@ -74,6 +74,8 @@ object CallerId {
         "chat", "צ'אט", "צאט", "voice", "קולי", "video", "וידאו", "שיחת וידאו", "answer", "ענה", "decline", "דחה",
         "reply", "השב", "תשובה", "report", "דווח", "not spam", "לא ספאם", "add contact", "הוסף", "הוסף איש קשר",
         "contact", "איש קשר", "remind", "תזכורת", "pay", "תשלום", "options", "אפשרויות", "open", "פתח", "notes", "הערות",
+        "הוספה", "add to contacts", "שמירה", "חסימה", "דיווח", "שיתוף", "העתקה", "עריכה", "שליחת הודעה", "הצגת פרופיל",
+        "שיחה חוזרת", "פרטי איש קשר", "צור איש קשר", "create contact", "new contact", "איש קשר חדש",
     )
 
     /** טקסטים שמסמנים ספאם, וכפתורים שמכילים את המילה אבל הם לא סימון */
@@ -87,15 +89,20 @@ object CallerId {
 
     /** 9 הספרות האחרונות: אותו מספר גם עם 972+ וגם עם 0 בהתחלה */
     fun key(number: String?): String? {
-        val d = number?.filter { it.isDigit() } ?: return null
-        return if (d.length < 7) null else d.takeLast(9)
+        val raw = number?.trim() ?: return null
+        val d = raw.filter { it.isDigit() }
+        if (d.length >= 7) return d.takeLast(9)
+        // מספרים מקוצרים (כמו *2108 או 1222): המספר כמו שהוא, עם הכוכבית
+        if (d.length in 3..6) return (if (raw.startsWith("*")) "*" else "") + d
+        return null
     }
 
     /** השם ש-Truecaller נתנה למספר הזה (אם היה) */
     fun nameFor(c: Context, number: String?): String? {
         val k = key(number) ?: return null
         // שם ישן שנשמר בטעות (כמו "חייג") לא מוצג, וכך המספר יזוהה מחדש
-        return runCatching { sp(c).getString(k, null) }.getOrNull()?.takeIf { looksLikeName(it) }
+        return runCatching { sp(c).getString(k, null) }.getOrNull()
+            ?.takeIf { looksLikeName(it) && !sp(c).getBoolean("bad:$it", false) }
     }
 
     /** Truecaller סימנה את המספר כספאם */
@@ -124,7 +131,18 @@ object CallerId {
         // מי ששמור אצלך באנשי הקשר: השם שלך קובע
         if (Calls.lookup(c, number)?.first != null) return
         if (nameFor(c, number) == name) return
-        runCatching { sp(c).edit().putString(k, name).putString("src:$k", curSrc).apply() }
+        // לומד לבד: אותו "שם" בדיוק לשני מספרים אחרים כבר = כנראה כפתור או כותרת, לא שם.
+        // מסמנים אותו ככזה, ומוחקים אותו מכל המספרים (והם יזוהו מחדש)
+        val p = sp(c)
+        if (p.getBoolean("bad:$name", false)) return
+        val same = runCatching { p.all.filter { (kk, vv) -> !kk.contains(':') && kk != k && vv == name }.keys }.getOrDefault(emptySet())
+        if (same.size >= 2) {
+            runCatching { p.edit().apply { putBoolean("bad:$name", true); same.forEach { remove(it) } }.apply() }
+            diag(c, number, "🚫 \"$name\" מופיע לכמה מספרים, כנראה כפתור ולא שם")
+            Calls.changed()
+            return
+        }
+        runCatching { p.edit().putString(k, name).putString("src:$k", curSrc).apply() }
         Calls.changed()
         runCatching { CallNotif.update(c) }
     }
@@ -138,6 +156,8 @@ object CallerId {
         if (s.contains("%") || s.contains("•") && s.length < 4) return false
         val low = s.lowercase()
         if (notNames.any { low == it || low.startsWith("$it ") || low.endsWith(" $it") }) return false
+        // טקסטים של כפתורים שמופיעים בכל מקום במשפט ("הוספה לאנשי קשר", "Add to contacts")
+        if (listOf("אנשי קשר", "לאנשי", "contacts", "truecaller", "פרימיום", "premium").any { low.contains(it) }) return false
         if (spamWords.any { low.contains(it) }) return false
         return true
     }
@@ -280,7 +300,8 @@ object CallerId {
     /** פותח את Truecaller על המספר: קודם דף החיפוש, ואם אין אז המקלדת שלה עם המספר */
     private fun open(c: Context, number: String): Boolean {
         val d = number.filter { it.isDigit() }
-        val local = if (d.startsWith("972")) "0" + d.drop(3) else d
+        val short = d.length < 7 && number.trim().startsWith("*")
+        val local = if (short) Uri.encode("*$d") else if (d.startsWith("972")) "0" + d.drop(3) else d
         // Truecaller: דף החיפוש או המקלדת שלה. Me: פותחים אותה על המספר (אם היא מקבלת)
         val tries = listOf(
             Intent(Intent.ACTION_VIEW, Uri.parse("https://www.truecaller.com/search/il/$local")),

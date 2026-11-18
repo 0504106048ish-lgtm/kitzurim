@@ -749,8 +749,8 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
                         .clickable {
                             number = e.number.filter { c -> c.isDigit() || c == '+' || c == '*' || c == '#' }
                             openNum = if (isOpen) null else e.number
-                            // נפתח: המקשים יורדים כדי שיהיה מקום לפעולות. נסגר: המקשים חוזרים
-                            pad = isOpen
+
+                            // המקשים נשארים פתוחים (הפעולות נפתחות ברשימה שמעליהם)
                         }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
