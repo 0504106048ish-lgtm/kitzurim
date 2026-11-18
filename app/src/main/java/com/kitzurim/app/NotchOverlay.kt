@@ -361,6 +361,9 @@ object NotchOverlay {
 
     // ---------- שיר ושיחה: בודקים כל שנייה ----------
     private var lastTitle: String? = null
+
+    /** השיר האחרון שהגלולה הכריזה עליו */
+    private var lastAnnounced: String? = null
     private var musicOff = 0
 
     /** יש אזור נגיעה בשביל הנגן (שיר מתנגן עכשיו) */
@@ -448,7 +451,12 @@ object NotchOverlay {
             }
             // שיר חדש התחיל: הגלולה מראה את השם לשלוש שניות
             val title = now?.first
-            if (title != null && title != lastTitle && NotchPrefs.pillMusic(s)) LivePill.showMusic(title)
+            // רק כשהשיר באמת התחלף: כשמריצים קדימה/אחורה או עוצרים וממשיכים, הנגן "נעלם" לרגע,
+            // ולכן משווים לשיר האחרון שהוצג (לא לרגע הקודם)
+            if (title != null && title != lastAnnounced && NotchPrefs.pillMusic(s)) {
+                LivePill.showMusic(title)
+                lastAnnounced = title
+            }
             lastTitle = title
             // מוזיקה כל הזמן בעיגול: כל עוד מתנגן. נעלמת רק אחרי 3 שניות בלי מוזיקה (לא בכל עצירה קטנה)
             if (title != null) {
