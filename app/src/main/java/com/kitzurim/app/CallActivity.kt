@@ -606,7 +606,7 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
 
     /** כפתור אחד לפי השם שלו בסידור */
     @Composable
-    fun Btn(id: String, small: Boolean) {
+    fun Btn(id: String, small: Boolean, big: Boolean = false) {
         when (id) {
             "hold" -> RoundBtn(CallIcons.hold, if (v.holding) "המשך" else "המתנה", v.holding, small = small) { act.hold() }
             // הוסף שיחה: כשיש שתי שיחות הוא הופך ל"החלף", ולידו "מיזוג". בזמן חיוג חלש, ונדלק כשעונים
@@ -622,6 +622,8 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
             "speaker" -> RoundBtn(CallIcons.speaker, "רמקול", v.speaker, small = small) { act.speaker() }
             // בלוטוס: רק כשיש אוזניות או רכב מחוברים
             "bt" -> if (v.hasBluetooth) RoundBtn(CallIcons.bluetooth, "בלוטוס", v.bluetoothOn, small = small) { act.bluetooth() }
+            // ניתוק: גדול כשהוא בשורה משלו למטה, ובגודל רגיל כשהעבירו אותו לשורה של הכפתורים
+            "hang" -> HangBtn(big = big, small = small) { act.hangup() }
         }
     }
     GlassBg(acc) {
@@ -759,30 +761,22 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                 ) {
                     Column {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            order.first.forEach { Btn(it, false) }
+                            order[0].forEach { Btn(it, false) }
                         }
                         Spacer(Modifier.height(18.dp))
                     }
                 }
-                // למטה, קרוב לאגודל. כשהמקלדת פתוחה הם קטנים קצת, וכפתור המקלדת תמיד כאן (כדי שאפשר יהיה להסתיר אותה)
+                // באמצע, קרוב לאגודל. כשהמקלדת פתוחה הם קטנים קצת. מקלדת וניתוק תמיד גלויים
+                // (אם הם בשורה העליונה, שנעלמת עם המקלדת, הם עוברים לכאן בינתיים)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    order.second.forEach { Btn(it, keypad) }
-                    if (keypad && "keys" !in order.second) Btn("keys", true)
+                    order[1].forEach { Btn(it, keypad) }
+                    if (keypad) order[0].filter { it == "keys" || it == "hang" }.forEach { Btn(it, true) }
                 }
                 val gap by androidx.compose.animation.core.animateDpAsState(if (keypad) 16.dp else 26.dp, tween(300), label = "gap")
                 Spacer(Modifier.height(gap))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(70.dp)
-                            .shadow(16.dp, CircleShape, ambientColor = Red, spotColor = Red)
-                            .clip(CircleShape)
-                            .background(Red)
-                            .clickable { act.hangup() },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CallIcon(CallIcons.phone, Color.White, 30.dp, rotate = 135f)
-                    }
+                // השורה של הניתוק (או מה שהועבר לשם)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    order[2].forEach { Btn(it, keypad, big = true) }
                 }
                 // הכפתורים קצת יותר למעלה, נוח יותר לאגודל (עם המקלדת פחות, שיהיה לה מקום)
                 val bottom by androidx.compose.animation.core.animateDpAsState(if (keypad) 40.dp else 84.dp, tween(300), label = "bottom")
@@ -1022,27 +1016,29 @@ internal fun contactArgb(name: String, photo: android.graphics.Bitmap?): Pair<In
     }
 
 /**
- * הסדר של הכפתורים במסך השיחה: שתי שורות. כל אחד יכול לסדר לעצמו (מה למעלה, מה למטה, ובאיזה צד).
- * hold=המתנה, add=הוסף שיחה (ו"החלף"/"מיזוג" כשיש שתי שיחות), record=הקלט, mute=השתק, keys=מקלדת, speaker=רמקול, bt=בלוטוס
+ * הסדר של הכפתורים במסך השיחה: שלוש שורות (למעלה, באמצע, ולמטה איפה שכפתור הניתוק).
+ * כל אחד יכול לסדר לעצמו: מה למעלה, מה למטה, באיזה צד, וגם איפה כפתור הניתוק והבלוטוס.
+ * hold=המתנה, add=הוסף שיחה (ו"החלף"/"מיזוג" כשיש שתי שיחות), record=הקלט, mute=השתק, keys=מקלדת,
+ * speaker=רמקול, bt=בלוטוס, hang=ניתוק
  */
 internal object CallButtons {
     private const val KEY = "call_btns"
-    val DEFAULT = listOf("hold", "add", "record") to listOf("mute", "keys", "speaker", "bt")
+    val DEFAULT = listOf(listOf("hold", "add", "record"), listOf("mute", "keys", "speaker", "bt"), listOf("hang"))
     private fun sp(c: android.content.Context) = c.getSharedPreferences("call_ui", android.content.Context.MODE_PRIVATE)
 
-    fun load(c: android.content.Context): Pair<List<String>, List<String>> {
+    fun load(c: android.content.Context): List<List<String>> {
         val s = runCatching { sp(c).getString(KEY, null) }.getOrNull() ?: return DEFAULT
-        val parts = s.split("|")
-        if (parts.size != 2) return DEFAULT
-        val a = parts[0].split(",").filter { it.isNotBlank() }
-        val b = parts[1].split(",").filter { it.isNotBlank() }
+        val parts = s.split("|").map { p -> p.split(",").filter { it.isNotBlank() } }.toMutableList()
+        // סידור ישן (שתי שורות, בלי ניתוק): הניתוק למטה כרגיל
+        if (parts.size == 2) parts += listOf("hang")
+        if (parts.size != 3) return DEFAULT
         // כפתור חסר או כפול (למשל אחרי עדכון): חוזרים לסדר הרגיל
-        if ((a + b).sorted() != (DEFAULT.first + DEFAULT.second).sorted()) return DEFAULT
-        return a to b
+        if (parts.flatten().sorted() != DEFAULT.flatten().sorted()) return DEFAULT
+        return parts
     }
 
-    fun save(c: android.content.Context, r: Pair<List<String>, List<String>>) {
-        runCatching { sp(c).edit().putString(KEY, r.first.joinToString(",") + "|" + r.second.joinToString(",")).apply() }
+    fun save(c: android.content.Context, r: List<List<String>>) {
+        runCatching { sp(c).edit().putString(KEY, r.joinToString("|") { it.joinToString(",") }).apply() }
     }
 
     fun reset(c: android.content.Context) {
@@ -1050,10 +1046,8 @@ internal object CallButtons {
     }
 
     /** מחליפים מקום בין שני כפתורים (גם בין השורות) */
-    fun swap(r: Pair<List<String>, List<String>>, x: String, y: String): Pair<List<String>, List<String>> {
-        fun f(l: List<String>) = l.map { if (it == x) y else if (it == y) x else it }
-        return f(r.first) to f(r.second)
-    }
+    fun swap(r: List<List<String>>, x: String, y: String): List<List<String>> =
+        r.map { l -> l.map { if (it == x) y else if (it == y) x else it } }
 
     fun look(id: String) = when (id) {
         "hold" -> CallIcons.hold to "המתנה"
@@ -1062,7 +1056,26 @@ internal object CallButtons {
         "mute" -> CallIcons.mute to "השתק"
         "keys" -> CallIcons.keys to "מקלדת"
         "speaker" -> CallIcons.speaker to "רמקול"
+        "hang" -> CallIcons.phone to "ניתוק"
         else -> CallIcons.bluetooth to "בלוטוס"
+    }
+}
+
+/** כפתור הניתוק האדום: גדול כשהוא בשורה משלו, ובגודל של שאר הכפתורים כשהוא בתוך שורה */
+@Composable
+private fun HangBtn(big: Boolean, small: Boolean = false, dim: Boolean = false, onClick: () -> Unit) {
+    val sz = if (big) 70.dp else if (small) 52.dp else 64.dp
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(if (big) 90.dp else 84.dp)) {
+        Box(
+            Modifier
+                .size(sz)
+                .shadow(if (dim) 0.dp else 16.dp, CircleShape, ambientColor = Red, spotColor = Red)
+                .clip(CircleShape)
+                .background(if (dim) Red.copy(alpha = 0.55f) else Red)
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center,
+        ) { CallIcon(CallIcons.phone, Color.White, if (big) 30.dp else 26.dp, rotate = 135f) }
+        if (!big) Text("ניתוק", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
     }
 }
 
@@ -1097,10 +1110,11 @@ private fun CallButtonsEditor(onDone: () -> Unit) {
     val wig by t.animateFloat(-4f, 4f, infiniteRepeatable(tween(140), androidx.compose.animation.core.RepeatMode.Reverse), label = "w")
 
     @Composable
-    fun EditBtn(id: String) {
+    fun EditBtn(id: String, big: Boolean = false) {
         val (icon, label) = CallButtons.look(id)
         Box(Modifier.graphicsLayer { rotationZ = if (sel == id) wig else 0f }) {
-            RoundBtn(icon, label, sel == id) { tap(id) }
+            if (id == "hang") HangBtn(big = big, dim = sel == id) { tap(id) }
+            else RoundBtn(icon, label, sel == id) { tap(id) }
         }
     }
 
@@ -1119,15 +1133,12 @@ private fun CallButtonsEditor(onDone: () -> Unit) {
                 modifier = Modifier.padding(top = 10.dp),
             )
             Spacer(Modifier.weight(1f))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) { rows.first.forEach { EditBtn(it) } }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) { rows[0].forEach { EditBtn(it) } }
             Spacer(Modifier.height(18.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) { rows.second.forEach { EditBtn(it) } }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) { rows[1].forEach { EditBtn(it) } }
             Spacer(Modifier.height(26.dp))
-            // כפתור הניתוק נשאר תמיד באמצע למטה (רק לתצוגה)
-            Box(
-                Modifier.size(70.dp).clip(CircleShape).background(Red.copy(alpha = 0.45f)),
-                contentAlignment = Alignment.Center,
-            ) { CallIcon(CallIcons.phone, Color.White, 30.dp, rotate = 135f) }
+            // השורה של כפתור הניתוק (אפשר להחליף אותו עם כל כפתור אחר)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { rows[2].forEach { EditBtn(it, big = true) } }
             Spacer(Modifier.height(30.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 Text(
