@@ -108,3 +108,40 @@ object SmartName {
         return null
     }
 }
+
+/** שני זמנים באותו יום */
+internal fun sameDay(a: Long, b: Long): Boolean {
+    val x = Calendar.getInstance().apply { timeInMillis = a }
+    val y = Calendar.getInstance().apply { timeInMillis = b }
+    return x.get(Calendar.YEAR) == y.get(Calendar.YEAR) && x.get(Calendar.DAY_OF_YEAR) == y.get(Calendar.DAY_OF_YEAR)
+}
+
+private val hebMonths = listOf("בינואר", "בפברואר", "במרץ", "באפריל", "במאי", "ביוני", "ביולי", "באוגוסט", "בספטמבר", "באוקטובר", "בנובמבר", "בדצמבר")
+private val hebDays = listOf("יום ראשון", "יום שני", "יום שלישי", "יום רביעי", "יום חמישי", "יום שישי", "שבת")
+
+/** השם של היום בתגית: היום, אתמול, יום שלישי (השבוע האחרון), 9 בנובמבר, ובשנה אחרת גם השנה */
+internal fun dayLabel(t: Long): String {
+    val now = Calendar.getInstance()
+    val c = Calendar.getInstance().apply { timeInMillis = t }
+    if (sameDay(t, now.timeInMillis)) return "היום"
+    val y = Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -1) }
+    if (sameDay(t, y.timeInMillis)) return "אתמול"
+    val weekAgo = Calendar.getInstance().apply {
+        add(Calendar.DAY_OF_MONTH, -6)
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }
+    if (t >= weekAgo.timeInMillis) return hebDays[c.get(Calendar.DAY_OF_WEEK) - 1]
+    val base = "${c.get(Calendar.DAY_OF_MONTH)} ${hebMonths[c.get(Calendar.MONTH)]}"
+    return if (c.get(Calendar.YEAR) == now.get(Calendar.YEAR)) base else "$base ${c.get(Calendar.YEAR)}"
+}
+
+/** "אליהו אתמול", "אתמול אליהו", "דני 17/11", "אמא ביום שלישי": התאריך (מ-עד) ומה שנשאר בשביל השם */
+internal fun splitDate(q: String): Pair<Pair<Long, Long>, String>? {
+    val w = q.trim().split(Regex("\s+"))
+    if (w.size < 2) return null
+    for (k in w.size - 1 downTo 1) {
+        SmartName.dateRange(w.takeLast(k).joinToString(" "))?.let { return it to w.dropLast(k).joinToString(" ") }
+        SmartName.dateRange(w.take(k).joinToString(" "))?.let { return it to w.drop(k).joinToString(" ") }
+    }
+    return null
+}

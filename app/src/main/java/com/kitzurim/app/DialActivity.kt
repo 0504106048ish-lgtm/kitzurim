@@ -563,7 +563,17 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                         .distinctBy { key(it) }.filter { key(it) !in seen }
                     // לפי תאריך: כל השיחות של אותו יום, בסדר שלהן (בלי לאחד שיחות של אותו אחד)
                     val dateSet = byDate.toSet()
-                    if (byDate.isNotEmpty()) byDate + (recent + people).filter { it !in dateSet } else recent + people
+                    // שם ותאריך יחד ("אליהו אתמול"): רק השיחות של אותו אחד באותו יום
+                    val combo = if (day == null) splitDate(q) else null
+                    if (combo != null) {
+                        val (range, who) = combo
+                        val whoDigits = who.filter { it.isDigit() }
+                        recents.filter { e ->
+                            e.date in range.first until range.second &&
+                                (SmartName.exact(e.name, who) || SmartName.fuzzy(e.name, who) ||
+                                    (whoDigits.length >= 2 && e.number.filter { c -> c.isDigit() }.contains(whoDigits)))
+                        }
+                    } else if (byDate.isNotEmpty()) byDate + (recent + people).filter { it !in dateSet } else recent + people
                 }
                 val empty = if (searching) "לא נמצא כלום" else when (tab) {
                     0 -> "אין עדיין שיחות"
@@ -592,7 +602,7 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                     )
                 }
                 Box(Modifier.weight(1f)) {
-                    EntryList(shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall, onChanged = { changed++ })
+                    EntryList(shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall, onChanged = { changed++ }, days = !searching && (tab == 0 || tab == 3))
                 }
             }
             // כפתור המקלדת, בפינה
@@ -939,7 +949,7 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit, onChanged: () -> Unit = {}) {
+private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit, onChanged: () -> Unit = {}, days: Boolean = false) {
     val ctx = LocalContext.current
     if (list.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -948,6 +958,8 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
         return
     }
     val fmt = remember { SimpleDateFormat("d/M HH:mm", Locale.getDefault()) }
+    // עם תגיות של ימים: ליד כל שיחה רק השעה (היום כבר כתוב בתגית)
+    val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     // רק שורה אחת פתוחה בכל פעם
     var open by remember { mutableStateOf<String?>(null) }
     val weekAgo = remember { System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000 }
@@ -1021,6 +1033,21 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
             val canSel = showTime && e.date > 0
             val isSel = selKey(e) in selected
             val (c1, c2) = dialColors(e.name)
+            // יום חדש ברשימה: תגית קטנה באמצע (היום / אתמול / יום שלישי / 9 בנובמבר)
+            if (days && e.date > 0 && (idx == 0 || !sameDay(list[idx - 1].date, e.date))) {
+                Box(Modifier.fillMaxWidth().padding(top = if (idx == 0) 2.dp else 10.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        dayLabel(e.date),
+                        color = Color(0xFFCFD5DE),
+                        fontSize = 11.5.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                }
+            }
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -1083,7 +1110,7 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                                 CallLog.Calls.MISSED_TYPE -> "✕ לא נענתה"
                                 else -> ""
                             }
-                            "$kind · ${fmt.format(Date(e.date))}"
+                            "$kind · ${(if (days) timeFmt else fmt).format(Date(e.date))}"
                         } else {
                             e.number
                         }
