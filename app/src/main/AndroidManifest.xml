@@ -180,6 +180,11 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true" />
 
+        <!-- סידור הכפתורים במסך השיחה -->
+        <activity
+            android:name=".CallButtonsActivity"
+            android:exported="false" />
+
         <!-- מקלדת חיוג (אנדרואיד דורש אותה מאפליקציית טלפון) -->
         <activity
             android:name=".DialActivity"

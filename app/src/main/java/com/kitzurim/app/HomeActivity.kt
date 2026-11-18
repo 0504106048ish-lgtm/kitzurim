@@ -585,6 +585,15 @@ fun HomeScreen(resumes: Int) {
                                 if (on) DialerHome.install(ctx.applicationContext) else DialerHome.remove(ctx.applicationContext)
                                 refresh++
                             }
+                            // סידור הכפתורים במסך השיחה: כל אחד לפי מה שנוח לו
+                            Text(
+                                "✏️ סידור הכפתורים במסך השיחה (רמקול, השתקה, מקלדת…)",
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { ctx.startActivity(android.content.Intent(ctx, CallButtonsActivity::class.java)) }
+                                    .padding(vertical = 10.dp),
+                            )
                             // ספאם לפי Truecaller: הצלצול משתתק לבד
                             SwitchLine("🚫 ספאם משתתק לבד: כש-Truecaller או Me מסמנות שיחה כספאם, הצלצול נעצר", NotchPrefs.spamSilence(ctx)) { on ->
                                 NotchPrefs.setSpamSilence(ctx, on)
