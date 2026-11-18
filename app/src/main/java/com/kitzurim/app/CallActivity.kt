@@ -715,6 +715,25 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                     fontSize = 16.sp,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                // המקלדת סגורה: מה שכבר הוקש בשיחה מופיע בקטן (הקשה פותחת שוב את המקלדת)
+                val typed = act.typed()
+                androidx.compose.animation.AnimatedVisibility(visible = !keypad && typed.isNotEmpty()) {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Text(
+                            "⌨ ${typed.takeLast(20)}",
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 15.sp,
+                            letterSpacing = 2.sp,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .padding(top = 10.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color.White.copy(alpha = 0.10f))
+                                .clickable { keypad = true }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
+                }
             }
             Spacer(Modifier.weight(1f))
 

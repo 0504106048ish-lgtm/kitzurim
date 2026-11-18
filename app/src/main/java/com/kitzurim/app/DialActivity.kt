@@ -294,6 +294,8 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
     val contacts = remember(reload) { PhoneBook.contacts(ctx) }
     val missed = remember(recents) { recents.filter { it.type == CallLog.Calls.MISSED_TYPE } }
     androidx.activity.compose.BackHandler(enabled = keypad) { keypad = false }
+    // חזור בלשונית אחרת (אנשי קשר, מועדפים, לא נענו): קודם חוזרים ל"אחרונות", ורק משם יוצאים
+    androidx.activity.compose.BackHandler(enabled = !keypad && tab != 0) { tab = 0 }
     // חזור בזמן חיפוש: מבטל את החיפוש (ולא יוצא מהאפליקציה)
     val backFocus = androidx.compose.ui.platform.LocalFocusManager.current
     androidx.activity.compose.BackHandler(enabled = !keypad && q.isNotEmpty()) {
