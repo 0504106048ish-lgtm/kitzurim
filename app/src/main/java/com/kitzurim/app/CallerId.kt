@@ -143,13 +143,31 @@ object CallerId {
         curSrc = srcOf(pkg)?.second ?: return
         val now = System.currentTimeMillis()
         val lookup = lookupNumber?.takeIf { now - lookupAt < 8000 }
+        lookup ?: target() ?: return
+        lastSource = e.source
+        // החלון מתעדכן כמה פעמים ברצף (קודם "מחפש…" ורק אחר כך השם): סורקים רגע אחרי העדכון האחרון,
+        // ועוד פעם אחרי שנייה, כדי לא לפספס שם שמגיע מאוחר
+        scanHandler.removeCallbacksAndMessages(null)
+        scanHandler.postDelayed({ scan(svc) }, 250)
+        scanHandler.postDelayed({ scan(svc) }, 1200)
+    }
+
+    private val scanHandler = Handler(Looper.getMainLooper())
+    @Volatile private var lastSource: AccessibilityNodeInfo? = null
+
+    /** מה כבר נרשם ב"מה קרה היום" על השיחה הזו (כדי לא לרשום שוב ושוב) */
+    private var diagFor = ""
+
+    private fun scan(svc: AccessibilityService) {
+        val now = System.currentTimeMillis()
+        val lookup = lookupNumber?.takeIf { now - lookupAt < 8000 }
         val number = lookup ?: target() ?: return
-        if (now - lastScan < 300) return
         lastScan = now
         val roots = ArrayList<AccessibilityNodeInfo>()
+        val inCall = Calls.main() != null
         // בזמן שיחה קוראים רק את החלון הקטן שקופץ (לא את האפליקציה עצמה, שיש בה רשימות שמות ולשונית "ספאם").
         // ב"זהה את כולם" קוראים את דף החיפוש המלא
-        if (lookup != null) e.source?.let { roots += it }
+        if (lookup != null || inCall) lastSource?.let { runCatching { it.refresh() }; roots += it }
         runCatching {
             val screenH = svc.resources.displayMetrics.heightPixels
             val b = android.graphics.Rect()
@@ -162,15 +180,27 @@ object CallerId {
                 if (lookup != null || popup || Calls.list.any { it.state == Call.STATE_RINGING }) roots += r
             }
         }
+        val seen = ArrayList<String>()
         for (r in roots) {
             val texts = texts(r)
             if (texts.isEmpty()) continue
+            seen += texts.take(10).map { it.second.replace('\n', ' ').take(30) }
             if (lookup == null) checkSpam(svc, number, texts)
             val name = readName(texts, number, strict = lookup != null) ?: continue
             if (lookup != null) lookupFound = true
             save(svc, number, name)
+            if (lookup == null) diag(svc, number, "✓ $curSrc זיהתה: $name")
             return
         }
+        // לא נמצא שם בשיחה: רושמים ב"מה קרה היום" מה קיצורים ראתה בחלון, כדי שאפשר יהיה לשפר
+        if (lookup == null && inCall) diag(svc, number, "$curSrc: לא נמצא שם. בחלון: " + seen.distinct().take(10).joinToString(" | ").ifBlank { "(ריק)" })
+    }
+
+    private fun diag(c: Context, number: String, text: String) {
+        val k = (key(number) ?: number) + "|" + curSrc + "|" + text.startsWith("✓")
+        if (diagFor == k) return
+        diagFor = k
+        runCatching { ActivityLog.add(c, "🔎", text.take(300)) }
     }
 
     /** כל הטקסטים בחלון, לפי הסדר מלמעלה למטה (עם המזהה של כל אחד) */
