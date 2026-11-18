@@ -332,6 +332,8 @@ private class CallAct(
     val hold: () -> Unit,
     val swap: () -> Unit,
     val dtmf: (Char) -> Unit,
+    // מה שכבר הוקש בשיחה הזאת (כדי שיופיע שוב כשפותחים את המקלדת)
+    val typed: () -> String = { "" },
     val record: () -> Unit = {},
     val bluetooth: () -> Unit = {},
     val addCall: () -> Unit = {},
@@ -471,6 +473,7 @@ private fun CallScreenUi(c: Call?, version: Int) {
             hold = { Calls.toggleHold(c) },
             swap = { Calls.swap() },
             dtmf = { ch -> Calls.dtmf(c, ch) },
+            typed = { Calls.typedFor(c) },
             record = {
                 if (!CallRecorder.permitted(ctx)) {
                     // עוד אין אישור למיקרופון: מבקשים, ואחרי האישור לוחצים שוב "הקלט"
@@ -770,7 +773,7 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                         Modifier.clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {},
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Keypad { ch -> act.dtmf(ch) }
+                        Keypad(act.typed()) { ch -> act.dtmf(ch) }
                         Spacer(Modifier.height(14.dp))
                     }
                 }
@@ -1022,8 +1025,9 @@ private fun RoundBtn(
 
 /** מקלדת מספרים בזמן שיחה ("הקש 1 לשירות") */
 @Composable
-private fun Keypad(onKey: (Char) -> Unit) {
-    var typed by remember { mutableStateOf("") }
+private fun Keypad(saved: String, onKey: (Char) -> Unit) {
+    // ממשיך ממה שכבר הוקש בשיחה, גם אחרי שהמקלדת נסגרה ונפתחה
+    var typed by remember { mutableStateOf(saved) }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(typed.takeLast(16), color = Color.White, fontSize = 24.sp, maxLines = 1, modifier = Modifier.height(34.dp))

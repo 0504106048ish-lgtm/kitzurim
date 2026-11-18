@@ -160,9 +160,14 @@ object Calls {
         if (state(c) == Call.STATE_HOLDING) c.unhold() else c.hold()
     }
 
+    /** הספרות שהוקשו בכל שיחה (נשמרות גם כשסוגרים ופותחים את המקלדת, עד שהשיחה נגמרת) */
+    val typed = androidx.compose.runtime.mutableStateMapOf<Call, String>()
+    fun typedFor(c: Call?): String = c?.let { typed[it] } ?: ""
+
     fun dtmf(c: Call, ch: Char) {
         c.playDtmfTone(ch)
         c.stopDtmfTone()
+        typed[c] = (typed[c] ?: "") + ch
     }
 
     /** שתי שיחות: מחליפים בין הפעילה לזו שבהמתנה */
@@ -239,6 +244,7 @@ class KitzInCallService : InCallService() {
         call.unregisterCallback(cb)
         Calls.list.remove(call)
         Calls.answeredAt.remove(call)
+        Calls.typed.remove(call)
         Calls.changed()
         Proximity.update(this)
         if (Calls.list.isEmpty()) {

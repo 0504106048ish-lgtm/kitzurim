@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -292,6 +294,12 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
     val contacts = remember(reload) { PhoneBook.contacts(ctx) }
     val missed = remember(recents) { recents.filter { it.type == CallLog.Calls.MISSED_TYPE } }
     androidx.activity.compose.BackHandler(enabled = keypad) { keypad = false }
+    // חזור בזמן חיפוש: מבטל את החיפוש (ולא יוצא מהאפליקציה)
+    val backFocus = androidx.compose.ui.platform.LocalFocusManager.current
+    androidx.activity.compose.BackHandler(enabled = !keypad && q.isNotEmpty()) {
+        q = ""
+        backFocus.clearFocus()
+    }
 
     // יד אחת (כמו בסמסונג): למעלה כותרת גדולה ומה שחשוב עכשיו, והרשימה מתחילה נמוך.
     // כשגוללים למעלה הכותרת מתכווצת לשורה קטנה, וכשחוזרים לראש הרשימה היא נפתחת שוב
@@ -459,24 +467,43 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                     }
                 }
                 // חיפוש לפי שם או מספר, בכל לשונית
-                Box(
+                // בולטת: רקע בהיר יותר ומסגרת, שנצבעת ירוק כשכותבים; ✕ מנקה
+                var searchFocused by remember { mutableStateOf(false) }
+                val active = searchFocused || q.isNotEmpty()
+                Row(
                     Modifier
                         .fillMaxWidth()
                         // איפה נגמרת שורת החיפוש: נגיעה מתחתיה מורידה את המקלדת
                         .onGloballyPositioned { searchBottom = it.positionInParent().y + it.size.height }
                         .padding(start = 14.dp, end = 14.dp, top = 14.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF1A1E27))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFF242A36))
+                        .border(
+                            if (active) 1.5.dp else 1.dp,
+                            if (active) G else Color.White.copy(alpha = 0.16f),
+                            RoundedCornerShape(18.dp),
+                        )
+                        .padding(start = 14.dp, end = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (q.isEmpty()) Text("🔍 חיפוש שם או מספר…", color = Muted, fontSize = 15.sp)
-                    BasicTextField(
-                        value = q,
-                        onValueChange = { q = it },
-                        singleLine = true,
-                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
-                        cursorBrush = SolidColor(G),
-                        modifier = Modifier.fillMaxWidth(),
+                    Text("🔍", fontSize = 16.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Box(Modifier.weight(1f).padding(vertical = 14.dp)) {
+                        if (q.isEmpty()) Text("חיפוש שם או מספר…", color = Color.White.copy(alpha = 0.62f), fontSize = 16.sp)
+                        BasicTextField(
+                            value = q,
+                            onValueChange = { q = it },
+                            singleLine = true,
+                            textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                            cursorBrush = SolidColor(G),
+                            modifier = Modifier.fillMaxWidth().onFocusChanged { searchFocused = it.isFocused },
+                        )
+                    }
+                    if (q.isNotEmpty()) Text(
+                        "✕",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 16.sp,
+                        modifier = Modifier.clip(CircleShape).clickable { q = "" }.padding(10.dp),
                     )
                 }
                 // לשוניות: פסים מעוגלים, הנבחר ירוק
