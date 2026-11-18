@@ -494,7 +494,7 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                     Text("🔍", fontSize = 16.sp)
                     Spacer(Modifier.width(10.dp))
                     Box(Modifier.weight(1f).padding(vertical = 14.dp)) {
-                        if (q.isEmpty()) Text("חיפוש שם או מספר…", color = Color.White.copy(alpha = 0.62f), fontSize = 16.sp)
+                        if (q.isEmpty()) Text("חיפוש שם, מספר או תאריך…", color = Color.White.copy(alpha = 0.62f), fontSize = 16.sp)
                         BasicTextField(
                             value = q,
                             onValueChange = { q = it },
@@ -545,16 +545,25 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                 val shown = if (!searching) base else remember(q, contacts, recents) {
                     val digits = q.filter { it.isDigit() }
                     val onlyDigits = q.trim().all { it.isDigit() || it == '-' || it == ' ' || it == '+' }
-                    fun hit(e: PhoneEntry) = e.name.contains(q.trim(), ignoreCase = true) ||
+                    // שם: גם באמצע מילה ובשם שני ("יהו" מוצא את אליהו), ואחר כך גם עם טעות הקלדה אחת ("מיכאך" = מיכאל)
+                    fun exact(e: PhoneEntry) = SmartName.exact(e.name, q) ||
                         (digits.length >= 2 && e.number.filter { c -> c.isDigit() }.contains(digits))
+                    fun hit(e: PhoneEntry) = exact(e) || (!onlyDigits && SmartName.fuzzy(e.name, q))
+                    // תאריך: "היום", "אתמול", "יום שלישי", "17/11", "נובמבר": השיחות של אותו יום (או חודש) קודם
+                    val day = SmartName.dateRange(q)
+                    val byDate = if (day == null) emptyList() else recents.filter { it.date in day.first until day.second }
                     val smart = if (onlyDigits && digits.isNotEmpty()) smartSearch(digits, contacts, 50) else emptyList()
                     // קודם השיחות האחרונות (מהחדשה לישנה), ואחר כך אנשי קשר שלא הופיעו בהן
                     fun key(e: PhoneEntry) = e.number.filter(Char::isDigit)
                     val smartRecent = if (onlyDigits && digits.isNotEmpty()) smartSearch(digits, recents, 500).map { key(it) }.toSet() else emptySet()
-                    val recent = recents.filter { hit(it) || key(it) in smartRecent }.distinctBy { key(it) }
+                    // קודם מה שמתאים בדיוק, ואחר כך מה שמתאים עם טעות הקלדה
+                    val recent = (recents.filter { exact(it) || key(it) in smartRecent } + recents.filter { hit(it) }).distinctBy { key(it) }
                     val seen = recent.map { key(it) }.toSet()
-                    val people = (contacts.filter { hit(it) } + smart).distinctBy { key(it) }.filter { key(it) !in seen }
-                    recent + people
+                    val people = (contacts.filter { exact(it) } + smart + contacts.filter { hit(it) })
+                        .distinctBy { key(it) }.filter { key(it) !in seen }
+                    // לפי תאריך: כל השיחות של אותו יום, בסדר שלהן (בלי לאחד שיחות של אותו אחד)
+                    val dateSet = byDate.toSet()
+                    if (byDate.isNotEmpty()) byDate + (recent + people).filter { it !in dateSet } else recent + people
                 }
                 val empty = if (searching) "לא נמצא כלום" else when (tab) {
                     0 -> "אין עדיין שיחות"
