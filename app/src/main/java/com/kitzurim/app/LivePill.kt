@@ -348,11 +348,14 @@ object LivePill {
         }
         // ההתראה של השיחה עוד לא הגיעה: מחכים רגע, כדי לא להראות שניות לפני שענו
         if (!callInfoKnown && secondsFromAudio < 3) return
-        val answered = !callInfoKnown || answeredAt > 0
+        val answeredByInfo = !callInfoKnown || answeredAt > 0
         val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt().coerceAtLeast(0) else secondsFromAudio
         val t = clock(secs * 1000L)
         val name = callName ?: "שיחה"
         val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
+        // קיצורים היא אפליקציית הטלפון: יודעים בדיוק מתי ענו, בלי לחכות להתראה
+        val own = runCatching { Calls.isDefault(s) && Calls.main() != null }.getOrDefault(false)
+        val answered = if (own) Calls.main()?.let { Calls.answeredAt[it] } != null else answeredByInfo
         when {
             // מחייג: גדול עם השם, בלי שניות
             // התפריט פתוח (גם בזמן חיוג): לא מחליפים אותו, רק מעדכנים את הזמן
@@ -368,7 +371,8 @@ object LivePill {
                         }
                     }
                 } else if (kind != "incall") {
-                    callMark(green)
+                    // קיצורים היא אפליקציית הטלפון: גם בזמן חיוג השם, ו"…" במקום הזמן (כמו אצל סמסונג)
+                    if (own) callMark(green, "…", callShortName(s)) else callMark(green)
                 }
             }
             // ענו עכשיו: גדול עם השם והזמן
@@ -382,10 +386,12 @@ object LivePill {
             // אחר כך: סימן קטן שיש שיחה. הקשה פותחת את השיחה.
             // כשקיצורים היא אפליקציית הטלפון (אין את הגלולה של המערכת עם הזמן): גם זמן השיחה, מתעדכן כל שנייה
             else -> {
-                val own = runCatching { Calls.isDefault(s) && Calls.main() != null }.getOrDefault(false)
                 val ownTime = if (own) {
-                    val at = Calls.main()?.let { Calls.answeredAt[it] }
-                    clock((if (at != null) System.currentTimeMillis() - at else secs * 1000L).coerceAtLeast(0))
+                    val c = Calls.main()
+                    val at = c?.let { Calls.answeredAt[it] }
+                    // בהמתנה: במקום הזמן
+                    if (c != null && Calls.state(c) == android.telecom.Call.STATE_HOLDING) "בהמתנה"
+                    else clock((if (at != null) System.currentTimeMillis() - at else secs * 1000L).coerceAtLeast(0))
                 } else null
                 if (kind != "incall") callMark(green, ownTime, if (own) callShortName(s) else null)
                 else if (ownTime != null) timerText?.text = ownTime
