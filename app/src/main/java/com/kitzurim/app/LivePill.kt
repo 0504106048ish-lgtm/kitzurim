@@ -359,7 +359,10 @@ object LivePill {
         when {
             // מחייג: גדול עם השם, בלי שניות
             // התפריט פתוח (גם בזמן חיוג): לא מחליפים אותו, רק מעדכנים את הזמן
-            menuOpen -> if (answered && kind == "callmenu") timerText?.text = t
+            menuOpen -> if (answered && kind == "callmenu") {
+                val ownAt = if (own) Calls.main()?.let { Calls.answeredAt[it] } else null
+                timerText?.text = if (ownAt != null) clock(System.currentTimeMillis() - ownAt) else t
+            }
             // מחייג: 2 שניות גדול עם השם, ואז קטן עם "…" (בלי שניות) עד שעונים
             !answered -> {
                 val now = SystemClock.elapsedRealtime()
@@ -450,27 +453,32 @@ object LivePill {
 
     /** תפריט השיחה: שם, זמן, וכפתורים מההתראה של השיחה (השתקה, ניתוק, רמקול) */
     private fun openCallMenu() {
-        // קיצורים היא אפליקציית הטלפון: הקשה על הגלולה מחזירה למסך השיחה המלא
-        val s = NotchOverlay.service
-        if (s != null && Calls.main() != null) {
-            // הגלולה מתרחבת לכל המסך (ההפך ממה שקורה כשיוצאים), ואז נפתח מסך השיחה
-            val open = {
-                runCatching {
-                    s.startActivity(
-                        android.content.Intent(s, CallActivity::class.java)
-                            .addFlags(
-                                android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                                    android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION,
-                            )
-                    )
-                }
-                Unit
-            }
-            if (!morphScreen(grow = true, onEnd = open)) open()
-            return
-        }
+        // הגלולה מתארכת לשורה אחת: השם והזמן, והשתק, נתק ורמקול. הקשה על השם פותחת את מסך השיחה המלא
         menuOpen = true
         main.postDelayed({ showCallMenu() }, 280)
+    }
+
+    /** מסך השיחה המלא של קיצורים: הגלולה מתרחבת לכל המסך (ההפך ממה שקורה כשיוצאים), ואז הוא נפתח */
+    private fun openFullCall() {
+        val s = NotchOverlay.service ?: return
+        if (Calls.main() == null) {
+            launch(callScreen)
+            return
+        }
+        val open = {
+            runCatching {
+                s.startActivity(
+                    android.content.Intent(s, CallActivity::class.java)
+                        .addFlags(
+                            android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                                android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                        )
+                )
+            }
+            Unit
+        }
+        menuOpen = false
+        if (!morphScreen(grow = true, onEnd = open)) open()
     }
 
     /**
@@ -597,11 +605,20 @@ object LivePill {
             layoutDirection = View.LAYOUT_DIRECTION_LTR
             gravity = Gravity.CENTER_VERTICAL
         }
-        val name = label(s, callName ?: "שיחה", 12.5f, Color.WHITE, bold = true)
-        val secs = if (answeredAt > 0) ((System.currentTimeMillis() - answeredAt) / 1000).toInt() else 0
-        val time = label(s, if (answeredAt > 0) clock(secs * 1000L) else "מחייג…", 12f, green)
-        who.addView(time, LinearLayout.LayoutParams(-2, -2))
+        // קיצורים היא אפליקציית הטלפון: השם והזמן ישר מהשיחה עצמה
+        val ownCall = Calls.main()
+        val ownAt = ownCall?.let { Calls.answeredAt[it] }
+        val at = ownAt ?: answeredAt.takeIf { it > 0 }
+        val shown = (if (ownCall != null) callShortName(s) else null) ?: callName ?: "שיחה"
+        val name = label(s, shown, 12.5f, Color.WHITE, bold = true)
+        val time = label(s, if (at != null) clock(System.currentTimeMillis() - at) else "מחייג…", 12f, green).apply {
+            textDirection = View.TEXT_DIRECTION_LTR
+            fontFeatureSettings = "tnum"
+        }
+        who.addView(time, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (5 * d).toInt() })
         who.addView(name, LinearLayout.LayoutParams(-2, -2))
+        // הקשה על השם והזמן: מסך השיחה המלא
+        who.setOnClickListener { openFullCall() }
         val row = mutableListOf<View>()
         // כפתור: קודם מה שיש בהתראה של השיחה, ואם אין, קיצורים עושה את זה בעצמה
         fun btn(icon: Int, bg: Int, wide: Boolean, a: Notification.Action?, after: ((ImageView) -> Unit)? = null, own: () -> Unit): ImageView {
