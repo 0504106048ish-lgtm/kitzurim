@@ -387,25 +387,27 @@ object LivePill {
                     val at = Calls.main()?.let { Calls.answeredAt[it] }
                     clock((if (at != null) System.currentTimeMillis() - at else secs * 1000L).coerceAtLeast(0))
                 } else null
-                if (kind != "incall") callMark(green, ownTime) else if (ownTime != null) timerText?.text = ownTime
+                if (kind != "incall") callMark(green, ownTime, if (own) callShortName(s) else null)
+                else if (ownTime != null) timerText?.text = ownTime
             }
         }
     }
 
     /** סימן קטן ליד המצלמה: נקודה ירוקה וטלפון (וכשקיצורים היא אפליקציית הטלפון: גם הזמן) */
-    private fun callMark(green: Int, time: String? = null) {
+    /** השם הפרטי של מי שמדברים איתו (מילה ראשונה, קצר), לגלולה הקטנה */
+    private fun callShortName(s: Context): String? {
+        val full = runCatching { Calls.main()?.let { Calls.name(s, it) } }.getOrNull() ?: callName ?: return null
+        val first = full.trim().split(' ').firstOrNull { it.isNotBlank() } ?: return null
+        return if (first.length > 9) first.take(8) + "…" else first
+    }
+
+    private fun callMark(green: Int, time: String? = null, name: String? = null) {
         show("incall", 150, green, null, onTap = { openCallMenu() }) { ctx, left, right ->
             val d = ctx.resources.displayMetrics.density
             if (time != null) {
-                // אין "גלולה ירוקה" של המערכת עם הזמן, אז הזמן כאן: משמאל לחור,
-                // ומימין נקודה ירוקה וטלפון (שני הצדדים בערך באותו רוחב)
-                val tv = label(ctx, time, 12f, green, bold = true).apply {
-                    textDirection = View.TEXT_DIRECTION_LTR
-                    fontFeatureSettings = "tnum"
-                }
-                left.addView(tv)
-                timerText = tv
-                right.addView(View(ctx).apply {
+                // אין "גלולה ירוקה" של המערכת עם הזמן, אז הזמן כאן, כמו אצל סמסונג:
+                // משמאל לחור נקודה ירוקה והזמן, ומימין השם של מי שמדברים איתו והטלפון
+                left.addView(View(ctx).apply {
                     background = GradientDrawable().apply {
                         shape = GradientDrawable.OVAL
                         setColor(green)
@@ -414,6 +416,15 @@ object LivePill {
                         marginEnd = (4 * d).toInt()
                     }
                 })
+                val tv = label(ctx, time, 12f, green, bold = true).apply {
+                    textDirection = View.TEXT_DIRECTION_LTR
+                    fontFeatureSettings = "tnum"
+                }
+                left.addView(tv)
+                timerText = tv
+                if (name != null) right.addView(label(ctx, name, 12f, Color.WHITE, bold = true).apply {
+                    textDirection = View.TEXT_DIRECTION_RTL
+                }, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (4 * d).toInt() })
                 right.addView(phoneIcon(ctx, green))
                 return@show
             }
@@ -485,7 +496,12 @@ object LivePill {
         val endH = (hole * 0.7f + 2 * d).coerceIn(22 * d, 26 * d)
         // (כשקיצורים היא אפליקציית הטלפון יש בגלולה גם את הזמן, אז היא קצת יותר רחבה)
         val withTime = runCatching { Calls.isDefault(s) }.getOrDefault(false)
-        val endW = hole + 4 * d + 2 * (if (withTime) 36 else 22) * d + 10 * d
+        // הצד הרחב: הזמן, או השם עם הטלפון
+        val nameW = if (withTime) callShortName(s)?.let {
+            android.text.TextPaint().apply { textSize = 12f * s.resources.displayMetrics.scaledDensity; isFakeBoldText = true }.measureText(it)
+        } ?: 0f else 0f
+        val sideW = if (withTime) max(40 * d, nameW + 26 * d) else 22 * d
+        val endW = hole + 4 * d + 2 * sideW + 10 * d
         val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
 
         // משמאל לימין: אחרת בעברית המיקום נמדד מצד ימין והמסגרת עפה לפינה במקום לחור
