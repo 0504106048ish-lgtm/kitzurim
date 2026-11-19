@@ -59,29 +59,39 @@ object LivePill {
 
     // ---------- מה מציגים ----------
 
-    fun showMessage(sender: String, text: String, color: Int, open: PendingIntent?, fromRing: Boolean = false, msg: LastMsg? = null) {
+    fun showMessage(sender: String, text: String, color: Int, open: PendingIntent?, fromRing: Boolean = false, msg: LastMsg? = null, burst: Boolean = false) {
         val s = NotchOverlay.service ?: return
+        // הטלפון הפוך: זוכרים מי כתב, כדי לספר כשמרימים אותו
+        if (!fromRing) FaceDown.noteMessage(msg?.sender ?: sender)
         // הקשה על העיגול הדלוק: מראים גם אם הגלולה של הודעות כבויה
         if (!fromRing && (!NotchPrefs.pill(s) || !NotchPrefs.pillMessages(s))) return
         // בזמן שיחה: ההודעה מופיעה מעל הסימן הקטן של השיחה, וכשהיא נסגרת הסימן חוזר. רק בצלצול, בחיוג או כשתפריט השיחה פתוח לא מפריעים
         if (kind == "call" || kind == "dial" || kind == "callmenu") return
-        // שורה אחת בשורת המצב (לא יורדת): מימין לחור השם, ובקצה העיגול עם האות.
+        // עוד הודעה באותה שיחה בזמן שהגלולה שלה פתוחה: רק מתעדכנת במקום (המונה עולה), בלי לקפוץ מחדש
+        if (burst && kind == "msg" && msg?.key != null && msg.key == shownKey) instantNext = true
+        // הצבע של המסגרת: מתוך התמונה של מי ששלח (כל אחד נראה אחרת)
+        val photo = msg?.photo
+        val frame = if (photo != null && NotchPrefs.pillPhotoColor(s)) vivid(photo) ?: color else color
+        // שורה אחת בשורת המצב (לא יורדת): מימין לחור השם, ובקצה התמונה (או העיגול עם האות).
         // משמאל לחור ההודעה, שזזה פעם אחת לאט עד הסוף. הקשה פותחת
-        val marquee = msgRow(sender, text, color, open)
+        val marquee = msgRow(sender, text, frame, open, photo, msg?.thumb)
+        instantNext = false
+        // הודעה חדשה (לא עוד אחת באותו רצף): הקצוות של המסך זוהרים לרגע
+        if (!fromRing && !burst && kind == "msg" && NotchPrefs.edgeGlow(s)) edgeGlow(frame)
         // זוכרים איזו התראה מוצגת: אם היא נמחקת (קראת, ענית), הגלולה נסגרת מיד
         if (kind == "msg") shownKey = msg?.key
         marquee?.let { closeAfterMarquee(it) }
     }
 
     /** גלולת ההודעה בשורה אחת. מחזירה את הטקסט שזז (כדי לדעת מתי לסגור) */
-    private fun msgRow(sender: String, text: String, color: Int, open: PendingIntent?): MarqueeText? {
+    private fun msgRow(sender: String, text: String, color: Int, open: PendingIntent?, photo: Bitmap? = null, thumb: Bitmap? = null): MarqueeText? {
         // הודעה קצרה שנכנסת בצד אחד: מחולקת לשניים, השם (והעיגול עם האות) מימין לחור וההודעה משמאל
         val s = NotchOverlay.service ?: return null
         val d = s.resources.displayMetrics.density
         val msgText = text.replace('\n', ' ').trim()
         val c = NotchOverlay.cutout(s)
         val hole = max(c.width(), c.height())
-        val maxSide = (s.resources.displayMetrics.widthPixels - 2 * NotchPrefs.pillMargin(s) * d - (hole * 0.75f + 4 * d) - 2 * 12 * d) / 2 - 10 * d
+        val maxSide = (s.resources.displayMetrics.widthPixels - 2 * NotchPrefs.pillMargin(s) * d - (hole * 0.9f + 6 * d) - 2 * 12 * d) / 2 - 10 * d
         val paint = android.text.TextPaint().apply { textSize = 12.5f * s.resources.displayMetrics.scaledDensity }
         // "דני: ההודעה" כשורה אחת: מתחלקת בין מילים לשני צידי החור באופן מאוזן (בלי חצי ריק),
         // ואם היא ארוכה מדי לשני הצדדים, זזה פעם אחת עד הסוף. העיגול עם האות בקצה הימני
@@ -93,9 +103,65 @@ object LivePill {
             append(text.replace('\n', ' ').trim())
         }
         show("msg", 300, color, 3000, onTap = { launch(open) }, long = line, longColor = Color.rgb(210, 216, 228)) { ctx, _, right ->
-            right.addView(letter(ctx, sender, color))
+            // תמונה שנשלחה: קטנה, ליד התמונה של השולח
+            if (thumb != null) right.addView(thumbView(ctx, thumb))
+            right.addView(if (photo != null) avatar(ctx, photo) else letter(ctx, sender, color))
         }
         return null
+    }
+
+    /** תמונת הפרופיל העגולה של מי ששלח, במקום העיגול עם האות */
+    private fun avatar(ctx: Context, photo: Bitmap): ImageView {
+        val d = ctx.resources.displayMetrics.density
+        return ImageView(ctx).apply {
+            setImageBitmap(photo)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            clipToOutline = true
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(v: View, o: android.graphics.Outline) = o.setOval(0, 0, v.width, v.height)
+            }
+            layoutParams = LinearLayout.LayoutParams((22 * d).toInt(), (22 * d).toInt())
+        }
+    }
+
+    /** תמונה קטנה ממה שנשלח בהודעה, בפינות מעוגלות */
+    private fun thumbView(ctx: Context, pic: Bitmap): ImageView {
+        val d = ctx.resources.displayMetrics.density
+        return ImageView(ctx).apply {
+            setImageBitmap(pic)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            clipToOutline = true
+            outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(v: View, o: android.graphics.Outline) = o.setRoundRect(0, 0, v.width, v.height, 5 * d)
+            }
+            layoutParams = LinearLayout.LayoutParams((28 * d).toInt(), (20 * d).toInt()).apply { marginEnd = (5 * d).toInt() }
+        }
+    }
+
+    /** הצבע החזק בתמונה (לא אפור, לא כהה מדי ולא לבן), בשביל המסגרת של הגלולה */
+    private fun vivid(b: Bitmap): Int? {
+        val hsv = FloatArray(3)
+        var best: Int? = null
+        var score = 0f
+        val step = (kotlin.math.min(b.width, b.height) / 12).coerceAtLeast(1)
+        var y = 0
+        while (y < b.height) {
+            var x = 0
+            while (x < b.width) {
+                val p = b.getPixel(x, y)
+                Color.colorToHSV(p, hsv)
+                val sc = hsv[1] * (if (hsv[2] < 0.35f) 0f else hsv[2])
+                if (Color.alpha(p) > 200 && sc > score) { score = sc; best = p }
+                x += step
+            }
+            y += step
+        }
+        if (best == null || score < 0.25f) return null
+        // בהיר מספיק כדי שיראו אותו על השחור
+        Color.colorToHSV(best, hsv)
+        hsv[1] = hsv[1].coerceAtMost(0.85f)
+        hsv[2] = hsv[2].coerceAtLeast(0.8f)
+        return Color.HSVToColor(hsv)
     }
 
     /** הגלולה נסגרת רק אחרי שהטקסט סיים לזוז, ועוד רגע לקרוא את הסוף */
@@ -181,6 +247,7 @@ object LivePill {
     }
 
     fun showCall(key: String, name: String, decline: PendingIntent?, answer: PendingIntent?) {
+        FaceDown.noteCall(key, name)
         val s = NotchOverlay.service ?: return
         if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s))) return
         callKey = key
@@ -1654,7 +1721,8 @@ object LivePill {
         val margin = if (newKind == "player") 10 * d else NotchPrefs.pillMargin(s) * d
         val maxW = if (landscape) min(screenW - 2 * margin, 380 * d).toInt() else (screenW - 2 * margin).toInt()
         // הרווח באמצע: קצת יותר מהחור עצמו (המלבן שהטלפון נותן לחור גדול מהחור שרואים), כדי שהטקסט יהיה צמוד אליו
-        val gapW = if (tight) hole + (4 * d).toInt() else (hole * 0.75f + 4 * d).toInt()
+        // (קצת יותר רחב מבעבר: אצל חלק מהטלפונים המלבן מדויק, ואותיות נכנסו מתחת למצלמה)
+        val gapW = if (tight) hole + (4 * d).toInt() else (hole * 0.9f + 6 * d).toInt()
         // גלולת השיחה הקטנה: צמודה ככל האפשר (רק שניות וסמל)
         val compact = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
         val padW = ((if (compact) 5 else 12) * d).toInt()
@@ -2188,6 +2256,91 @@ object LivePill {
         if (kind != null && !inCallPill()) hide()
     }
 
+    // ---------- פנס ----------
+    private val torchAgain = Runnable { torchChanged(true, again = true) }
+
+    /** הפנס נדלק: גלולה זוהרת שמזכירה (ושוב כל שתי דקות כל עוד הוא דולק). הקשה מכבה. נכבה: הגלולה נסגרת */
+    fun torchChanged(on: Boolean, again: Boolean = false) {
+        val s = NotchOverlay.service ?: return
+        main.removeCallbacks(torchAgain)
+        if (!on) {
+            if (kind == "torch") hide()
+            return
+        }
+        if (!NotchPrefs.pill(s) || !NotchPrefs.pillTorch(s)) return
+        main.postDelayed(torchAgain, 120_000)
+        // לא מפריעים לשיחה, לנגן או להודעה שמוצגת עכשיו
+        if (inCallPill() || kind == "player" || (again && kind != null)) return
+        val yellow = Color.rgb(255, 213, 74)
+        show("torch", 220, yellow, if (again) 3500 else 5000, onTap = { TorchCtl.off(s) }, long = "הפנס דולק · הקש לכבות", longColor = yellow) { ctx, _, right ->
+            right.addView(label(ctx, "🔦", 14f, yellow))
+        }
+    }
+
+    // ---------- הפוך = שקט ----------
+    /** הטלפון הורם אחרי שהיה הפוך: מה הגיע בינתיים (או רק שהצלצול חזר) */
+    fun showFaceUp(summary: String?) {
+        val s = NotchOverlay.service ?: return
+        if (!NotchPrefs.pill(s) || inCallPill()) return
+        val blue = Color.rgb(138, 180, 255)
+        val text = summary?.let { "בזמן שהיה הפוך · $it" } ?: "הצלצול חזר"
+        show("faceup", 280, blue, if (summary != null) 5000 else 2500, onTap = null, long = text) { ctx, _, right ->
+            right.addView(label(ctx, if (summary != null) "🙃" else "🔔", 14f, blue))
+        }
+    }
+
+    // ---------- קצוות זוהרים ----------
+    private var glowView: View? = null
+
+    /** הקצוות של המסך, מסביב לפינות העגולות, זוהרים לרגע בצבע של ההודעה */
+    fun edgeGlow(color: Int) {
+        val s = NotchOverlay.service ?: return
+        val wm = NotchOverlay.wm ?: return
+        if (NotchOverlay.offHere() || NotchOverlay.pillBlocked("msg")) return
+        glowView?.let { runCatching { wm.removeView(it) } }
+        val d = s.resources.displayMetrics.density
+        val bounds = if (android.os.Build.VERSION.SDK_INT >= 30) wm.currentWindowMetrics.bounds
+        else android.graphics.Rect(0, 0, s.resources.displayMetrics.widthPixels, s.resources.displayMetrics.heightPixels)
+        val radius = runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                s.getSystemService(android.hardware.display.DisplayManager::class.java)
+                    ?.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+                    ?.getRoundedCorner(android.view.RoundedCorner.POSITION_TOP_LEFT)?.radius?.toFloat()
+            } else null
+        }.getOrNull()?.takeIf { it > 0f } ?: (40 * d)
+        val v = object : View(s) {
+            val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { style = android.graphics.Paint.Style.STROKE }
+            val r = android.graphics.RectF()
+            override fun onDraw(c: android.graphics.Canvas) {
+                // כמה קווים, מהרחב והשקוף אל הצר והחזק: נראה כמו זוהר רך, בלי עומס על הטלפון
+                for (i in 6 downTo 0) {
+                    val w = (2.5f + i * 2.2f) * d
+                    p.strokeWidth = w
+                    p.color = color
+                    p.alpha = if (i == 0) 255 else (150 / (i + 1))
+                    r.set(w / 2f, w / 2f, width - w / 2f, height - w / 2f)
+                    val rr = (radius - w / 2f).coerceAtLeast(0f)
+                    c.drawRoundRect(r, rr, rr, p)
+                }
+            }
+        }
+        v.alpha = 0f
+        val lp = NotchOverlay.params(bounds.width(), bounds.height(), 0, 0, touchable = false)
+        runCatching { wm.addView(v, lp) }.onFailure { return }
+        glowView = v
+        ValueAnimator.ofFloat(0f, 1f, 0.35f, 1f, 0f).apply {
+            duration = 1800
+            addUpdateListener { v.alpha = it.animatedValue as Float }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    runCatching { wm.removeView(v) }
+                    if (glowView === v) glowView = null
+                }
+            })
+            start()
+        }
+    }
+
     // ---------- רכיבים קטנים ----------
 
     /** "דני: מה קורה?" עם השם מודגש ולבן, כדי שהשם לא ייחתך ויהיה צמוד למצלמה */
@@ -2383,27 +2536,27 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
 
     private fun begin(w: Int) {
         anim?.cancel()
-        // בלי רווח: הטקסט רציף. רק בודקים אם החור נופל עליו
         gap = 0f
         gapL = -1f
-        var crossesHole = false
         val s = NotchOverlay.service
         var hx = -1f
         if (s != null && holeGap > 0) {
             val loc = IntArray(2)
             getLocationOnScreen(loc)
             hx = NotchOverlay.cutout(s).exactCenterX() + NotchPrefs.offsetX(s) * d - loc[0]
-            // עברית מיושרת לימין (תופסת מ-(w - textW) עד w), אנגלית לשמאל (מ-0 עד textW)
-            crossesHole = if (heb) hx > (w - textW).coerceAtLeast(0) && hx < w else hx > 0 && hx < min(textW, w)
         }
-        val extra = textW - w
-        // עברית: מתחילה מימין וזזה ימינה עד שרואים את הסוף משמאל. אנגלית: מתחילה משמאל וזזה שמאלה
-        offset = if (heb) (w - textW).toFloat() else 0f
-        if (extra <= 0) {
-            // טקסט שלא צריך לזוז: מתחלק שווה משני צידי המצלמה, עם רווח בדיוק במקום החור,
-            // כך ששני הצדדים מלאים ושום אות לא מוסתרת. החלוקה ברווח שבין מילים, אם יש אחד קרוב לאמצע
-            val g = holeGap.toFloat()
-            if (hx > 0f && hx < w && textW + g <= w) {
+        // החור נופל על הטקסט: משאירים בדיוק במקומו רווח, והטקסט "קופץ" מעליו גם בזמן התנועה.
+        // כך אף אות לא נעצרת ולא מוסתרת מאחורי המצלמה: היא נעלמת בצד אחד של החור ויוצאת מיד בצד השני
+        if (hx > 0f && hx < w && holeGap < w / 2) {
+            gap = holeGap.toFloat()
+            gapL = hx - gap / 2f
+        }
+        // הרוחב שבאמת רואים (בלי הרווח של החור)
+        val vw = w - gap
+        val extra = textW - vw
+        if (extra <= 0f) {
+            if (gap > 0f) {
+                // לא צריך לזוז: מתחלק שווה משני צידי המצלמה, ברווח שבין מילים אם יש אחד קרוב לאמצע
                 var cut = textW / 2f
                 var best = Float.MAX_VALUE
                 for (i in 1 until layout.text.length) {
@@ -2412,46 +2565,27 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
                     val dist = kotlin.math.abs(x - textW / 2f)
                     if (dist < best && dist < textW * 0.25f) { best = dist; cut = x }
                 }
-                offset = (hx - g / 2f - cut).coerceIn(0f, w - textW - g)
-                gap = g
-                gapL = hx - g / 2f
-                invalidate()
-                return
-            }
-            // אין חור על הטקסט (מסך מסובב): פשוט באמצע
-            if (hx <= 0f || hx >= w) {
+                offset = (gapL - cut).coerceIn(0f, vw - textW)
+            } else {
+                // אין חור על הטקסט (מסך מסובב): פשוט באמצע
                 offset = (w - textW) / 2f
-                invalidate()
-                return
             }
+            invalidate()
+            return
         }
-        val endAt = if (heb) 0f else (w - textW).toFloat()
+        // ארוך: עברית מתחילה מימין וזזה ימינה עד שרואים את הסוף משמאל. אנגלית: מתחילה משמאל וזזה שמאלה
+        offset = if (heb) vw - textW else 0f
+        val endAt = if (heb) 0f else vw - textW
         invalidate()
-        if (extra > 0) {
-            anim = ValueAnimator.ofFloat(offset, endAt).apply {
-                startDelay = 400
-                duration = moveMs(extra.toFloat())
-                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
-                addUpdateListener {
-                    offset = it.animatedValue as Float
-                    invalidate()
-                }
-                start()
+        anim = ValueAnimator.ofFloat(offset, endAt).apply {
+            startDelay = 400
+            duration = moveMs(extra)
+            interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            addUpdateListener {
+                offset = it.animatedValue as Float
+                invalidate()
             }
-        } else if (crossesHole) {
-            // טקסט בינוני שחלק ממנו מאחורי החור: זז הצידה ברוחב החור וחוזר, כך שהכול נראה
-            val from = offset
-            val to = if (heb) offset + holeGap + 6 * d else offset - holeGap - 6 * d
-            anim = ValueAnimator.ofFloat(0f, 1f, 1f, 0f).apply {
-                startDelay = 500
-                duration = 2400
-                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
-                addUpdateListener {
-                    offset = from + (to - from) * (it.animatedValue as Float)
-                    invalidate()
-                }
-                start()
-            }
+            start()
         }
     }
 

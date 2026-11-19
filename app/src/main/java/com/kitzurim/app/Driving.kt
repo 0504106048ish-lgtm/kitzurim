@@ -17,6 +17,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
 import androidx.core.content.IntentCompat
+import androidx.core.graphics.drawable.toBitmap
 
 /** הטלפון התחבר לרכב או התנתק ממנו: מדליק ומכבה את מצב הנהיגה */
 class CarReceiver : BroadcastReceiver() {
@@ -170,7 +171,29 @@ class ReplyListener : NotificationListenerService() {
             (Build.VERSION.SDK_INT >= 28 && a.semanticAction == Notification.Action.SEMANTIC_ACTION_MARK_AS_READ) ||
                 listOf("נקרא", "read").any { a.title?.toString()?.contains(it, ignoreCase = true) == true }
         }
-        val m = LastMsg(sender, text, color, n.contentIntent, reply, read, sbn.key)
+        // התמונה של מי ששלח (בקבוצה: של הקבוצה), ותמונה שנשלחה בהודעה, בשביל הגלולה
+        val isGroup = style?.isGroupConversation == true
+        val photo = if (NotchPrefs.pillPhoto(this)) runCatching {
+            val ic = (if (isGroup) null else last?.person?.icon)
+                ?: n.getLargeIcon()?.let { androidx.core.graphics.drawable.IconCompat.createFromIcon(this, it) }
+                ?: last?.person?.icon
+            ic?.loadDrawable(this)?.let { dr -> dr.toBitmap(96, 96) }
+        }.getOrNull() else null
+        val thumb = if (NotchPrefs.pillPhoto(this)) runCatching { msgPicture(n, last) }.getOrNull() else null
+        // הרבה הודעות ברצף באותה שיחה: גלולה אחת עם מונה, ולא גלולה חדשה שקופצת כל פעם
+        val nowMs = System.currentTimeMillis()
+        val prev = burst[sbn.key]
+        val count = if (prev != null && nowMs - prev.second < 25_000) prev.first + 1 else 1
+        burst[sbn.key] = count to nowMs
+        val who = last?.person?.name?.toString()?.takeIf { it.isNotBlank() && isGroup }
+        val pillText = when {
+            count > 1 && who != null -> "$count הודעות · $who: $text"
+            count > 1 -> "$count הודעות · $text"
+            who != null && !sender.contains(who) -> "$who: $text"
+            else -> text
+        }
+        val pillTitle = if (isGroup) style?.conversationTitle?.toString()?.takeIf { it.isNotBlank() } ?: sender else sender
+        val m = LastMsg(sender, text, color, n.contentIntent, reply, read, sbn.key, photo, thumb)
         // אנדרואיד אוטו: מחוברים לרכב? ההודעה עוברת גם למסך הרכב (הקראה ותשובה בקול)
         // (הודעות SMS כבר מגיעות לרכב לבד, אז רק אפליקציות צ'אט, כדי שלא יהיו פעמיים)
         // אפליקציה שכבר מגיעה לרכב לבד (כמו וואטסאפ: הודעה בסגנון צ'אט + "השב" + "סמן כנקרא"):
@@ -194,10 +217,30 @@ class ReplyListener : NotificationListenerService() {
             CarMirror.mirror(this, sbn.key, who, text, if (group) (style?.conversationTitle?.toString() ?: sender) else null, reply, read, icon, n.contentIntent)
         }
         NotchOverlay.notificationPosted(sbn.key, color, m)
-        LivePill.showMessage(sender, text, color, n.contentIntent, msg = m)
+        LivePill.showMessage(pillTitle, pillText, color, n.contentIntent, msg = m, burst = count > 1)
     }
 
     private val shown = HashMap<String, String>()
+
+    /** כמה הודעות הגיעו ברצף בכל שיחה, ומתי האחרונה */
+    private val burst = HashMap<String, Pair<Int, Long>>()
+
+    /** תמונה שנשלחה בהודעה (מוואטסאפ וכו'), מוקטנת */
+    private fun msgPicture(n: Notification, last: NotificationCompat.MessagingStyle.Message?): android.graphics.Bitmap? {
+        val uri = last?.dataUri?.takeIf { last?.dataMimeType?.startsWith("image/") == true }
+        if (uri != null) {
+            val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, o) }
+            var sample = 1
+            while (o.outWidth / (sample * 2) >= 96 && o.outHeight / (sample * 2) >= 96) sample *= 2
+            val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+            contentResolver.openInputStream(uri)?.use { s -> android.graphics.BitmapFactory.decodeStream(s, null, opts) }?.let { return it }
+        }
+        @Suppress("DEPRECATION")
+        val pic = n.extras.getParcelable<android.graphics.Bitmap>(Notification.EXTRA_PICTURE) ?: return null
+        val sc = 96f / kotlin.math.max(pic.width, pic.height)
+        return if (sc < 1f) android.graphics.Bitmap.createScaledBitmap(pic, (pic.width * sc).toInt().coerceAtLeast(1), (pic.height * sc).toInt().coerceAtLeast(1), true) else pic
+    }
 
     private val navApps = setOf("com.waze", "com.google.android.apps.maps")
     private val downloadApps = setOf(

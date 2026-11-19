@@ -92,28 +92,45 @@ object TorchCtl {
     private var id: String? = null
     private var registered = false
 
-    fun toggle(ctx: Context): Boolean? {
-        val cm = ctx.getSystemService(CameraManager::class.java) ?: return null
-        if (!registered) {
-            registered = true
-            id = try {
-                cm.cameraIdList.firstOrNull {
-                    cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
-                }
-            } catch (_: Exception) {
-                null
+    /** מתחילים לעקוב אחרי הפנס (גם כשמדליקים אותו מההגדרות המהירות): כשהוא דולק, הגלולה מזכירה */
+    fun watch(ctx: Context) {
+        if (registered) return
+        val cm = ctx.getSystemService(CameraManager::class.java) ?: return
+        registered = true
+        id = try {
+            cm.cameraIdList.firstOrNull {
+                cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
             }
+        } catch (_: Exception) {
+            null
+        }
+        runCatching {
             cm.registerTorchCallback(object : CameraManager.TorchCallback() {
                 override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
-                    if (cameraId == id) on = enabled
+                    if (cameraId != id) return
+                    val was = on
+                    on = enabled
+                    if (was != enabled) LivePill.torchChanged(enabled)
                 }
             }, Handler(Looper.getMainLooper()))
         }
+    }
+
+    val isOn get() = on
+
+    fun off(ctx: Context) {
+        if (on) toggle(ctx)
+    }
+
+    fun toggle(ctx: Context): Boolean? {
+        val cm = ctx.getSystemService(CameraManager::class.java) ?: return null
+        watch(ctx)
         val cam = id ?: return null
         return try {
-            cm.setTorchMode(cam, !on)
-            on = !on
-            on
+            // את המצב החדש מעדכן המעקב (שגם מראה את הגלולה)
+            val next = !on
+            cm.setTorchMode(cam, next)
+            next
         } catch (_: Exception) {
             null
         }
@@ -145,7 +162,8 @@ object NotchActions {
                 s.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
             }
             ActionType.TORCH -> when (TorchCtl.toggle(s)) {
-                true -> Actions.toast(s, "🔦 הפנס נדלק")
+                // כשגלולת הפנס דלוקה היא כבר מראה שהוא דולק
+                true -> if (!NotchPrefs.pill(s) || !NotchPrefs.pillTorch(s)) Actions.toast(s, "🔦 הפנס נדלק")
                 false -> Actions.toast(s, "🔦 הפנס כבה")
                 null -> Actions.toast(s, "אי אפשר להדליק את הפנס כרגע")
             }
@@ -300,6 +318,23 @@ object NotchPrefs {
     /** להראות את הטבעת, הנגיעות והגלולה גם כשהמסך נעול (דלוק כברירת מחדל) */
     fun onLockScreen(c: Context) = sp(c).getBoolean("on_lock", true)
     fun setOnLockScreen(c: Context, v: Boolean) = sp(c).edit().putBoolean("on_lock", v).apply()
+
+    // ---------- תוספות לגלולה ----------
+    /** התמונה של מי ששלח בגלולה (במקום העיגול עם האות), ותמונה קטנה ממה שנשלח */
+    fun pillPhoto(c: Context) = sp(c).getBoolean("pill_photo", true)
+    fun setPillPhoto(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_photo", v).apply()
+    /** צבע המסגרת לפי התמונה של מי ששלח */
+    fun pillPhotoColor(c: Context) = sp(c).getBoolean("pill_photo_color", true)
+    fun setPillPhotoColor(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_photo_color", v).apply()
+    /** קצוות המסך זוהרים כשמגיעה הודעה */
+    fun edgeGlow(c: Context) = sp(c).getBoolean("edge_glow", true)
+    fun setEdgeGlow(c: Context, v: Boolean) = sp(c).edit().putBoolean("edge_glow", v).apply()
+    /** גלולה שמזכירה שהפנס דולק */
+    fun pillTorch(c: Context) = sp(c).getBoolean("pill_torch", true)
+    fun setPillTorch(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_torch", v).apply()
+    /** הופכים את הטלפון על המסך = שקט (כבוי כברירת מחדל) */
+    fun faceDown(c: Context) = sp(c).getBoolean("face_down", false)
+    fun setFaceDown(c: Context, v: Boolean) = sp(c).edit().putBoolean("face_down", v).apply()
 
     // ---------- נגן בהקשה על העיגול (דלוק כברירת מחדל) ----------
     fun musicTap(c: Context) = sp(c).getBoolean("music_tap", true)

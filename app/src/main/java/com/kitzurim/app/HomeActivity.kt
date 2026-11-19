@@ -503,6 +503,18 @@ fun HomeScreen(resumes: Int) {
                             PillLine("📋 העתקת טקסט (מה הועתק, והקשה משתפת)", NotchPrefs.pillClip(ctx), "clip") {
                                 NotchPrefs.setPillClip(ctx, it); refresh++
                             }
+                            SwitchLine("🔦 פנס דולק (הקשה מכבה)", NotchPrefs.pillTorch(ctx)) {
+                                NotchPrefs.setPillTorch(ctx, it); refresh++
+                            }
+                            SwitchLine("🖼️ התמונה של מי ששלח (ותמונה קטנה ממה שנשלח)", NotchPrefs.pillPhoto(ctx)) {
+                                NotchPrefs.setPillPhoto(ctx, it); refresh++
+                            }
+                            SwitchLine("🎨 צבע הגלולה לפי התמונה של מי ששלח", NotchPrefs.pillPhotoColor(ctx)) {
+                                NotchPrefs.setPillPhotoColor(ctx, it); refresh++
+                            }
+                            SwitchLine("✨ קצוות המסך זוהרים כשמגיעה הודעה", NotchPrefs.edgeGlow(ctx)) {
+                                NotchPrefs.setEdgeGlow(ctx, it); refresh++
+                            }
                         }
                         if (!Driving.listenerAllowed(ctx)) {
                             TextButton(onClick = { ctx.startActivity(Intent(ctx, PermissionsActivity::class.java)) }) {
@@ -557,6 +569,17 @@ fun HomeScreen(resumes: Int) {
                     }
                     SwitchLine("🔒 לעבוד גם במסך הנעילה (טבעת, התראות וגלולה)", NotchPrefs.onLockScreen(ctx)) {
                         NotchPrefs.setOnLockScreen(ctx, it); NotchOverlay.refresh(); refresh++
+                    }
+                    SwitchLine("🙃 הופכים את הטלפון על המסך = שקט (מרימים: הצלצול חוזר, ורואים מה הגיע)", NotchPrefs.faceDown(ctx)) { on ->
+                        NotchPrefs.setFaceDown(ctx, on)
+                        FaceDown.update(ctx)
+                        // שקט מלא צריך הרשאת "נא לא להפריע" (בלעדיה: רק רטט)
+                        val nm = ctx.getSystemService(android.app.NotificationManager::class.java)
+                        if (on && nm?.isNotificationPolicyAccessGranted != true) {
+                            Actions.toast(ctx, "להדליק את קיצורים כאן, כדי שהטלפון ישתתק לגמרי (בלי זה: רק רטט)")
+                            runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
+                        }
+                        refresh++
                     }
                 }
 

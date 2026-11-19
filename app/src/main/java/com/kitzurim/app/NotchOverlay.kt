@@ -131,6 +131,9 @@ object NotchOverlay {
     fun attach(s: AccessibilityService) {
         service = s
         wm = s.getSystemService(WindowManager::class.java)
+        // הפנס (גלולה כשהוא דולק) והפוך = שקט
+        runCatching { TorchCtl.watch(s) }
+        runCatching { FaceDown.update(s) }
         val b = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
                 val l = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
@@ -982,4 +985,8 @@ data class LastMsg(
     val reply: android.app.Notification.Action? = null,
     val read: android.app.Notification.Action? = null,
     val key: String? = null,
+    /** תמונת הפרופיל של מי ששלח (או של הקבוצה), מתוך ההתראה */
+    val photo: android.graphics.Bitmap? = null,
+    /** תמונה שנשלחה בהודעה: מוצגת קטנה בגלולה */
+    val thumb: android.graphics.Bitmap? = null,
 )
