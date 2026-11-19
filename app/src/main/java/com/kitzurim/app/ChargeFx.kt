@@ -90,6 +90,13 @@ object ChargeFx {
         }
         val path = Path()
         val surf = Path()
+        val plate = android.graphics.RectF()
+        val plateFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(12, 14, 20) }
+        val plateRim = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1f * d
+            color = Color.WHITE
+        }
         // בועות קטנות: מיקום לרוחב, עיכוב וגודל (קבועים, כדי שלא יקפצו בין פריימים)
         val bubbles = List(6) { i -> Triple(((i * 37 + 11) % 90) / 100f + 0.05f, i * 130f, (1.5f + i % 3) * d) }
 
@@ -185,6 +192,14 @@ object ChargeFx {
                 small.alpha = (215 * ta).toInt()
                 small.setShadowLayer(6 * d, 0f, 1 * d, Color.argb(110, 0, 0, 0))
                 val cy = h * 0.42f
+                // לוח זכוכית כהה מאחורי הטקסט: רואים את האחוזים גם על רקע לבן
+                val tw = maxOf(big.measureText("⚡ $pct%"), small.measureText(sub)) + 36 * d
+                plate.set(w / 2f - tw / 2f, cy + big.ascent() - 12 * d, w / 2f + tw / 2f, cy + 26 * d + small.descent() + 12 * d)
+                plateFill.alpha = (150 * ta).toInt()
+                plateRim.alpha = (45 * ta).toInt()
+                val pr = 22 * d
+                cv.drawRoundRect(plate, pr, pr, plateFill)
+                cv.drawRoundRect(plate, pr, pr, plateRim)
                 cv.drawText("⚡ $pct%", w / 2f, cy, big)
                 cv.drawText(sub, w / 2f, cy + 26 * d, small)
             }
