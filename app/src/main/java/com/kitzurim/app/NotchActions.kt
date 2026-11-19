@@ -52,6 +52,7 @@ enum class ActionType(val emoji: String, val label: String, val arg: ArgKind = A
     NEXT("⏭️", "מוזיקה: השיר הבא"),
     PREV("⏮️", "מוזיקה: השיר הקודם"),
     VOLUME("🔊", "עוצמת קול"),
+    BRIGHTNESS("☀️", "בהירות (ממשיכים לגרור לצדדים)"),
     RINGER("🔕", "צלצול ← רטט ← שקט"),
     CAMERA("📷", "מצלמה"),
     ASSISTANT("✨", "Google Assistant"),
@@ -193,6 +194,8 @@ object NotchActions {
             ActionType.PREV -> media(s, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
             ActionType.VOLUME -> s.getSystemService(AudioManager::class.java)
                 ?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_SAME, AudioManager.FLAG_SHOW_UI)
+            // בהירות עובדת בגרירה (בהחלקה). בהקשה: רק מסבירים איך
+            ActionType.BRIGHTNESS -> Actions.toast(s, "☀️ בהירות: מחליקים מהמצלמה וממשיכים לגרור לצדדים")
             ActionType.RINGER -> {
                 val am = s.getSystemService(AudioManager::class.java) ?: return
                 val next = when (am.ringerMode) {

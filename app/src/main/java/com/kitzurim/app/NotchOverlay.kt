@@ -740,16 +740,22 @@ object NotchOverlay {
             fire(Gesture.LONG)
         }
 
+        // גרירת בהירות: מהרגע שההחלקה זוהתה ועד שעוזבים, האצבע מכוונת את הבהירות
+        var brightDrag = false
+
         v.setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.rawX
                     downY = e.rawY
                     handled = false
+                    brightDrag = false
                     main.removeCallbacks(resolveTaps)
                     main.postDelayed(longPress, longTime)
                 }
-                MotionEvent.ACTION_MOVE -> if (!handled) {
+                MotionEvent.ACTION_MOVE -> if (brightDrag) {
+                    Brightness.drag(s, e.rawX - downX)
+                } else if (!handled) {
                     val dx = e.rawX - downX
                     val dy = e.rawY - downY
                     val g = when {
@@ -762,11 +768,25 @@ object NotchOverlay {
                         handled = true
                         taps = 0
                         main.removeCallbacks(longPress)
-                        fire(g)
+                        if (action(g).type == ActionType.BRIGHTNESS) {
+                            // בהירות: לא פעולה חד-פעמית, אלא גרירה. ממשיכים מהנקודה הנוכחית
+                            if (Brightness.begin(s)) {
+                                brightDrag = true
+                                downX = e.rawX
+                                if (NotchPrefs.haptic(s)) {
+                                    v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+                                }
+                            }
+                        } else fire(g)
                     }
                 }
                 MotionEvent.ACTION_UP -> {
                     main.removeCallbacks(longPress)
+                    if (brightDrag) {
+                        brightDrag = false
+                        Brightness.end(s)
+                        return@setOnTouchListener true
+                    }
                     if (!handled) {
                         taps++
                         val wantDouble = action(Gesture.DOUBLE).type != ActionType.NONE
@@ -782,6 +802,10 @@ object NotchOverlay {
                 }
                 MotionEvent.ACTION_CANCEL -> {
                     main.removeCallbacks(longPress)
+                    if (brightDrag) {
+                        brightDrag = false
+                        Brightness.end(s)
+                    }
                 }
             }
             true
