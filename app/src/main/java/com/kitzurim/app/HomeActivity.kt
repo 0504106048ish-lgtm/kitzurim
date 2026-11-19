@@ -483,6 +483,20 @@ fun HomeScreen(resumes: Int) {
                             PillLine("⚡ חיבור מטען", NotchPrefs.pillCharging(ctx), "charge") {
                                 NotchPrefs.setPillCharging(ctx, it); refresh++
                             }
+                            SwitchLine("💧 טעינה נוזלית (טיפה מהמצלמה כשמחברים מטען)", NotchPrefs.chargeFx(ctx)) {
+                                NotchPrefs.setChargeFx(ctx, it); refresh++
+                            }
+                            if (NotchPrefs.chargeFx(ctx)) {
+                                ChargeFx.STYLES.forEachIndexed { i, name ->
+                                    val sel = NotchPrefs.chargeStyle(ctx) == i
+                                    TextButton(onClick = {
+                                        NotchPrefs.setChargeStyle(ctx, i); refresh++
+                                        // מראים מיד איך זה נראה
+                                        val b = Battery.read(ctx, ctx.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)))
+                                        if (!ChargeFx.play(ctx, b.percent, b.minutesToFull, force = true)) Actions.toast(ctx, "צריך שקיצורים תהיה דלוקה בנגישות")
+                                    }) { Text((if (sel) "✓ " else "    ") + "💧 " + name + "  ▶") }
+                                }
+                            }
                             PillLine("🧭 ניווט (וויז / גוגל מפות: הפנייה הבאה והמרחק)", NotchPrefs.pillNav(ctx), "nav") {
                                 NotchPrefs.setPillNav(ctx, it); refresh++
                             }
