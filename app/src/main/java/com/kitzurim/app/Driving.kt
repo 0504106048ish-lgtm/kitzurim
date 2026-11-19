@@ -220,6 +220,34 @@ class ReplyListener : NotificationListenerService() {
         LivePill.showMessage(pillTitle, pillText, color, n.contentIntent, msg = m, burst = count > 1)
     }
 
+    /** הרכב התחבר/התנתק, או שפתחו את הטלפון: מורידים מהטלפון את העותקים של הרכב שכבר לא צריך */
+    private val carWatch = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            // התנתקו מהרכב: כל העותקים יורדים מיד. פתחו את הטלפון ביד: ההודעות המקוריות כבר מולך, אז העותקים יורדים
+            if (i.action == Intent.ACTION_USER_PRESENT || !CarMirror.connected(c)) CarMirror.clearAll(c)
+        }
+    }
+    private var carWatching = false
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        if (!CarMirror.connected(this)) CarMirror.clearAll(this)
+        if (!carWatching) runCatching {
+            val f = android.content.IntentFilter().apply {
+                addAction("androidx.car.app.connection.action.CAR_CONNECTION_UPDATED")
+                addAction(Intent.ACTION_USER_PRESENT)
+            }
+            androidx.core.content.ContextCompat.registerReceiver(this, carWatch, f, androidx.core.content.ContextCompat.RECEIVER_EXPORTED)
+            carWatching = true
+        }
+    }
+
+    override fun onListenerDisconnected() {
+        if (carWatching) runCatching { unregisterReceiver(carWatch) }
+        carWatching = false
+        super.onListenerDisconnected()
+    }
+
     private val shown = HashMap<String, String>()
 
     /** כמה הודעות הגיעו ברצף בכל שיחה, ומתי האחרונה */
