@@ -1250,10 +1250,6 @@ object LivePill {
             clipAction(ctx, text)?.let { (title, go) ->
                 right.addView(actionChip(ctx, title, blue) { go(); hide() })
             }
-            // מספר טלפון: גם כפתור ירוק שפותח צ'אט בוואטסאפ עם המספר
-            clipWhatsApp(ctx, text)?.let { go ->
-                right.addView(actionChip(ctx, "💬 וואטסאפ", Color.rgb(37, 211, 102)) { go(); hide() }, 0)
-            }
             right.addView(label(ctx, "📋", 14f, Color.WHITE))
         }
     }
@@ -1314,29 +1310,6 @@ object LivePill {
             }
         }
         return null
-    }
-
-    /** הועתק מספר טלפון: פותח צ'אט בוואטסאפ עם המספר (גם כשהוא לא שמור באנשי הקשר) */
-    private fun clipWhatsApp(ctx: Context, raw: String): (() -> Unit)? {
-        val t = raw.trim()
-        val digits = t.filter { it.isDigit() }
-        if (!(t.all { it.isDigit() || it in "-+ ()" } && digits.length in 9..13)) return null
-        // וואטסאפ צריך את המספר עם קידומת המדינה: 050... ← 97250...
-        val intl = when {
-            t.startsWith("+") -> digits
-            digits.startsWith("00") -> digits.drop(2)
-            digits.startsWith("972") -> digits
-            digits.startsWith("0") -> "972" + digits.drop(1)
-            else -> "972$digits"
-        }
-        val pkg = listOf("com.whatsapp", "com.whatsapp.w4b").firstOrNull { ctx.packageManager.getLaunchIntentForPackage(it) != null }
-            ?: return null
-        return {
-            val i = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://api.whatsapp.com/send?phone=$intl"))
-                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            runCatching { ctx.startActivity(android.content.Intent(i).setPackage(pkg)) }
-                .onFailure { runCatching { ctx.startActivity(i) } }
-        }
     }
 
     /** כפתור קטן עם מילה (לפעולות בגלולה) */
