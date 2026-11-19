@@ -1125,7 +1125,8 @@ object LivePill {
         if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillEarbuds(s))) return
         if (inCallPill() || kind == "player") return
         val c = NotchPrefs.tint(NotchOverlay.service, "buds", Color.rgb(160, 168, 255))
-        val text = if (battery != null) "$name · $battery%" else name
+        // תמיד משהו גם לצד השני של המצלמה: הסוללה, ואם אין, "מחוברות" (שם במילה אחת לא ישאיר צד ריק)
+        val text = if (battery != null) "$name · $battery%" else "$name · מחוברות"
         if (kind == "buds") {
             body?.text = text
             return
@@ -1755,7 +1756,8 @@ object LivePill {
                 } else {
                     // ארוך: עובר לאורך כל הגלולה וזז פעם אחת עד הסוף
                     longMarquee = MarqueeText(s, flat, 12.5f, col)
-                    left.addView(longMarquee, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (4 * d).toInt() })
+                    // לכל הרוחב: גם כשהטקסט לא ארוך מספיק כדי לזוז, הוא מתחלק שווה משני צידי המצלמה (ולא נצמד לצד אחד)
+                    left.addView(longMarquee, LinearLayout.LayoutParams(-1, -2).apply { marginEnd = (4 * d).toInt() })
                 }
             }
         }
@@ -2367,6 +2369,7 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
         val want = textW
         val w = when (MeasureSpec.getMode(widthMeasureSpec)) {
             MeasureSpec.UNSPECIFIED -> want
+            MeasureSpec.EXACTLY -> MeasureSpec.getSize(widthMeasureSpec)
             else -> min(want, MeasureSpec.getSize(widthMeasureSpec))
         }
         setMeasuredDimension(w, layout.height)
@@ -2385,16 +2388,43 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
         gapL = -1f
         var crossesHole = false
         val s = NotchOverlay.service
+        var hx = -1f
         if (s != null && holeGap > 0) {
             val loc = IntArray(2)
             getLocationOnScreen(loc)
-            val hx = NotchOverlay.cutout(s).exactCenterX() + NotchPrefs.offsetX(s) * d - loc[0]
+            hx = NotchOverlay.cutout(s).exactCenterX() + NotchPrefs.offsetX(s) * d - loc[0]
             // עברית מיושרת לימין (תופסת מ-(w - textW) עד w), אנגלית לשמאל (מ-0 עד textW)
             crossesHole = if (heb) hx > (w - textW).coerceAtLeast(0) && hx < w else hx > 0 && hx < min(textW, w)
         }
         val extra = textW - w
         // עברית: מתחילה מימין וזזה ימינה עד שרואים את הסוף משמאל. אנגלית: מתחילה משמאל וזזה שמאלה
         offset = if (heb) (w - textW).toFloat() else 0f
+        if (extra <= 0) {
+            // טקסט שלא צריך לזוז: מתחלק שווה משני צידי המצלמה, עם רווח בדיוק במקום החור,
+            // כך ששני הצדדים מלאים ושום אות לא מוסתרת. החלוקה ברווח שבין מילים, אם יש אחד קרוב לאמצע
+            val g = holeGap.toFloat()
+            if (hx > 0f && hx < w && textW + g <= w) {
+                var cut = textW / 2f
+                var best = Float.MAX_VALUE
+                for (i in 1 until layout.text.length) {
+                    if (layout.text[i] != ' ') continue
+                    val x = layout.getPrimaryHorizontal(i)
+                    val dist = kotlin.math.abs(x - textW / 2f)
+                    if (dist < best && dist < textW * 0.25f) { best = dist; cut = x }
+                }
+                offset = (hx - g / 2f - cut).coerceIn(0f, w - textW - g)
+                gap = g
+                gapL = hx - g / 2f
+                invalidate()
+                return
+            }
+            // אין חור על הטקסט (מסך מסובב): פשוט באמצע
+            if (hx <= 0f || hx >= w) {
+                offset = (w - textW) / 2f
+                invalidate()
+                return
+            }
+        }
         val endAt = if (heb) 0f else (w - textW).toFloat()
         invalidate()
         if (extra > 0) {
