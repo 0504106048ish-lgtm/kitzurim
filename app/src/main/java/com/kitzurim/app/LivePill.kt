@@ -1213,7 +1213,7 @@ object LivePill {
             return
         }
         show("buds", 260, c, 3000, onTap = null, long = text) { ctx, _, right ->
-            right.addView(label(ctx, "🎧︎", 15f, c, bold = true))
+            right.addView(LineIcon(ctx, "buds", c))
         }
     }
 
@@ -1234,7 +1234,7 @@ object LivePill {
             })
             right.addView(label(ctx, "הועתק ✓", 12f, green))
             right.addView(View(ctx), LinearLayout.LayoutParams((6 * ctx.resources.displayMetrics.density).toInt(), 1))
-            right.addView(label(ctx, "🔑", 14f, Color.WHITE))
+            right.addView(LineIcon(ctx, "key", green))
         }
     }
 
@@ -1268,7 +1268,7 @@ object LivePill {
             clipWhatsApp(ctx, text)?.let { go ->
                 right.addView(actionChip(ctx, "💬 וואטסאפ", Color.rgb(37, 211, 102)) { go(); hide() }, 0)
             }
-            right.addView(label(ctx, "📋", 14f, Color.WHITE))
+            right.addView(LineIcon(ctx, "clip", blue))
         }
     }
 
@@ -1296,7 +1296,7 @@ object LivePill {
             }
             Unit
         }, long = "📋 הועתק", longColor = Color.rgb(225, 230, 238)) { ctx, _, right ->
-            right.addView(label(ctx, "📋", 14f, Color.WHITE))
+            right.addView(LineIcon(ctx, "clip", blue))
         }
     }
 
@@ -1487,7 +1487,7 @@ object LivePill {
             if (name.isNotBlank()) append("  ").append(name.trim())
         }
         show("download", 280, blue, 3000, onTap = { launch(open) }, long = line) { ctx, _, right ->
-            right.addView(label(ctx, "⬇︎", 15f, blue, bold = true))
+            right.addView(LineIcon(ctx, "down", blue))
         }
     }
 
@@ -1703,7 +1703,8 @@ object LivePill {
         val text = minutesToFull?.let { "מלאה בעוד " + Battery.minutesText(it) } ?: "בטעינה"
         show("charge", 240, green, 2500, onTap = null, long = text) { ctx, left, right ->
             // מימין האחוזים, משמאל כמה זמן עד מלאה (ואם לא נכנס: בשורה מתחת)
-            right.addView(label(ctx, "⚡ $percent%", 14.5f, green, bold = true))
+            right.addView(label(ctx, "$percent%", 14.5f, green, bold = true))
+            right.addView(LineIcon(ctx, "bolt", green))
             left.addView(label(ctx, text, 13.5f, Color.WHITE))
         }
     }
@@ -2214,7 +2215,8 @@ object LivePill {
                 val b = Battery.read(s, null)
                 val text = "מלאה בעוד שעה ו-10 דק׳"
                 show("charge", 240, green, 2500, onTap = null, long = text) { ctx, left, right ->
-                    right.addView(label(ctx, "⚡ ${b.percent}%", 14.5f, green, bold = true))
+                    right.addView(label(ctx, "${b.percent}%", 14.5f, green, bold = true))
+                    right.addView(LineIcon(ctx, "bolt", green))
                     left.addView(label(ctx, text, 13.5f, Color.WHITE))
                 }
             }
@@ -2314,7 +2316,7 @@ object LivePill {
         if (inCallPill() || kind == "player" || (again && kind != null)) return
         val yellow = Color.rgb(255, 213, 74)
         show("torch", 220, yellow, if (again) 3500 else 5000, onTap = { TorchCtl.off(s) }, long = "הפנס דולק · הקש לכבות", longColor = yellow) { ctx, _, right ->
-            right.addView(label(ctx, "🔦", 14f, yellow))
+            right.addView(LineIcon(ctx, "torch", yellow))
         }
     }
 
@@ -2326,7 +2328,7 @@ object LivePill {
         val blue = Color.rgb(138, 180, 255)
         val text = summary?.let { "בזמן שהיה הפוך · $it" } ?: "הצלצול חזר"
         show("faceup", 280, blue, if (summary != null) 5000 else 2500, onTap = null, long = text) { ctx, _, right ->
-            right.addView(label(ctx, if (summary != null) "🙃" else "🔔", 14f, blue))
+            right.addView(LineIcon(ctx, if (summary != null) "phone" else "bell", blue))
         }
     }
 

@@ -54,7 +54,7 @@ object ChargeFx {
         val d = ctx.resources.displayMetrics.density
         val sp = ctx.resources.displayMetrics.scaledDensity
         var t = 0f
-        val total = 3300f
+        val total = 4100f
 
         // גוון רך לפי הסוללה: אדום, צהוב או ירוק עדינים
         val c = if (pct < 20) Color.rgb(255, 138, 138) else if (pct < 50) Color.rgb(255, 210, 122) else Color.rgb(127, 240, 192)
@@ -112,6 +112,39 @@ object ChargeFx {
             }
         }
 
+
+        // ---------- הטיפות: נולדות בתוך החור, יוצאות ממנו ונופלות בתנועה אחת ----------
+        // שתי טיפות, ואחריהן הנוזל שסביב החור יורד ונהיה טיפה קטנה אחרונה (והחור נשאר נקי)
+        private val dropStart = floatArrayOf(150f, 900f, 1650f)
+        private val dropSize = floatArrayOf(5.4f, 5.2f, 3.6f)
+        // מתי הנוזל מתחיל לעלות (כשהטיפה השנייה מגיעה למטה)
+        private val pour = 1750f
+        private val goo = Path()
+
+        private fun ease(x: Float) = if (x < 0.5f) 2 * x * x else 1 - (-2 * x + 2) * (-2 * x + 2) / 2
+
+        /** "צוואר" נוזלי בין הטבעת שסביב החור לבין טיפה שיוצאת ממנה: נמתח ונעשה דק, ונקרע כשהיא רחוקה */
+        private fun neck(cv: Canvas, x: Float, y1: Float, r1: Float, y2: Float, r2: Float) {
+            val gap = (y2 - r2) - (y1 + r1)
+            val max = 16 * d
+            if (gap >= max) return
+            val k = (1f - gap.coerceAtLeast(0f) / max)
+            val half = min(r1, r2) * 0.85f * k
+            if (half < 0.6f * d) return
+            val ya = y1 + r1 * 0.6f
+            val a1 = r1 * 0.8f
+            val yb = y2 - r2 * 0.6f
+            val a2 = r2 * 0.8f
+            val ym = (ya + yb) / 2f
+            goo.reset()
+            goo.moveTo(x - a1, ya)
+            goo.quadTo(x - half, ym, x - a2, yb)
+            goo.lineTo(x + a2, yb)
+            goo.quadTo(x + half, ym, x + a1, ya)
+            goo.close()
+            cv.drawPath(goo, dot)
+        }
+
         override fun onDraw(cv: Canvas) {
             val s = NotchOverlay.service ?: return
             val w = width.toFloat()
@@ -119,71 +152,111 @@ object ChargeFx {
             val cut = NotchOverlay.cutout(s)
             val hx = cut.exactCenterX() + NotchPrefs.offsetX(s) * d
             val hy = cut.exactCenterY() + NotchPrefs.offsetY(s) * d
+            // החור שרואים קטן מהמלבן שהטלפון נותן
+            val holeR = kotlin.math.max(cut.width(), cut.height()) / 2f * 0.8f
             // הכול נמוג בסוף
-            val fade = if (t > 2700f) (1f - (t - 2700f) / 600f).coerceAtLeast(0f) else 1f
+            val fade = if (t > total - 600f) ((total - t) / 600f).coerceIn(0f, 1f) else 1f
 
-            // 1. הטיפה: נוטפת מהמצלמה, נמתחת קצת ונופלת עד למטה
-            if (t < 900f) {
-                val f = t / 900f
-                val y = hy + f * f * (h - hy)
-                val r = 5 * d * (0.4f + 0.6f * min(1f, f * 4f))
-                val stretch = 1f + 0.45f * f
-                dot.color = c
-                dot.alpha = 240
-                cv.drawOval(hx - r, y - r * stretch, hx + r, y + r * stretch, dot)
-            }
-            if (t < 880f) return
-
-            // 2. הנוזל עולה עד גובה הסוללה, עם גל נמוך ורחב
-            val g = min(1f, (t - 880f) / 1600f)
-            val ease = 1f - (1f - g) * (1f - g) * (1f - g)
-            val sy = h - h * pct / 100f * ease
-            val amp = 3.5f * d * (0.4f + 0.6f * ease)
-            val phase = t / 1600f * 2f * PI.toFloat()
-            val lambda = w / 1.2f
-            path.reset(); surf.reset()
-            path.moveTo(0f, h)
-            var x = 0f
-            val step = 6 * d
-            while (x <= w + step) {
-                val y = sy + amp * sin(2f * PI.toFloat() * x / lambda + phase)
-                path.lineTo(x, y)
-                if (x == 0f) surf.moveTo(x, y) else surf.lineTo(x, y)
-                x += step
-            }
-            path.lineTo(w, h)
-            path.close()
-            fill.shader = LinearGradient(0f, sy - amp, 0f, h, stops, pos, Shader.TileMode.CLAMP)
-            fill.alpha = (255 * fade).toInt()
-            cv.drawPath(path, fill)
-
-            // 3. קו האור: זוהר רך בצבע, ועליו קו לבן דק
-            if (glowA > 0f) {
-                for (i in 3 downTo 1) {
-                    stroke.strokeWidth = (1.6f + i * 2.4f) * d
-                    stroke.color = c
-                    stroke.alpha = (glowA * 255 / (i + 1.5f) * fade).toInt()
-                    cv.drawPath(surf, stroke)
+            // 1. הנוזל עולה עד גובה הסוללה (מתחת לטיפות)
+            var sy = h
+            if (t >= pour) {
+                val g = min(1f, (t - pour) / 1600f)
+                val e = 1f - (1f - g) * (1f - g) * (1f - g)
+                sy = h - h * pct / 100f * e
+                val amp = 3.5f * d * (0.4f + 0.6f * e)
+                val phase = t / 1600f * 2f * PI.toFloat()
+                val lambda = w / 1.2f
+                path.reset(); surf.reset()
+                path.moveTo(0f, h)
+                var x = 0f
+                val step = 6 * d
+                while (x <= w + step) {
+                    val y = sy + amp * sin(2f * PI.toFloat() * x / lambda + phase)
+                    path.lineTo(x, y)
+                    if (x == 0f) surf.moveTo(x, y) else surf.lineTo(x, y)
+                    x += step
+                }
+                path.lineTo(w, h)
+                path.close()
+                fill.shader = LinearGradient(0f, sy - amp, 0f, h, stops, pos, Shader.TileMode.CLAMP)
+                fill.alpha = (255 * fade).toInt()
+                cv.drawPath(path, fill)
+                // קו האור: זוהר רך בצבע, ועליו קו לבן דק
+                if (glowA > 0f) {
+                    for (i in 3 downTo 1) {
+                        stroke.strokeWidth = (1.6f + i * 2.4f) * d
+                        stroke.color = c
+                        stroke.alpha = (glowA * 255 / (i + 1.5f) * fade).toInt()
+                        cv.drawPath(surf, stroke)
+                    }
+                }
+                stroke.strokeWidth = 1.6f * d
+                stroke.color = Color.WHITE
+                stroke.alpha = (lineA * 255 * fade).toInt()
+                cv.drawPath(surf, stroke)
+                // בועות קטנות ושקופות שעולות בתוך הנוזל
+                dot.color = Color.WHITE
+                for ((bx, delay, r) in bubbles) {
+                    val bt = t - pour - delay
+                    if (bt < 0f || bt > 2200f) continue
+                    val by = h - 10 * d - bt / 2200f * 150 * d
+                    if (by < sy + 4 * d) continue
+                    dot.alpha = ((1f - bt / 2200f) * 100 * fade).toInt()
+                    cv.drawCircle(bx * w, by, r, dot)
                 }
             }
-            stroke.strokeWidth = 1.6f * d
-            stroke.color = Color.WHITE
-            stroke.alpha = (lineA * 255 * fade).toInt()
-            cv.drawPath(surf, stroke)
 
-            // 4. בועות קטנות ושקופות שעולות בתוך הנוזל
-            dot.color = Color.WHITE
-            for ((bx, delay, r) in bubbles) {
-                val bt = t - 900f - delay
-                if (bt < 0f || bt > 2200f) continue
-                val by = h - 10 * d - bt / 2200f * 150 * d
-                if (by < sy + 4 * d) continue
-                dot.alpha = ((1f - bt / 2200f) * 100 * fade).toInt()
-                cv.drawCircle(bx * w, by, r, dot)
+            // 2. הטבעת של הנוזל סביב החור: מתעבה לפני כל טיפה, ובסוף יורדת ונבלעת
+            dot.color = c
+            dot.alpha = 245
+            val ringIn = min(1f, t / 250f)
+            var ringR = holeR + 2.5f * d
+            var ringY = hy
+            for (k in 0..1) {
+                val u = t - dropStart[k]
+                if (u > -200f && u < 450f) ringR = kotlin.math.max(ringR, holeR + 2.5f * d + 2 * d * sin(PI.toFloat() * (u + 200f) / 650f))
+            }
+            val lastU = t - dropStart[2]
+            if (lastU > 0f) {
+                val f = ease(min(1f, lastU / 700f))
+                ringR = holeR + 2.5f * d - f * (3.5f * d)
+                ringY = hy + f * 3 * d
+            }
+            val ringOn = lastU < 700f
+            if (ringOn) cv.drawCircle(hx, ringY, (ringR * ringIn).coerceAtLeast(0.1f), dot)
+
+            // 3. הטיפות: יוצאות לאט מהחור ואז מאיצות, בלי לעצור באוויר
+            val gpx = 2f * (h - hy) / (520f * 520f) // נופלת עד למטה בערך בחצי שנייה
+            for (k in 0..2) {
+                val u = t - dropStart[k]
+                if (u < 0f) continue
+                val grow = min(1f, u / 520f)
+                val r = dropSize[k] * d * (0.35f + 0.65f * ease(grow))
+                val fallU = kotlin.math.max(0f, u - 380f)
+                val y = hy + u * 0.018f * d + 0.5f * gpx * fallU * fallU
+                // הגיעה למטה (או לנוזל): התזה קטנה
+                val floor = kotlin.math.min(h - 6 * d, sy)
+                if (y > floor) {
+                    val sp = (y - floor) / (60 * d)
+                    if (sp < 1f) {
+                        dot.alpha = ((1f - sp) * 230).toInt()
+                        for (j in 0 until 5) {
+                            val dx = (j - 2) * 24 * d * sp
+                            val dy = -22 * d * sin(PI.toFloat() * sp) * (1f - kotlin.math.abs(j - 2) * 0.25f)
+                            cv.drawCircle(hx + dx, floor + 2 * d + dy, 2.2f * d, dot)
+                        }
+                        dot.alpha = 245
+                    }
+                    continue
+                }
+                val stretch = 1f + min(0.45f, kotlin.math.max(0f, (y - hy - 20 * d) / (300 * d)))
+                cv.drawOval(hx - r, y - r * stretch, hx + r, y + r * stretch, dot)
+                // מחוברת לטבעת עד שהצוואר נקרע
+                if (ringOn) neck(cv, hx, ringY, ringR * ringIn, y, r)
             }
 
-            // 5. האחוז, ומתחתיו מתי תהיה מלאה
-            val ta = min(1f, (t - 900f) / 400f) * fade
+            // 4. האחוז, ומתחתיו מתי תהיה מלאה
+            val ta = min(1f, (t - pour - 20f) / 400f) * fade
             if (ta > 0f) {
                 big.color = Color.WHITE
                 big.alpha = (255 * ta).toInt()
