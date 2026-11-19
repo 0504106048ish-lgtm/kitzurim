@@ -446,9 +446,29 @@ fun HomeScreen(resumes: Int) {
                     }
                     if (NotchPrefs.pill(ctx)) {
                         Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // מסודר בקבוצות קטנות: הודעות, שיחות, מוזיקה, טעינה, ועוד
+                            PillGroup("💬 הודעות")
                             PillLine("💬 הודעות (מי שלח ומה כתב)", NotchPrefs.pillMessages(ctx), "long") {
                                 NotchPrefs.setPillMessages(ctx, it); refresh++
                             }
+                            if (NotchPrefs.pillMessages(ctx)) Column(Modifier.padding(start = 12.dp)) {
+                                SwitchLine("🖼️ התמונה של מי ששלח (ותמונה קטנה ממה שנשלח)", NotchPrefs.pillPhoto(ctx)) {
+                                    NotchPrefs.setPillPhoto(ctx, it); refresh++
+                                }
+                                if (NotchPrefs.pillPhoto(ctx)) SwitchLine("🎨 צבע המסגרת לפי התמונה", NotchPrefs.pillPhotoColor(ctx)) {
+                                    NotchPrefs.setPillPhotoColor(ctx, it); refresh++
+                                }
+                                SwitchLine("✨ קצוות המסך זוהרים", NotchPrefs.edgeGlow(ctx)) {
+                                    NotchPrefs.setEdgeGlow(ctx, it); refresh++
+                                }
+                            }
+                            PillLine("🔑 קוד אימות (מועתק לבד, ומוצג בגדול)", NotchPrefs.pillCodes(ctx), "code") {
+                                NotchPrefs.setPillCodes(ctx, it); refresh++
+                            }
+                            PillLine("📋 העתקת טקסט (מה הועתק, והקשה משתפת)", NotchPrefs.pillClip(ctx), "clip") {
+                                NotchPrefs.setPillClip(ctx, it); refresh++
+                            }
+                            PillGroup("📞 שיחות")
                             PillLine("📞 שיחות (ענה / דחה, וזמן השיחה)", NotchPrefs.pillCalls(ctx), "call") {
                                 NotchPrefs.setPillCalls(ctx, it); refresh++
                             }
@@ -459,6 +479,7 @@ fun HomeScreen(resumes: Int) {
                                     Text("לכפתור ניתוק בגלולה צריך הרשאה ←")
                                 }
                             }
+                            PillGroup("🎵 מוזיקה")
                             PillLine("🎵 שיר חדש (עם התמונה של השיר)", NotchPrefs.pillMusic(ctx), "song") {
                                 NotchPrefs.setPillMusic(ctx, it); refresh++
                             }
@@ -484,23 +505,39 @@ fun HomeScreen(resumes: Int) {
                                     Actions.toast(ctx, "לא הצלחתי לפתוח את ההגדרות")
                                 }
                             }) { Text("🙈 להסתיר את סמל המוזיקה משורת המצב ←") }
-                            PillLine("⚡ חיבור מטען", NotchPrefs.pillCharging(ctx), "charge") {
-                                NotchPrefs.setPillCharging(ctx, it); refresh++
-                            }
+                            PillGroup("🔋 טעינה")
                             SwitchLine("💧 טעינה נוזלית (טיפה מהמצלמה כשמחברים מטען)", NotchPrefs.chargeFx(ctx)) {
                                 NotchPrefs.setChargeFx(ctx, it); refresh++
                             }
                             if (NotchPrefs.chargeFx(ctx)) {
-                                ChargeFx.STYLES.forEachIndexed { i, name ->
-                                    val sel = NotchPrefs.chargeStyle(ctx) == i
-                                    TextButton(onClick = {
-                                        NotchPrefs.setChargeStyle(ctx, i); refresh++
-                                        // מראים מיד איך זה נראה
-                                        val b = Battery.read(ctx, ctx.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)))
-                                        if (!ChargeFx.play(ctx, b.percent, b.minutesToFull, force = true)) Actions.toast(ctx, "צריך שקיצורים תהיה דלוקה בנגישות")
-                                    }) { Text((if (sel) "✓ " else "    ") + "💧 " + name + "  ▶") }
+                                // הסגנון: שורה של כפתורים קטנים. הקשה בוחרת ומראה מיד איך זה נראה
+                                Row(Modifier.padding(start = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    ChargeFx.STYLES.forEachIndexed { i, name ->
+                                        val sel = NotchPrefs.chargeStyle(ctx) == i
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = if (sel) scheme.primary else scheme.surfaceVariant,
+                                            modifier = Modifier.clickable {
+                                                NotchPrefs.setChargeStyle(ctx, i); refresh++
+                                                val b = Battery.read(ctx, ctx.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)))
+                                                if (!ChargeFx.play(ctx, b.percent, b.minutesToFull, force = true)) Actions.toast(ctx, "צריך שקיצורים תהיה דלוקה בנגישות")
+                                            },
+                                        ) {
+                                            Text(
+                                                (if (sel) "✓ " else "") + name,
+                                                Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = if (sel) scheme.onPrimary else scheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
                                 }
                             }
+                            // בלי טעינה נוזלית (או כשהיא לא יכולה להופיע): הגלולה הרגילה
+                            PillLine("⚡ גלולת מטען (כשהטעינה הנוזלית כבויה)", NotchPrefs.pillCharging(ctx), "charge") {
+                                NotchPrefs.setPillCharging(ctx, it); refresh++
+                            }
+                            PillGroup("📱 עוד")
                             PillLine("🧭 ניווט (וויז / גוגל מפות: הפנייה הבאה והמרחק)", NotchPrefs.pillNav(ctx), "nav") {
                                 NotchPrefs.setPillNav(ctx, it); refresh++
                             }
@@ -515,23 +552,8 @@ fun HomeScreen(resumes: Int) {
                                 if (it && !Screenshots.allowed(ctx)) shotPerm.launch(Screenshots.permission)
                                 refresh++
                             }
-                            PillLine("🔑 קוד אימות (מועתק לבד, ומוצג בגדול)", NotchPrefs.pillCodes(ctx), "code") {
-                                NotchPrefs.setPillCodes(ctx, it); refresh++
-                            }
-                            PillLine("📋 העתקת טקסט (מה הועתק, והקשה משתפת)", NotchPrefs.pillClip(ctx), "clip") {
-                                NotchPrefs.setPillClip(ctx, it); refresh++
-                            }
                             SwitchLine("🔦 פנס דולק (הקשה מכבה)", NotchPrefs.pillTorch(ctx)) {
                                 NotchPrefs.setPillTorch(ctx, it); refresh++
-                            }
-                            SwitchLine("🖼️ התמונה של מי ששלח (ותמונה קטנה ממה שנשלח)", NotchPrefs.pillPhoto(ctx)) {
-                                NotchPrefs.setPillPhoto(ctx, it); refresh++
-                            }
-                            SwitchLine("🎨 צבע הגלולה לפי התמונה של מי ששלח", NotchPrefs.pillPhotoColor(ctx)) {
-                                NotchPrefs.setPillPhotoColor(ctx, it); refresh++
-                            }
-                            SwitchLine("✨ קצוות המסך זוהרים כשמגיעה הודעה", NotchPrefs.edgeGlow(ctx)) {
-                                NotchPrefs.setEdgeGlow(ctx, it); refresh++
                             }
                         }
                         if (!Driving.listenerAllowed(ctx)) {
@@ -1265,6 +1287,18 @@ private val HomePages = listOf(
         "גודל הטבעת", "עובי", "מיקום", "אזור נגיעה", "איפוס מיקום וגודל", "אוטומציות", "קולי",
     )),
 )
+
+/** כותרת קטנה של קבוצה בעמוד הגלולה (הודעות, שיחות, מוזיקה...) */
+@Composable
+private fun PillGroup(title: String) {
+    Text(
+        title,
+        Modifier.padding(top = 14.dp, bottom = 2.dp),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = Neon.GreenSoft,
+    )
+}
 
 /** מתג בגלולה החיה, ולידו ▶ שמראה עכשיו למעלה איך זה נראה */
 @Composable
