@@ -281,6 +281,9 @@ object LivePill {
     private var answeredAt = 0L // שעון רגיל (מילישניות). 0 = עוד לא ענו
     private var dialSince = 0L // מתי התחיל החיוג (כדי להקטין אחרי 2 שניות)
     private var bigUntil = 0L
+    /** אחרי יציאה ממסך השיחה: עד מתי רק הגלולה הקטנה (בלי הגדולה עם השם) */
+    private var smallOnlyUntil = 0L
+    private var showSmallNow = false
     private var menuOpen = false
 
     /** המסגרת שהתרחבה לכל המסך: נשארת עד שמסך השיחה באמת מצויר, ואז נעלמת בהדרגה (בלי רגע שחור) */
@@ -318,8 +321,11 @@ object LivePill {
         callActions = actions
         if (answeredWall != null && answeredAt == 0L) {
             answeredAt = answeredWall
-            // ענו: קודם גדול עם השם לכמה שניות, ואז קטן
-            bigUntil = SystemClock.elapsedRealtime() + 2000
+            // ענו עכשיו: קודם גדול עם השם לכמה שניות, ואז קטן.
+            // רק אם ענו באמת הרגע: כשיוצאים ממסך השיחה באמצע שיחה המידע נטען מחדש,
+            // ואז הגלולה הגדולה הופיעה לרגע ורק אחר כך הקטינה את עצמה
+            val fresh = System.currentTimeMillis() - answeredWall < 4000
+            if (fresh && SystemClock.elapsedRealtime() > smallOnlyUntil) bigUntil = SystemClock.elapsedRealtime() + 2000
         }
     }
 
@@ -335,7 +341,8 @@ object LivePill {
         // הודעה, קוד או העתקה מוצגים עכשיו מעל השיחה: מחכים שייסגרו, ואז הסימן של השיחה חוזר לבד
         if (kind == "msg" || kind == "code" || kind == "clip") return
         // מסך השיחה של קיצורים פתוח: אין צורך בגלולה
-        if (CallActivity.visible) {
+        // (רגע אחרי שיצאנו ממנו הוא עוד נחשב "פתוח": לא מסתירים את הקטנה, אחרת היא מהבהבת)
+        if (CallActivity.visible && !showSmallNow && SystemClock.elapsedRealtime() > smallOnlyUntil - 6500) {
             if (inCallPill()) hide()
             return
         }
@@ -444,8 +451,10 @@ object LivePill {
         val cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
         val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
         val hole = max(c.width(), c.height())
-        val endH = (max(hole.toFloat(), 22 * d) + 18 * d)
-        val endW = endH + 90 * d
+        // בדיוק בגודל של הגלולה הקטנה של השיחה (נקודה, חור וטלפון), כדי שבסוף ההתכווצות
+        // היא לא תיראה קודם גדולה ואז "תקפוץ" לקטנה
+        val endH = (hole * 0.7f + 2 * d).coerceIn(22 * d, 26 * d)
+        val endW = hole + 4 * d + 2 * 22 * d + 10 * d
         val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
 
         // משמאל לימין: אחרת בעברית המיקום נמדד מצד ימין והמסגרת עפה לפינה במקום לחור
@@ -509,7 +518,11 @@ object LivePill {
                         // ישר הקטנה (בלי הגדולה עם השם ל-2 שניות): המסך התכווץ לגלולה קטנה, אז היא נשארת קטנה
                         dialSince = SystemClock.elapsedRealtime() - 10_000
                         bigUntil = 0L
+                        smallOnlyUntil = SystemClock.elapsedRealtime() + 8000
+                        // מסך השיחה עוד לא סיים להיסגר: מראים את הקטנה בכל זאת, מיד
+                        showSmallNow = true
                         inCall(99)
+                        showSmallNow = false
                         onEnd()
                         main.postDelayed({ runCatching { wm.removeView(root) } }, 120)
                     }
@@ -634,6 +647,7 @@ object LivePill {
         answeredAt = 0L
         dialSince = 0L
         bigUntil = 0L
+        smallOnlyUntil = 0L
         menuOpen = false
         if (kind == "incall" || kind == "call" || kind == "dial" || kind == "callbig" || kind == "callmenu") hide()
     }
