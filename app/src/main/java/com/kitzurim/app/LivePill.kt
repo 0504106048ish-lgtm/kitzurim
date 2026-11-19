@@ -2345,8 +2345,8 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
         xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
     }
 
-    /** זמן התנועה: לאט כרגיל, אבל טקסט ארוך מאוד זז מהר יותר כדי שהכול ייגמר תוך 7 שניות על המסך */
-    private fun moveMs(extra: Float): Long = (extra / (90 * d) * 1000).toLong().coerceAtMost(MAX_MOVE_MS)
+    /** זמן התנועה: תמיד באותה מהירות קריאה (גם בהודעה ארוכה). הגלולה עדיין נסגרת אחרי אותו זמן כמו קודם */
+    private fun moveMs(extra: Float): Long = (extra / (90 * d) * 1000).toLong()
 
     companion object {
         const val MAX_MOVE_MS = 5600L

@@ -64,8 +64,9 @@ object ClipWatch {
             pending = false
             val sel = lastSel?.takeIf { SystemClock.elapsedRealtime() - selAt < 60_000 }
             lastSel = null
-            // יש טקסט מסומן: מראים אותו. אין: רק "הועתק" (בלי לקרוא את הלוח, כדי שהמקלדת של גוגל תציע להדביק)
-            if (!sel.isNullOrBlank()) show(sel) else LivePill.showCopied()
+            // יש טקסט מסומן: מראים אותו. אין: קוראים מהלוח מה הועתק
+            // (נבדק: גם כשקיצורים כבויה המקלדת של גוגל לא מציעה להדביק, אז הקריאה לא הסיבה)
+            if (!sel.isNullOrBlank()) show(sel) else readClip(s) { show(it) }
         }, 250)
     }
 
