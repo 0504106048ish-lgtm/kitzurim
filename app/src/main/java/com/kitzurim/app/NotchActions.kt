@@ -335,9 +335,9 @@ object NotchPrefs {
     /** טעינה נוזלית: טיפה מהמצלמה כשמחברים מטען (במקום הגלולה) */
     fun chargeFx(c: Context) = sp(c).getBoolean("charge_fx", true)
     fun setChargeFx(c: Context, v: Boolean) = sp(c).edit().putBoolean("charge_fx", v).apply()
-    /** הסגנון של הטעינה הנוזלית (לפי ChargeFx.STYLES). ברירת מחדל: זכוכית */
-    fun chargeStyle(c: Context) = sp(c).getInt("charge_style", 2)
-    fun setChargeStyle(c: Context, v: Int) = sp(c).edit().putInt("charge_style", v).apply()
+    /** הסגנון של הטעינה הנוזלית (לפי ChargeFx.STYLES). ברירת מחדל: ערפל */
+    fun chargeStyle(c: Context) = sp(c).getInt("charge_style2", 1)
+    fun setChargeStyle(c: Context, v: Int) = sp(c).edit().putInt("charge_style2", v).apply()
     /** הופכים את הטלפון על המסך = שקט (כבוי כברירת מחדל) */
     fun faceDown(c: Context) = sp(c).getBoolean("face_down", false)
     fun setFaceDown(c: Context, v: Boolean) = sp(c).edit().putBoolean("face_down", v).apply()
