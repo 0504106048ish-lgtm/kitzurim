@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
@@ -320,7 +321,8 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
     val low = true
     val density = androidx.compose.ui.platform.LocalDensity.current
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-    val smallPx = with(density) { 44.dp.toPx() }
+    // מקופלת לגמרי: לא נשאר כלום מהכותרת, רק שורת החיפוש
+    val smallPx = 0f
     val rangePx = with(density) { (screenH * 0.27f).dp.toPx() } - smallPx
     var headPx by remember { androidx.compose.runtime.mutableFloatStateOf(rangePx) }
     val shrink = remember(low, rangePx) {
@@ -344,6 +346,7 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
     // המקלדת של החיפוש יורדת כשגוללים את הרשימה, או כשנוגעים במסך מתחת לשורת החיפוש
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     var searchBottom by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var rootTop by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     val hideKb = remember(focus) {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
             override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
@@ -358,6 +361,8 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
             .background(Color(0xFF0B0D13))
             .statusBarsPadding()
             .navigationBarsPadding()
+            // איפה הרשימה מתחילה בחלון (כדי לדעת איפה נגמרת שורת החיפוש, שצפה מעל הרשימה)
+            .onGloballyPositioned { rootTop = it.positionInWindow().y }
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
@@ -483,14 +488,19 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                 // בולטת: רקע בהיר יותר ומסגרת, שנצבעת ירוק כשכותבים; ✕ מנקה
                 var searchFocused by remember { mutableStateOf(false) }
                 val active = searchFocused || q.isNotEmpty()
+                // שורת החיפוש צפה מעל הרשימה (זכוכית): השיחות, הלשוניות והכותרת עוברות מתחתיה ונעלמות
+                val searchBar: @Composable () -> Unit = {
                 Row(
                     Modifier
                         .fillMaxWidth()
                         // איפה נגמרת שורת החיפוש: נגיעה מתחתיה מורידה את המקלדת
-                        .onGloballyPositioned { searchBottom = it.positionInParent().y + it.size.height }
-                        .padding(start = 14.dp, end = 14.dp, top = 14.dp)
+                        .onGloballyPositioned { searchBottom = it.positionInWindow().y + it.size.height - rootTop }
+                        .padding(start = 14.dp, end = 14.dp, top = 10.dp)
+                        .shadow(10.dp, RoundedCornerShape(18.dp))
                         .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0xFF242A36))
+                        // זכוכית: כהה שקוף למחצה עם ברק עדין למעלה
+                        .background(Color(0xD91C212B))
+                        .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.02f))))
                         .border(
                             if (active) 1.5.dp else 1.dp,
                             if (active) G else Color.White.copy(alpha = 0.16f),
@@ -519,9 +529,11 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                         modifier = Modifier.clip(CircleShape).clickable { q = "" }.padding(10.dp),
                     )
                 }
-                // לשוניות: פסים מעוגלים, הנבחר ירוק
+                }
+                // לשוניות: פסים מעוגלים, הנבחר ירוק. בראש הרשימה, ונגללות מתחת לחיפוש
+                val tabsRow: @Composable () -> Unit = {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     DialTabs.forEachIndexed { i, name ->
@@ -540,6 +552,7 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                             }
                         }
                     }
+                }
                 }
                 val base = when (tab) {
                     0 -> recents
@@ -597,6 +610,7 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                     recents.filter { it.number.isNotBlank() && it.name == it.number }.map { it.number }.distinctBy { CallerId.key(it) }
                 }
                 val hasTc = remember { CallerId.installed(ctx) }
+                val idButton: @Composable () -> Unit = {
                 if (!searching && tab == 0 && hasTc && unknownNums.isNotEmpty()) {
                     val busy = CallerId.batchText
                     Text(
@@ -605,15 +619,38 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                             .clip(RoundedCornerShape(50))
                             .background(Color(0xFF64B5F6).copy(alpha = 0.14f))
                             .clickable(enabled = busy == null) { CallerId.identifyAll(ctx, unknownNums) }
                             .padding(horizontal = 14.dp, vertical = 7.dp),
                     )
                 }
+                }
+                // הרשימה (עם הלשוניות בראשה) מתחילה מתחת לחיפוש, ובגלילה עוברת מתחתיו
+                var searchH by remember { mutableIntStateOf(0) }
                 Box(Modifier.weight(1f)) {
-                    EntryList(shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall, onChanged = { changed++ }, days = !searching && (tab == 0 || tab == 3), hl = if (searching) splitDate(q)?.second ?: q else "")
+                    EntryList(
+                        shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall, onChanged = { changed++ },
+                        days = !searching && (tab == 0 || tab == 3), hl = if (searching) splitDate(q)?.second ?: q else "",
+                        header = { tabsRow(); idButton() },
+                        topPad = with(density) { searchH.toDp() },
+                    )
+                    // החיפוש צף למעלה: רקע כהה שקוף מאחוריו, ומתחתיו דעיכה רכה, כך שמה שנגלל לא נראה מעליו
+                    Column(Modifier.fillMaxWidth()) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned { searchH = it.size.height }
+                                .background(Color(0xE60B0D13)),
+                        ) { searchBar() }
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(22.dp)
+                                .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xE60B0D13), Color.Transparent))),
+                        )
+                    }
                 }
             }
             // כפתור המקלדת, בפינה
@@ -960,11 +997,16 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit, onChanged: () -> Unit = {}, days: Boolean = false, hl: String = "") {
+private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit, onChanged: () -> Unit = {}, days: Boolean = false, hl: String = "",
+    header: @Composable () -> Unit = {}, topPad: androidx.compose.ui.unit.Dp = 0.dp) {
     val ctx = LocalContext.current
     if (list.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(empty, color = Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(30.dp))
+        // הלשוניות נשארות גם כשאין מה להראות
+        Column(Modifier.fillMaxSize().padding(top = topPad, start = 8.dp, end = 8.dp)) {
+            header()
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text(empty, color = Muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(30.dp))
+            }
         }
         return
     }
@@ -981,7 +1023,8 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     androidx.activity.compose.BackHandler(enabled = selecting) { selected = emptySet() }
     val deletable = list.filter { showTime && it.date > 0 }
-    Column(Modifier.fillMaxSize()) {
+    // במצב בחירה: שורת הבחירה מתחת לחיפוש (לא נגללת)
+    Column(Modifier.fillMaxSize().padding(top = if (selecting) topPad else 0.dp)) {
     if (selecting) {
         // למעלה: כמה נבחרו, בחר הכול, מחק, ביטול
         Row(
@@ -1038,7 +1081,14 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
     }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     Box(Modifier.fillMaxSize()) {
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 8.dp), state = listState) {
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = 8.dp),
+        state = listState,
+        // מתחילה מתחת לחיפוש, ובגלילה עוברת מתחתיו
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = if (selecting) 0.dp else topPad),
+    ) {
+        // הלשוניות וכפתור הזיהוי: בראש הרשימה, ונגללים יחד איתה
+        item { header() }
         items(list.size) { idx ->
             val e = list[idx]
             val key = "$idx|${e.number}|${e.date}"
@@ -1197,10 +1247,11 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
     // התגית של היום נשארת צמודה למעלה בזמן גלילה (כמו בוואטסאפ): היום של השיחה הראשונה שרואים
     if (days) {
         val first by remember { androidx.compose.runtime.derivedStateOf { listState.firstVisibleItemIndex } }
-        val scrolled by remember { androidx.compose.runtime.derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
-        val e = list.getOrNull(first)
+        // פריט 0 הוא הלשוניות: השיחה הראשונה שרואים היא first - 1
+        val scrolled by remember { androidx.compose.runtime.derivedStateOf { listState.firstVisibleItemIndex > 1 || (listState.firstVisibleItemIndex == 1 && listState.firstVisibleItemScrollOffset > 0) } }
+        val e = list.getOrNull(first - 1)
         if (scrolled && e != null && e.date > 0) {
-            Box(Modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().padding(top = topPad + 4.dp), contentAlignment = Alignment.Center) {
                 Text(
                     dayLabel(e.date),
                     color = Color(0xFFCFD5DE),

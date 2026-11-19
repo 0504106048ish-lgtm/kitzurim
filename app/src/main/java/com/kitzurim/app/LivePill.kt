@@ -438,7 +438,10 @@ object LivePill {
                         growRoot = root
                         main.postDelayed({ if (growRoot === root) callScreenDrawn() }, 2000)
                     } else {
-                        // הגלולה של השיחה נכנסת למקום, ורק אז המסגרת שהתכווצה נעלמת
+                        // הגלולה של השיחה נכנסת למקום, ורק אז המסגרת שהתכווצה נעלמת.
+                        // ישר הקטנה (בלי הגדולה עם השם ל-2 שניות): המסך התכווץ לגלולה קטנה, אז היא נשארת קטנה
+                        dialSince = SystemClock.elapsedRealtime() - 10_000
+                        bigUntil = 0L
                         inCall(99)
                         onEnd()
                         main.postDelayed({ runCatching { wm.removeView(root) } }, 120)
