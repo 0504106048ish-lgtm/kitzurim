@@ -2768,6 +2768,13 @@ class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : Vie
  * כהה מספיק כדי שכתב לבן יהיה קריא גם מעל מסך לבן לגמרי
  */
 class GlassDrawable(private val d: Float) : GradientDrawable() {
+    /** בלי מסגרת: שחור לגמרי, בלי צבע, ברק או קו אור (לפי ההגדרה "מסגרת לגלולה") */
+    private val plain = NotchOverlay.service?.let { !NotchPrefs.pillFrame(it) } == true
+
+    override fun setStroke(width: Int, color: Int) {
+        if (plain) super.setStroke(0, Color.TRANSPARENT) else super.setStroke(width, color)
+    }
+
     companion object {
         val TOP = Color.rgb(30, 33, 42)
         val BOTTOM = Color.rgb(8, 9, 13)
@@ -2788,7 +2795,7 @@ class GlassDrawable(private val d: Float) : GradientDrawable() {
 
     init {
         orientation = Orientation.TOP_BOTTOM
-        colors = intArrayOf(TOP, BOTTOM)
+        colors = if (plain) intArrayOf(Color.BLACK, Color.BLACK) else intArrayOf(TOP, BOTTOM)
     }
 
     override fun onBoundsChange(r: android.graphics.Rect) {
@@ -2808,6 +2815,7 @@ class GlassDrawable(private val d: Float) : GradientDrawable() {
 
     override fun draw(c: android.graphics.Canvas) {
         super.draw(c)
+        if (plain) return
         val inset = 1.6f * d
         rect.set(bounds.left + inset, bounds.top + inset, bounds.right - inset, bounds.bottom - inset)
         if (rect.width() <= 0 || rect.height() <= 0) return

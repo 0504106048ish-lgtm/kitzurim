@@ -353,7 +353,7 @@ private fun PillPreview() {
     PreviewFrame(caption) {
         Box(
             Modifier.height(28.dp).width(w).clip(RoundedCornerShape(14.dp)).background(Color.Black)
-                .border(1.dp, Neon.Green.copy(alpha = 0.18f), RoundedCornerShape(14.dp)),
+                .border(1.dp, if (NotchPrefs.pillFrame(ctx)) Neon.Green.copy(alpha = 0.45f) else Color.Transparent, RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center,
         ) {
             if (d != null) Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp).alpha(a), verticalAlignment = Alignment.CenterVertically) {

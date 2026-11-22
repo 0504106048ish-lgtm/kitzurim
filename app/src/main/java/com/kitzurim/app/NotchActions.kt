@@ -399,6 +399,9 @@ object NotchPrefs {
     // ---------- הגלולה החיה (מתחילה כבויה) ----------
     fun pill(c: Context) = sp(c).getBoolean("pill", false)
     fun setPill(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill", v).apply()
+    /** מסגרת צבעונית וזכוכית לגלולה. כבוי: הגלולה שחורה לגמרי, כמו המצלמה */
+    fun pillFrame(c: Context) = sp(c).getBoolean("pill_frame", true)
+    fun setPillFrame(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_frame", v).apply()
     /** טיפה שנוטפת מהחור לפני שהגלולה נפתחת */
     fun pillDrip(c: Context) = sp(c).getBoolean("pill_drip", true)
     fun setPillDrip(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_drip", v).apply()
