@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -232,6 +233,157 @@ fun QuickToggles(ctx: Context, onChange: () -> Unit) {
             ) {
                 PageIcon(q.icon, c, 16)
                 Text(q.label, color = c, fontSize = 12.sp, maxLines = 1)
+            }
+        }
+    }
+}
+
+// =====================================================================
+//  תצוגה חיה בראש הדפים: רואים מיד את מה שמדליקים ומכבים
+// =====================================================================
+
+@Composable
+fun LivePreview(page: String) {
+    when (page) {
+        "ring" -> RingPreview()
+        "pill" -> PillPreview()
+        "colors" -> ColorsPreview()
+        else -> {}
+    }
+}
+
+/** מסגרת משותפת: רקע כהה, ומתחת שורה קטנה שמסבירה מה רואים */
+@Composable
+private fun PreviewFrame(caption: String, content: @Composable () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.radialGradient(listOf(Color(0xFF14302A), Color(0xFF0F1520)), radius = 700f))
+            .border(1.dp, Neon.Line, RoundedCornerShape(20.dp))
+            .padding(vertical = 16.dp, horizontal = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        content()
+        Text(caption, Modifier.padding(top = 10.dp), color = Neon.Muted, fontSize = 12.sp, textAlign = TextAlign.Center)
+    }
+}
+
+/** הטבעת כמו שהיא עכשיו: סוללה אמיתית, והבהוב של הודעה לדוגמה אם נורת ההתראות דלוקה */
+@Composable
+private fun RingPreview() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val battery = NotchPrefs.ringOn(ctx)
+    val light = NotchPrefs.notifyLight(ctx)
+    val level = remember {
+        ctx.getSystemService(android.os.BatteryManager::class.java)?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 70
+    }
+    val msgColor = Color(NotchPrefs.tint(ctx, "msg", 0xFF25D366.toInt()))
+    val batColor = Color(NotchPrefs.tint(ctx, "charge", 0xFF3ED18C.toInt()))
+    // הודעה לדוגמה: כל כמה שניות הטבעת מהבהבת בצבע של הודעה
+    var pulse by remember { mutableStateOf(false) }
+    LaunchedEffect(light) {
+        while (light) {
+            delay(1800); pulse = true
+            delay(1900); pulse = false
+        }
+    }
+    val inf = androidx.compose.animation.core.rememberInfiniteTransition(label = "p")
+    val blink by inf.animateFloat(0.3f, 1f, androidx.compose.animation.core.infiniteRepeatable(tween(420), androidx.compose.animation.core.RepeatMode.Reverse), label = "b")
+    val fill by animateFloatAsState(if (battery) level / 100f else 0f, tween(700), label = "f")
+    val caption = when {
+        pulse -> "💬 הודעה שלא קראת: הטבעת מהבהבת"
+        battery && light -> "🔋 $level% סוללה · 💬 תהבהב כשתגיע הודעה"
+        battery -> "🔋 $level% סוללה"
+        light -> "הטבעת מופיעה רק כשיש הודעה שלא קראת"
+        else -> "הטבעת כבויה"
+    }
+    PreviewFrame(caption) {
+        androidx.compose.foundation.Canvas(Modifier.size(84.dp)) {
+            val c = center
+            val r = size.minDimension / 2f - 8.dp.toPx()
+            val w = 5.dp.toPx()
+            if (pulse) {
+                drawCircle(msgColor.copy(alpha = blink * 0.35f), radius = r + 5.dp.toPx(), center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(9.dp.toPx()))
+                drawCircle(msgColor.copy(alpha = blink), radius = r, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+            } else {
+                if (battery || light) drawCircle(Color(0x1FFFFFFF), radius = r, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+                else drawCircle(Color(0x22FFFFFF), radius = r, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 8f))))
+                if (fill > 0f) drawArc(
+                    batColor, -90f, 360f * fill, false,
+                    topLeft = androidx.compose.ui.geometry.Offset(c.x - r, c.y - r),
+                    size = androidx.compose.ui.geometry.Size(2 * r, 2 * r),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = StrokeCap.Round),
+                )
+            }
+            drawCircle(Color.Black, radius = r * 0.42f, center = c)
+        }
+    }
+}
+
+/** הגלולה מדגימה את מה שדלוק בה: הודעה, שיחה, טעינה, שיר */
+@Composable
+private fun PillPreview() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val on = NotchPrefs.pill(ctx)
+    val demos = buildList {
+        if (NotchPrefs.pillMessages(ctx)) add(Triple("18:26", "אבא", "💬 הודעה: מי שלח ומה כתב"))
+        if (NotchPrefs.pillCalls(ctx)) add(Triple("0:42", "משה", "📞 בזמן שיחה: הזמן והשם"))
+        if (NotchPrefs.pillCharging(ctx) || NotchPrefs.chargeFx(ctx)) add(Triple("⚡ 64%", "40 דק׳", "🔋 מחברים מטען"))
+        if (NotchPrefs.pillMusic(ctx)) add(Triple("♫", "שיר חדש", "🎵 מה מתנגן עכשיו"))
+    }
+    var i by remember { mutableIntStateOf(0) }
+    var open by remember { mutableStateOf(false) }
+    LaunchedEffect(on, demos.size) {
+        open = false
+        while (on && demos.isNotEmpty()) {
+            delay(500); open = true
+            delay(2600); open = false
+            delay(550); i = (i + 1) % demos.size
+        }
+    }
+    val w by animateDpAsState(if (open) 176.dp else 28.dp, spring(dampingRatio = 0.62f, stiffness = 260f), label = "w")
+    val a by animateFloatAsState(if (open) 1f else 0f, tween(if (open) 260 else 120, delayMillis = if (open) 220 else 0), label = "a")
+    val d = demos.getOrNull(i % demos.size.coerceAtLeast(1))
+    val caption = when {
+        !on -> "הגלולה כבויה"
+        d == null -> "כל סוגי הגלולה כבויים"
+        else -> d.third
+    }
+    PreviewFrame(caption) {
+        Box(
+            Modifier.height(28.dp).width(w).clip(RoundedCornerShape(14.dp)).background(Color.Black)
+                .border(1.dp, Neon.Green.copy(alpha = 0.18f), RoundedCornerShape(14.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (d != null) Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp).alpha(a), verticalAlignment = Alignment.CenterVertically) {
+                Text(d.second, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Spacer(Modifier.weight(1f))
+                Text(d.first, color = Neon.Green, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            }
+            Box(Modifier.size(12.dp).clip(CircleShape).background(Color(0xFF05070A)).border(1.dp, Color(0xFF20252E), CircleShape))
+        }
+    }
+}
+
+/** כל הצבעים שבחרת, כל אחד בטבעת קטנה */
+@Composable
+private fun ColorsPreview() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val list = listOf(
+        Triple("msg", "הודעות", 0xFF25D366), Triple("call", "שיחות", 0xFF2AD49A), Triple("music", "מוזיקה", 0xFFB388FF),
+        Triple("nav", "ניווט", 0xFF33CCFF), Triple("charge", "טעינה", 0xFF3ED18C), Triple("volume", "ווליום", 0xFF4FB3FF),
+    )
+    PreviewFrame("ככה כל סוג נראה סביב המצלמה") {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            list.forEach { (k, name, def) ->
+                val col = Color(NotchPrefs.tint(ctx, k, def.toInt()))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier.size(34.dp).border(3.dp, col, CircleShape).padding(10.dp).clip(CircleShape).background(Color.Black),
+                    )
+                    Text(name, color = Neon.Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                }
             }
         }
     }

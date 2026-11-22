@@ -60,6 +60,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -186,14 +190,28 @@ fun HomeScreen(resumes: Int) {
             ) {
                 val current = HomePages.firstOrNull { it.id == page }
                 if (current != null) {
-                    // דף של נושא: חץ חזרה והשם
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { pageScroll.remove(openPage); openPage = null }) {
+                    // דף של נושא, כמו באייפון: "‹ קיצורים" קטן לחזרה, ומתחת שם הדף בגדול
+                    Column {
+                        Row(
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { pageScroll.remove(openPage); openPage = null }
+                                .padding(end = 10.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             // חץ חזרה (בעברית הוא מצביע ימינה)
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "חזרה", tint = scheme.onSurface)
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "חזרה", tint = Neon.GreenSoft)
+                            Text("קיצורים", color = Neon.GreenSoft, fontSize = 16.sp)
                         }
-                        Text("${current.emoji} ${current.title}", style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            "${current.emoji} ${current.title}",
+                            Modifier.padding(top = 4.dp, start = 4.dp),
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
                     }
+                    // תצוגה חיה: רואים מיד את מה שמדליקים ומכבים בדף
+                    LivePreview(current.id)
                 } else Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("קיצורים", style = MaterialTheme.typography.headlineMedium)
@@ -942,23 +960,112 @@ fun HomeScreen(resumes: Int) {
 
 @Composable
 private fun Card(content: @Composable () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Neon.Card)
-            .border(1.dp, Neon.Line, RoundedCornerShape(20.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) { content() }
+    // קבוצה בסגנון אייפון: רקע אחד מעוגל, שורות עם קו דק ביניהן
+    val counter = remember { RowCounter() }
+    counter.reset()
+    androidx.compose.runtime.CompositionLocalProvider(LocalRowCounter provides counter) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF181C25))
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) { content() }
+    }
+}
+
+/** סופר שורות בקבוצה: לשורה הראשונה אין קו מעליה */
+private class RowCounter {
+    private var n = 0
+    fun reset() { n = 0 }
+    fun next() = n++
+}
+
+private val LocalRowCounter = androidx.compose.runtime.compositionLocalOf { RowCounter() }
+
+/** "🔋 טבעת סוללה (מראה כמה סוללה נשארה)" ← סמל, שם קצר, והסבר שנפתח ב־ⓘ */
+private data class RowLabel(val icon: String?, val title: String, val info: String?)
+
+private fun splitLabel(text: String): RowLabel {
+    var t = text.trim()
+    var icon: String? = null
+    val first = t.substringBefore(' ')
+    if (first != t && first.none { it.isLetterOrDigit() }) {
+        icon = first
+        t = t.substringAfter(' ').trim()
+    }
+    var info: String? = null
+    if (t.endsWith(")") && t.contains(" (")) {
+        info = t.substringAfter(" (").removeSuffix(")")
+        t = t.substringBefore(" (")
+    } else if (t.contains(": ")) {
+        info = t.substringAfter(": ")
+        t = t.substringBefore(": ")
+    } else if (t.contains(" = ") && t.length > 28) {
+        info = t
+        t = t.substringBefore(" (").take(28)
+    }
+    return RowLabel(icon, t, info?.replaceFirstChar { it.uppercase() })
+}
+
+/** צבע קבוע לכל סמל, לריבוע הצבעוני שמאחוריו */
+private fun iconTint(icon: String): Color {
+    val palette = listOf(0xFF2AD49A, 0xFF4C8DF6, 0xFFB18CFF, 0xFFFF6FAE, 0xFFFF7A59, 0xFFFFB84D, 0xFF38C6E8, 0xFF7E8BA3)
+    return Color(palette[(icon.hashCode() and 0x7fffffff) % palette.size])
+}
+
+/** שורה בסגנון אייפון: סמל צבעוני, שם, ⓘ שפותח הסבר, ומה שבצד (מתג וכו') */
+@Composable
+private fun IosRow(text: String, trailing: @Composable () -> Unit) {
+    val counter = LocalRowCounter.current
+    val index = remember { counter.next() }
+    val l = remember(text) { splitLabel(text) }
+    var open by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        if (index > 0) Box(Modifier.fillMaxWidth().padding(start = if (l.icon != null) 42.dp else 0.dp).height(0.6.dp).background(Color(0x22FFFFFF)))
+        Row(Modifier.fillMaxWidth().heightIn(min = 50.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (l.icon != null) {
+                Box(
+                    Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)).background(iconTint(l.icon).copy(alpha = 0.22f)),
+                    contentAlignment = Alignment.Center,
+                ) { Text(l.icon, fontSize = 15.sp) }
+                Spacer(Modifier.width(12.dp))
+            }
+            Text(l.title, Modifier.weight(1f, fill = false), fontSize = 16.sp, color = Neon.Text)
+            if (l.info != null) {
+                Box(
+                    Modifier
+                        .padding(start = 6.dp)
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .border(1.4.dp, if (open) Neon.GreenSoft else Neon.Muted, CircleShape)
+                        .clickable { open = !open },
+                    contentAlignment = Alignment.Center,
+                ) { Text("i", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (open) Neon.GreenSoft else Neon.Muted) }
+            }
+            Spacer(Modifier.weight(0.01f).widthIn(min = 8.dp))
+            trailing()
+        }
+        androidx.compose.animation.AnimatedVisibility(open && l.info != null) {
+            Text(
+                l.info ?: "",
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = if (l.icon != null) 42.dp else 0.dp, bottom = 10.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF222837))
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                fontSize = 13.sp,
+                color = Neon.Muted,
+            )
+        }
+    }
 }
 
 @Composable
 private fun SwitchLine(text: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(text, Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
+    IosRow(text) { Switch(checked = checked, onCheckedChange = onChange) }
 }
 
 /** מחוון שהשינוי שלו נראה על הטבעת תוך כדי הזזה (בזמן אמת) */
@@ -1295,10 +1402,10 @@ private val HomePages = listOf(
 private fun PillGroup(title: String) {
     Text(
         title,
-        Modifier.padding(top = 14.dp, bottom = 2.dp),
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        color = Neon.GreenSoft,
+        Modifier.padding(top = 16.dp, bottom = 4.dp, start = 2.dp),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = Neon.Muted,
     )
 }
 
@@ -1306,11 +1413,19 @@ private fun PillGroup(title: String) {
 @Composable
 private fun PillLine(text: String, checked: Boolean, demo: String, onChange: (Boolean) -> Unit) {
     val ctx = LocalContext.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(text, Modifier.weight(1f))
-        TextButton(onClick = {
-            if (!LivePill.demo(demo)) Actions.toast(ctx, "קודם צריך להדליק את קיצורים בנגישות")
-        }) { Text("▶ הדמיה", color = Neon.GreenSoft, style = MaterialTheme.typography.labelMedium) }
+    IosRow(text) {
+        // ▶ מראה עכשיו למעלה, על המסך, איך זה נראה
+        Text(
+            "▶",
+            Modifier
+                .padding(end = 6.dp)
+                .clip(CircleShape)
+                .background(Neon.Green.copy(alpha = 0.14f))
+                .clickable { if (!LivePill.demo(demo)) Actions.toast(ctx, "קודם צריך להדליק את קיצורים בנגישות") }
+                .padding(horizontal = 11.dp, vertical = 6.dp),
+            color = Neon.GreenSoft,
+            fontSize = 13.sp,
+        )
         Switch(checked = checked, onCheckedChange = onChange)
     }
 }
