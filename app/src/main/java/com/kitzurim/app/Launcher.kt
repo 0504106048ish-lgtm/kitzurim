@@ -47,6 +47,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -547,7 +548,7 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuFor = a
                         })
                     }
-                    if (dock.isEmpty()) Text("לחיצה ארוכה על אפליקציה ← \"למעגן\"", color = Color(0xAAFFFFFF), fontSize = 12.sp)
+                    if (dock.isEmpty()) Text("לחיצה ארוכה על אפליקציה ← \"להעביר לשורה התחתונה\"", color = Color(0xAAFFFFFF), fontSize = 12.sp)
                 }
             }
         }
@@ -1214,10 +1215,12 @@ private fun Sheet(onDismiss: () -> Unit, content: @Composable () -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
+                .systemBarsPadding()
                 .padding(10.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF1A2030))
+                // תפריט ארוך: גוללים בתוכו, ולא נחתך למעלה
+                .verticalScroll(rememberScrollState())
                 .clickable(
                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                     indication = null,
@@ -1228,15 +1231,24 @@ private fun Sheet(onDismiss: () -> Unit, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SheetRow(icon: String, text: String, color: Color = Neon.Text, onClick: () -> Unit) {
+private fun SheetRow(icon: String, text: String, color: Color = Neon.Text, sub: String? = null, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 18.dp, vertical = 13.dp),
+        Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 18.dp, vertical = if (sub != null) 9.dp else 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(icon, fontSize = 18.sp, modifier = Modifier.width(32.dp))
-        Text(text, color = color, fontSize = 15.sp)
+        Column {
+            Text(text, color = color, fontSize = 15.sp)
+            // שורת הסבר קטנה: מה הכפתור עושה
+            if (sub != null) Text(sub, color = Neon.Muted, fontSize = 12.sp)
+        }
     }
 }
+
+/** כותרת קטנה בתוך תפריט */
+@Composable
+private fun MenuTitle(t: String) =
+    Text(t, color = Neon.GreenSoft, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 2.dp))
 
 /** לחיצה ארוכה על אפליקציה */
 @Composable
@@ -1252,46 +1264,52 @@ private fun AppMenu(a: HomeApp, onDismiss: () -> Unit, onEdit: () -> Unit, onCha
             AppGlyph(a, 0, 40)
             Text(label(ctx, a), color = Neon.Text, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(start = 10.dp))
         }
-        // הקיצורים של האפליקציה עצמה
-        shortcuts.forEach { s ->
-            SheetRow("↗", (s.shortLabel ?: s.longLabel ?: "").toString()) {
-                onDismiss()
-                runCatching { ctx.getSystemService(LauncherApps::class.java).startShortcut(s, null, null) }
+        // הקיצורים של האפליקציה עצמה (בשפה שהאפליקציה כתבה אותם), עם כותרת שיהיה ברור מאיפה הם
+        if (shortcuts.isNotEmpty()) {
+            MenuTitle("קיצורים של ${label(ctx, a)}")
+            shortcuts.forEach { s ->
+                SheetRow("↗", (s.shortLabel ?: s.longLabel ?: "").toString()) {
+                    onDismiss()
+                    runCatching { ctx.getSystemService(LauncherApps::class.java).startShortcut(s, null, null) }
+                }
             }
+            MenuTitle("פעולות")
         }
-        SheetRow("✏️", "עריכה: שם ותמונה") { onEdit() }
-        SheetRow("📁", "לתיקייה…") { onFolder() }
+        SheetRow("✏️", "עריכה: שם ותמונה", sub = "שם אחר, תמונה מהגלריה או אימוג'י") { onEdit() }
+        SheetRow("📁", "לתיקייה…", sub = "רואים תיקיות במגירה, בסידור \"📁 תיקיות\"") { onFolder() }
         if (a.key in home) {
-            SheetRow("◀", "להזיז קדימה") {
+            SheetRow("◀", "להזיז קדימה", sub = "מקום אחד לפני") {
                 val i = home.indexOf(a.key)
                 if (i > 0) LauncherStore.setHome(ctx, home.toMutableList().apply { add(i - 1, removeAt(i)) })
                 onChanged()
             }
-            SheetRow("▶", "להזיז אחורה") {
+            SheetRow("▶", "להזיז אחורה", sub = "מקום אחד אחרי") {
                 val i = home.indexOf(a.key)
                 if (i < home.size - 1) LauncherStore.setHome(ctx, home.toMutableList().apply { add(i + 1, removeAt(i)) })
                 onChanged()
             }
-            SheetRow("➖", "להוריד מהמסך") { LauncherStore.setHome(ctx, home - a.key); done("ירד מהמסך (נשאר בכל האפליקציות)") }
+            SheetRow("➖", "להוריד מהמסך", sub = "נשארת בכל האפליקציות") { LauncherStore.setHome(ctx, home - a.key); done("ירד מהמסך (נשאר בכל האפליקציות)") }
         } else {
-            SheetRow("📌", "להוסיף למסך") { LauncherStore.setHome(ctx, (home - a.key) + a.key); done("📌 נוסף למסך") }
+            SheetRow("📌", "להוסיף למסך", sub = "תופיע במסך הבית") { LauncherStore.setHome(ctx, (home - a.key) + a.key); done("📌 נוסף למסך") }
         }
         if (a.key in dock) {
-            SheetRow("⬆", "להוציא מהמעגן") { LauncherStore.setDock(ctx, dock - a.key); done("יצא מהמעגן") }
+            SheetRow("⬆", "להוציא מהשורה התחתונה", sub = "השורה הקבועה בתחתית המסך") { LauncherStore.setDock(ctx, dock - a.key); done("יצא מהשורה התחתונה") }
         } else if (dock.size < 5) {
-            SheetRow("⬇", "להעביר למעגן") { LauncherStore.setDock(ctx, dock + a.key); LauncherStore.setHome(ctx, home - a.key); done("עבר למעגן") }
+            SheetRow("⬇", "להעביר לשורה התחתונה", sub = "השורה הקבועה בתחתית המסך, בלי שם") {
+                LauncherStore.setDock(ctx, dock + a.key); LauncherStore.setHome(ctx, home - a.key); done("עבר לשורה התחתונה")
+            }
         }
         if (a.key in hidden) {
-            SheetRow("👁", "להחזיר לרשימה") { LauncherStore.setHidden(ctx, hidden - a.key); done("חזר לרשימה") }
+            SheetRow("👁", "להחזיר לרשימה", sub = "תופיע שוב בכל האפליקציות") { LauncherStore.setHidden(ctx, hidden - a.key); done("חזר לרשימה") }
         } else {
-            SheetRow("🙈", "להסתיר מהרשימה") {
+            SheetRow("🙈", "להסתיר מהרשימה", sub = "לא תופיע, אבל אפשר למצוא בחיפוש") {
                 LauncherStore.setHidden(ctx, hidden + a.key)
                 LauncherStore.setHome(ctx, home - a.key)
                 LauncherStore.setDock(ctx, dock - a.key)
                 done("הוסתר. אפשר למצוא אותו בחיפוש")
             }
         }
-        SheetRow("ℹ️", "פרטי אפליקציה") {
+        SheetRow("ℹ️", "פרטי אפליקציה", sub = "הרשאות, אחסון, התראות") {
             onDismiss()
             runCatching {
                 ctx.startActivity(
@@ -1300,7 +1318,7 @@ private fun AppMenu(a: HomeApp, onDismiss: () -> Unit, onEdit: () -> Unit, onCha
                 )
             }
         }
-        SheetRow("🗑️", "להסיר את האפליקציה", Color(0xFFFF6B7A)) {
+        SheetRow("🗑️", "להסיר את האפליקציה", Color(0xFFFF6B7A), sub = "מוחק מהטלפון (הטלפון שואל קודם)") {
             onDismiss()
             runCatching {
                 ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${a.component.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
