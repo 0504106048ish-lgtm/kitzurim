@@ -217,6 +217,7 @@ class ReplyListener : NotificationListenerService() {
             CarMirror.mirror(this, sbn.key, who, text, if (group) (style?.conversationTitle?.toString() ?: sender) else null, reply, read, icon, n.contentIntent)
         }
         NotchOverlay.notificationPosted(sbn.key, color, m)
+        HomeFeed.message(m)
         LivePill.showMessage(pillTitle, pillText, color, n.contentIntent, msg = m, burst = count > 1)
     }
 
@@ -231,6 +232,7 @@ class ReplyListener : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
+        HomeFeed.recount(this)
         if (!CarMirror.connected(this)) CarMirror.clearAll(this)
         if (!carWatching) runCatching {
             val f = android.content.IntentFilter().apply {
@@ -281,6 +283,8 @@ class ReplyListener : NotificationListenerService() {
     private val downloadNames = HashMap<String, String>()
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        HomeFeed.gone(sbn.key)
+        HomeFeed.recount(this)
         CarMirror.removed(this, sbn.key)
         NotchOverlay.notificationRemoved(sbn.key)
         LivePill.callNotificationRemoved(sbn.key)
@@ -293,6 +297,7 @@ class ReplyListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        HomeFeed.recount(this)
         lightFor(sbn)
         runCatching { CallerId.onNotification(this, sbn) }
         runCatching { LastChat.record(this, sbn) }

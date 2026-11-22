@@ -773,6 +773,42 @@ fun HomeScreen(resumes: Int) {
                     TextButton(onClick = { addingApp = true }) { Text("+ הוספת אפליקציה") }
                 }
 
+                // ---------- מסך הבית של הטלפון ----------
+                if (page == "launcher") Card {
+                    val enabled = LauncherSwitch.enabled(ctx)
+                    val isDefault = LauncherSwitch.isDefault(ctx)
+                    Text("🏠 מסך הבית של קיצורים", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "התאריך מתעגל סביב המצלמה, כרטיס חכם (מה מתנגן, ההודעה האחרונה, האירוע הבא, סוללה), האפליקציות עם הסמל והשם, ומעגן למטה. " +
+                            "החלקה למעלה: כל האפליקציות וחיפוש. החלקה למטה: ההתראות. הקשה כפולה: נעילה. " +
+                            "לחיצה ארוכה על אפליקציה: עריכת שם ותמונה, הזזה, מעגן, הסתרה והסרה. לחיצה ארוכה על מקום ריק: הוספת אפליקציה וטפט.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                    )
+                    Text(
+                        if (isDefault) "● זה מסך הבית עכשיו" else "○ עכשיו מסך הבית הוא של הטלפון",
+                        color = if (isDefault) Neon.Green else scheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    Button(onClick = {
+                        LauncherSwitch.set(ctx, true)
+                        Actions.toast(ctx, "לבחור \"קיצורים\" כאפליקציית הבית")
+                        LauncherSwitch.openHomeSettings(ctx)
+                        refresh++
+                    }) { Text(if (isDefault) "להחליף מסך בית" else "להפוך למסך הבית") }
+                    TextButton(onClick = {
+                        LauncherSwitch.set(ctx, true)
+                        runCatching { ctx.startActivity(Intent(ctx, LauncherActivity::class.java)) }
+                        refresh++
+                    }) { Text("👀 לראות אותו קודם (בלי להחליף)") }
+                    if (enabled) TextButton(onClick = {
+                        // מכבים: הטלפון חוזר למסך הבית שלו
+                        LauncherSwitch.set(ctx, false)
+                        Actions.toast(ctx, "חזרת למסך הבית של הטלפון")
+                        refresh++
+                    }) { Text("↩ לחזור למסך הבית של הטלפון") }
+                }
+
                 // ---------- אנדרואיד אוטו (בדף "עוד") ----------
                 if (page == "more") Card {
                     Text("🚗 אנדרואיד אוטו", style = MaterialTheme.typography.titleMedium)
@@ -1280,6 +1316,9 @@ private val HomePages = listOf(
     )),
     HomePage("apps", "📱", "אפליקציות ומסכים", "מסך מלא, נעילה, כבוי ב…", listOf(
         "להסתיר במסך מלא", "מסך הנעילה", "כבוי באפליקציות", "הפוך = שקט",
+    )),
+    HomePage("launcher", "🏠", "מסך הבית", "מסך בית חדש לטלפון", listOf(
+        "מסך הבית של הטלפון", "לאנצ׳ר", "עריכת אפליקציה", "שם ותמונה לאפליקציה", "מעגן", "טפט",
     )),
     HomePage("more", "⋯", "עוד", "רכב, גודל, אוטומציות, קולי", listOf(
         "אנדרואיד אוטו", "רכב", "מקורות לא ידועים",
