@@ -1674,6 +1674,7 @@ object LivePill {
         val cxIn = cx - winX
         var onSwipe: () -> Unit = {}
         val root = SwipeUpFrame(s) { onSwipe() }
+        root.onSideSwipe = { right -> NotchOverlay.pillSideSwipe(right) }
         // משמאל לימין במכוון: אחרת בעברית המיקום נמדד מצד ימין והשורה "בורחת" לימין
         root.layoutDirection = View.LAYOUT_DIRECTION_LTR
         val box = FrameLayout(s).apply {
@@ -1844,6 +1845,8 @@ object LivePill {
         val root: FrameLayout = if (newKind in CALL_KINDS) FrameLayout(s) else SwipeUpFrame(s) {
             if (kind == newKind) { menuOpen = false; hide() }
         }
+        // החלקה לצדדים על הגלולה הפתוחה: כמו על החור (למשל עוד שיר הבא)
+        (root as? SwipeUpFrame)?.onSideSwipe = { right -> NotchOverlay.pillSideSwipe(right) }
         // רק הרקע נמתח; התוכן כבר בגודל הסופי ורק מופיע, כדי שהטקסט לא יקפוץ בזמן המתיחה
         val b = View(s).apply {
             background = GlassDrawable(d).apply {
@@ -2527,6 +2530,9 @@ object LivePill {
  */
 @SuppressLint("ViewConstructor")
 class SwipeUpFrame(ctx: Context, private val onSwipeUp: () -> Unit) : FrameLayout(ctx) {
+    /** החלקה לצדדים על הגלולה: עושה מה שהחלקה על החור עושה (למשל שיר הבא), גם כשהגלולה פתוחה */
+    var onSideSwipe: ((right: Boolean) -> Unit)? = null
+    private var side = false
     private val d = ctx.resources.displayMetrics.density
     private val slop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
     private var downX = 0f
@@ -2541,11 +2547,15 @@ class SwipeUpFrame(ctx: Context, private val onSwipeUp: () -> Unit) : FrameLayou
     override fun onInterceptTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                downX = e.rawX; downY = e.rawY; dragging = false; done = false
+                downX = e.rawX; downY = e.rawY; dragging = false; done = false; side = false
             }
             MotionEvent.ACTION_MOVE -> {
                 val dy = e.rawY - downY
                 val dx = e.rawX - downX
+                if (onSideSwipe != null && kotlin.math.abs(dx) > 18 * d && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.2f) {
+                    side = true
+                    return true
+                }
                 if (-dy > slop / 2f && -dy > kotlin.math.abs(dx)) {
                     dragging = true
                     return true
@@ -2560,20 +2570,29 @@ class SwipeUpFrame(ctx: Context, private val onSwipeUp: () -> Unit) : FrameLayou
         when (e.actionMasked) {
             // נגיעה בחלק שאין בו כפתור: לוקחים אותה, כדי לקבל את ההחלקה
             MotionEvent.ACTION_DOWN -> {
-                downX = e.rawX; downY = e.rawY; dragging = false; done = false
+                downX = e.rawX; downY = e.rawY; dragging = false; done = false; side = false
             }
             MotionEvent.ACTION_MOVE -> {
-                val dy = (e.rawY - downY).coerceAtMost(0f)
-                if (!dragging && -dy > slop / 2f && -dy > kotlin.math.abs(e.rawX - downX)) dragging = true
+                val dx = e.rawX - downX
+                val rawDy = e.rawY - downY
+                if (!dragging && !side && onSideSwipe != null && kotlin.math.abs(dx) > 18 * d && kotlin.math.abs(dx) > kotlin.math.abs(rawDy) * 1.2f) side = true
+                val dy = rawDy.coerceAtMost(0f)
+                if (!side && !dragging && -dy > slop / 2f && -dy > kotlin.math.abs(dx)) dragging = true
                 if (dragging && !done) lift(dy * 0.6f)
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                // החלקה לצדדים: כמו החלקה על החור (שיר הבא / הקודם וכו')
+                if (side && !done && e.actionMasked == MotionEvent.ACTION_UP) {
+                    done = true
+                    onSideSwipe?.invoke(e.rawX - downX > 0)
+                }
                 // כל החלקה למעלה סוגרת, גם קצרה מאוד
                 if (dragging && !done) {
                     done = true
                     onSwipeUp()
                 }
                 dragging = false
+                side = false
             }
         }
         return true

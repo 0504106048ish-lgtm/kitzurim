@@ -230,6 +230,21 @@ object NotchOverlay {
 
     fun isRunning() = service != null
 
+    /**
+     * החלקה לצדדים על גלולה פתוחה: הגלולה מכסה את החור, אז היא עושה את מה שהחלקה על החור הייתה עושה
+     * (למשל שיר הבא, ושוב שיר הבא). בהירות לא, כי היא צריכה גרירה רציפה
+     */
+    fun pillSideSwipe(right: Boolean) {
+        val s = service ?: return
+        val g = if (right) Gesture.RIGHT else Gesture.LEFT
+        val a = NotchPrefs.actionFor(s, g, currentPackage)
+        if (a.type == ActionType.NONE || a.type == ActionType.BRIGHTNESS) return
+        if (NotchPrefs.haptic(s)) {
+            ring?.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING)
+        }
+        NotchActions.perform(s, a)
+    }
+
     fun setPreview(on: Boolean) {
         if (preview == on) return
         preview = on
