@@ -45,6 +45,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -137,7 +139,69 @@ class HomeApp(
     val component: ComponentName,
     val original: String,
     val icon: ImageBitmap?,
+    /** הקטגוריה (תקשורת, מוזיקה…) לסידור במגירה */
+    val section: String = "אחר",
+    /** מתי הותקנה */
+    val installed: Long = 0L,
+    /** הגוון של הסמל (0-360), או 999 לסמל אפור. לסידור לפי צבע */
+    val hue: Float = 999f,
 )
+
+/** אפשרויות הסידור של המגירה */
+val DrawerSorts = listOf(
+    "cat" to "📂 קטגוריות",
+    "used" to "🔥 הכי בשימוש",
+    "az" to "🔤 א־ת",
+    "new" to "🆕 חדשות למעלה",
+    "color" to "🌈 לפי צבע",
+    "folders" to "📁 תיקיות",
+)
+
+/** הסדר של הקטגוריות במגירה */
+private val SectionOrder = listOf("💬 תקשורת", "🌐 אינטרנט", "🎵 מוזיקה ווידאו", "📷 תמונות", "🗺️ ניווט", "🎮 משחקים", "💼 עבודה", "📰 חדשות", "⚙️ כלים", "📦 אחר")
+
+/** קטגוריה לאפליקציה: לפי מה שהיא מצהירה, ואם לא הצהירה, לפי השם של החבילה */
+private fun sectionOf(pkg: String, cat: Int): String {
+    val p = pkg.lowercase()
+    fun has(vararg w: String) = w.any { p.contains(it) }
+    return when {
+        has("whatsapp", "telegram", "messag", "dialer", "contacts", "mms", "phone", "incallui", "email", ".gm", "outlook", "signal", "facebook.orca", "skype", "zoom", "teams") -> "💬 תקשורת"
+        has("chrome", "browser", "sbrowser", "firefox", "opera", "edge") -> "🌐 אינטרנט"
+        has("camera", "gallery", "photos", "snapseed", "lightroom") -> "📷 תמונות"
+        has("waze", "maps", "moovit", "gett", "uber", "yango") -> "🗺️ ניווט"
+        has("music", "spotify", "youtube", "podcast", "radio", "video", "netflix", "player") -> "🎵 מוזיקה ווידאו"
+        has("settings", "clock", "calculator", "calc", "files", "myfiles", "notes", "calendar", "weather", "vending", "store", "kitzurim", "voicenote", "recorder") -> "⚙️ כלים"
+        else -> when (cat) {
+            android.content.pm.ApplicationInfo.CATEGORY_SOCIAL -> "💬 תקשורת"
+            android.content.pm.ApplicationInfo.CATEGORY_AUDIO, android.content.pm.ApplicationInfo.CATEGORY_VIDEO -> "🎵 מוזיקה ווידאו"
+            android.content.pm.ApplicationInfo.CATEGORY_IMAGE -> "📷 תמונות"
+            android.content.pm.ApplicationInfo.CATEGORY_MAPS -> "🗺️ ניווט"
+            android.content.pm.ApplicationInfo.CATEGORY_GAME -> "🎮 משחקים"
+            android.content.pm.ApplicationInfo.CATEGORY_PRODUCTIVITY -> "💼 עבודה"
+            android.content.pm.ApplicationInfo.CATEGORY_NEWS -> "📰 חדשות"
+            else -> "📦 אחר"
+        }
+    }
+}
+
+/** הגוון העיקרי של סמל: ממוצע של הפיקסלים הצבעוניים */
+private fun hueOf(b: Bitmap): Float {
+    val small = Bitmap.createScaledBitmap(b, 16, 16, true)
+    var x = 0.0
+    var y = 0.0
+    var n = 0
+    val hsv = FloatArray(3)
+    for (i in 0 until 16) for (j in 0 until 16) {
+        val px = small.getPixel(i, j)
+        if (android.graphics.Color.alpha(px) < 128) continue
+        android.graphics.Color.colorToHSV(px, hsv)
+        if (hsv[1] < 0.3f || hsv[2] < 0.25f) continue
+        val r = Math.toRadians(hsv[0].toDouble())
+        x += kotlin.math.cos(r); y += kotlin.math.sin(r); n++
+    }
+    if (n < 12) return 999f
+    return ((Math.toDegrees(kotlin.math.atan2(y, x)) + 360) % 360).toFloat()
+}
 
 /** כל מה שנשמר: מה במסך, מה במעגן, שמות ותמונות שערכת, מה מוסתר */
 object LauncherStore {
@@ -159,7 +223,40 @@ object LauncherStore {
     /** כמה אפליקציות בשורה (4 עד 6) */
     fun cols(c: Context) = sp(c).getInt("cols", 4).coerceIn(4, 6)
     fun setCols(c: Context, v: Int) = sp(c).edit().putInt("cols", v).apply()
-    fun used(c: Context, key: String) = setList(c, "recent", (listOf(key) + recent(c).filter { it != key }).take(8))
+    fun used(c: Context, key: String) {
+        setList(c, "recent", (listOf(key) + recent(c).filter { it != key }).take(8))
+        sp(c).edit().putInt("count_$key", count(c, key) + 1).apply()
+    }
+
+    /** כמה פעמים פתחו את האפליקציה מהמסך */
+    fun count(c: Context, key: String) = sp(c).getInt("count_$key", 0)
+
+    /** הסידור של המגירה (ברירת מחדל: קטגוריות) */
+    fun sort(c: Context) = sp(c).getString("sort", "cat") ?: "cat"
+    fun setSort(c: Context, v: String) = sp(c).edit().putString("sort", v).apply()
+
+    // ----- תיקיות -----
+    fun folders(c: Context) = list(c, "folders") ?: emptyList()
+    fun folderApps(c: Context, f: String) = list(c, "folder_$f") ?: emptyList()
+    fun folderOf(c: Context, key: String) = folders(c).firstOrNull { key in folderApps(c, it) }
+    fun addToFolder(c: Context, f: String, key: String) {
+        folderOf(c, key)?.let { old -> setList(c, "folder_$old", folderApps(c, old) - key) }
+        if (f !in folders(c)) setList(c, "folders", folders(c) + f)
+        setList(c, "folder_$f", folderApps(c, f) - key + key)
+    }
+    fun removeFromFolder(c: Context, key: String) {
+        folderOf(c, key)?.let { f -> setList(c, "folder_$f", folderApps(c, f) - key) }
+    }
+    fun renameFolder(c: Context, old: String, new: String) {
+        if (new.isBlank() || new == old || new in folders(c)) return
+        setList(c, "folder_$new", folderApps(c, old))
+        sp(c).edit().remove("folder_$old").apply()
+        setList(c, "folders", folders(c).map { if (it == old) new else it })
+    }
+    fun deleteFolder(c: Context, f: String) {
+        sp(c).edit().remove("folder_$f").apply()
+        setList(c, "folders", folders(c) - f)
+    }
 
     fun name(c: Context, key: String): String? = sp(c).getString("name_$key", null)
     fun setName(c: Context, key: String, v: String?) = sp(c).edit().apply { if (v.isNullOrBlank()) remove("name_$key") else putString("name_$key", v) }.apply()
@@ -271,8 +368,15 @@ private fun loadApps(c: Context): List<HomeApp> {
     return ri.filter { it.activityInfo.packageName != c.packageName || it.activityInfo.name.endsWith("LaunchActivity") }
         .map { r ->
             val cn = ComponentName(r.activityInfo.packageName, r.activityInfo.name)
-            val icon = runCatching { r.loadIcon(pm).toBitmap(size, size).asImageBitmap() }.getOrNull()
-            HomeApp(cn.flattenToString(), cn, r.loadLabel(pm).toString(), icon)
+            val bmp = runCatching { r.loadIcon(pm).toBitmap(size, size) }.getOrNull()
+            val ai = r.activityInfo.applicationInfo
+            val installed = runCatching { pm.getPackageInfo(cn.packageName, 0).firstInstallTime }.getOrDefault(0L)
+            HomeApp(
+                cn.flattenToString(), cn, r.loadLabel(pm).toString(), bmp?.asImageBitmap(),
+                section = sectionOf(cn.packageName, ai.category),
+                installed = installed,
+                hue = bmp?.let { runCatching { hueOf(it) }.getOrDefault(999f) } ?: 999f,
+            )
         }
         .distinctBy { it.key }
         .sortedBy { it.original }
@@ -346,9 +450,11 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
     var drawer by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<HomeApp?>(null) }
     var editFor by remember { mutableStateOf<HomeApp?>(null) }
+    var openFolder by remember { mutableStateOf<String?>(null) }
+    var folderPickFor by remember { mutableStateOf<HomeApp?>(null) }
     var bgMenu by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) } // "להוסיף אפליקציה למסך": בוחרים מהמגירה
-    LaunchedEffect(homeAgain) { drawer = false; menuFor = null; bgMenu = false; picking = false }
+    LaunchedEffect(homeAgain) { drawer = false; menuFor = null; bgMenu = false; picking = false; openFolder = null; folderPickFor = null; editFor = null }
 
     // רשימות המסך והמעגן (בפעם הראשונה: ברירת מחדל)
     val byKey = apps.associateBy { it.key }
@@ -468,12 +574,25 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
                     }
                 },
                 onLong = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuFor = it },
+                onFolder = { openFolder = it },
             )
         }
 
+        // ----- תיקייה פתוחה -----
+        openFolder?.let { f ->
+            FolderSheet(
+                f, apps, edits,
+                onDismiss = { openFolder = null },
+                onOpen = { a -> openFolder = null; drawer = false; launch(ctx, a) },
+                onLong = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuFor = it },
+                onChanged = { edits++ },
+            )
+        }
+        folderPickFor?.let { a -> FolderPick(a, onDismiss = { folderPickFor = null }, onChanged = { edits++ }) }
+
         // ----- תפריט של אפליקציה (לחיצה ארוכה) -----
         menuFor?.let { a ->
-            AppMenu(a, onDismiss = { menuFor = null }, onEdit = { menuFor = null; editFor = a }, onChanged = { edits++ })
+            AppMenu(a, onDismiss = { menuFor = null }, onEdit = { menuFor = null; editFor = a }, onChanged = { edits++ }, onFolder = { menuFor = null; folderPickFor = a })
         }
         editFor?.let { a ->
             EditDialog(a, onDismiss = { editFor = null }, onSaved = { editFor = null; edits++ })
@@ -529,7 +648,15 @@ private fun AppGlyph(a: HomeApp, edits: Int, size: Int = 52) {
     }
     val emoji = remember(a.key, edits) { LauncherStore.emoji(ctx, a.key) }
     val badge = HomeFeed.badges[a.component.packageName] ?: 0
+    // אפליקציה חדשה (הותקנה ב־3 הימים האחרונים ועוד לא נפתחה): נקודה ירוקה, כמו בסמסונג
+    val isNew = remember(a.key, edits) {
+        a.installed > 0 && System.currentTimeMillis() - a.installed < 3 * 86_400_000L && LauncherStore.count(ctx, a.key) == 0
+    }
     Box(Modifier.size((size + 6).dp)) {
+        if (isNew && badge == 0) Box(
+            Modifier.align(Alignment.TopEnd).padding(2.dp).size(9.dp).clip(CircleShape)
+                .background(Neon.Green).border(1.5.dp, Color(0x66000000), CircleShape),
+        )
         Box(Modifier.size(size.dp).align(Alignment.Center)) {
             when {
                 custom != null -> Image(custom, null, Modifier.fillMaxSize().clip(RoundedCornerShape((size * 0.3f).dp)))
@@ -770,6 +897,7 @@ private fun Drawer(
     onClose: () -> Unit,
     onOpen: (HomeApp) -> Unit,
     onLong: (HomeApp) -> Unit,
+    onFolder: (String) -> Unit,
 ) {
     val ctx = LocalContext.current
     val kb = LocalSoftwareKeyboardController.current
@@ -791,6 +919,12 @@ private fun Drawer(
     }
     val people = remember(query) { if (query.length >= 2) contacts(ctx, query) else emptyList() }
     val recent = remember(edits) { LauncherStore.recent(ctx).mapNotNull { k -> apps.firstOrNull { it.key == k } }.filter { it.key !in hidden }.take(cols) }
+    var sort by remember { mutableStateOf(LauncherStore.sort(ctx)) }
+    val counts = remember(edits, apps) { apps.associate { it.key to LauncherStore.count(ctx, it.key) } }
+    val folders = remember(edits) { LauncherStore.folders(ctx) }
+    val cell: @Composable (HomeApp) -> Unit = { a ->
+        Box(contentAlignment = Alignment.Center) { AppIcon(a, edits, true, { onOpen(a) }, { onLong(a) }) }
+    }
 
     Column(
         Modifier
@@ -818,15 +952,90 @@ private fun Drawer(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (query.isEmpty() && recent.isNotEmpty() && !picking) {
-                item(span = { GridItemSpan(cols) }) { Label("בשימוש לאחרונה") }
-                items(recent, key = { "r" + it.key }) { a ->
-                    Box(contentAlignment = Alignment.Center) { AppIcon(a, edits, true, { onOpen(a) }, { onLong(a) }) }
+            if (query.isNotEmpty()) {
+                items(hits.sortedBy { label(ctx, it) }, key = { it.key }) { cell(it) }
+            } else {
+                // אפשרויות הסידור: נשמר מה שבחרת
+                item(span = { GridItemSpan(cols) }) {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        DrawerSorts.forEach { (id, name) ->
+                            val on = id == sort
+                            Text(
+                                name,
+                                Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (on) Neon.Green.copy(alpha = 0.18f) else Neon.Tile)
+                                    .border(1.dp, if (on) Neon.Green.copy(alpha = 0.5f) else Neon.Line, RoundedCornerShape(14.dp))
+                                    .clickable { sort = id; LauncherStore.setSort(ctx, id) }
+                                    .padding(horizontal = 11.dp, vertical = 6.dp),
+                                color = if (on) Neon.GreenSoft else Neon.Muted,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                            )
+                        }
+                    }
                 }
-                item(span = { GridItemSpan(cols) }) { Label("כל האפליקציות · א־ת") }
-            }
-            items(hits.sortedBy { label(ctx, it) }, key = { it.key }) { a ->
-                Box(contentAlignment = Alignment.Center) { AppIcon(a, edits, true, { onOpen(a) }, { onLong(a) }) }
+                val byLabel = compareBy<HomeApp> { label(ctx, it) }
+                when (sort) {
+                    "az" -> {
+                        if (recent.isNotEmpty() && !picking) {
+                            header("בשימוש לאחרונה", cols)
+                            items(recent, key = { "r" + it.key }) { cell(it) }
+                            header("כל האפליקציות · א־ת", cols)
+                        }
+                        items(visible.sortedWith(byLabel), key = { it.key }) { cell(it) }
+                    }
+                    "used" -> items(
+                        visible.sortedWith(compareByDescending<HomeApp> { counts[it.key] ?: 0 }.then(byLabel)),
+                        key = { it.key },
+                    ) { cell(it) }
+                    "new" -> {
+                        val now = System.currentTimeMillis()
+                        val fresh = visible.filter { it.installed > 0 && now - it.installed < 14 * 86_400_000L }.sortedByDescending { it.installed }
+                        if (fresh.isNotEmpty()) {
+                            header("🆕 הותקנו בשבועיים האחרונים", cols)
+                            items(fresh, key = { "n" + it.key }) { cell(it) }
+                            header("כל השאר · א־ת", cols)
+                        }
+                        items((visible - fresh.toSet()).sortedWith(byLabel), key = { it.key }) { cell(it) }
+                    }
+                    "color" -> items(visible.sortedWith(compareBy<HomeApp> { it.hue }.then(byLabel)), key = { it.key }) { cell(it) }
+                    "folders" -> {
+                        val names = folders
+                        if (names.isEmpty()) {
+                            item(span = { GridItemSpan(cols) }) {
+                                Text(
+                                    "אין עדיין תיקיות. לחיצה ארוכה על אפליקציה ← \"📁 לתיקייה\"",
+                                    Modifier.padding(8.dp), color = Neon.Muted, fontSize = 13.sp,
+                                )
+                            }
+                        }
+                        items(names, key = { "f$it" }) { f ->
+                            FolderTile(f, LauncherStore.folderApps(ctx, f).mapNotNull { k -> visible.firstOrNull { it.key == k } }, edits) { onFolder(f) }
+                        }
+                        val inFolders = names.flatMap { LauncherStore.folderApps(ctx, it) }.toSet()
+                        header("שאר האפליקציות · א־ת", cols)
+                        items(visible.filter { it.key !in inFolders }.sortedWith(byLabel), key = { it.key }) { cell(it) }
+                    }
+                    else -> {
+                        // קטגוריות: למעלה מה שהכי בשימוש, ואז כל קטגוריה עם כותרת
+                        val top = visible.filter { (counts[it.key] ?: 0) > 0 }.sortedByDescending { counts[it.key] ?: 0 }.take(cols)
+                        if (top.isNotEmpty() && !picking) {
+                            header("🔥 הכי בשימוש", cols)
+                            items(top, key = { "t" + it.key }) { cell(it) }
+                        }
+                        SectionOrder.forEach { s ->
+                            val list = visible.filter { it.section == s }.sortedWith(byLabel)
+                            if (list.isNotEmpty()) {
+                                header(s, cols)
+                                items(list, key = { "s" + it.key }) { cell(it) }
+                            }
+                        }
+                    }
+                }
             }
             if (query.isNotEmpty()) {
                 if (people.isNotEmpty()) {
@@ -873,6 +1082,97 @@ private fun Drawer(
                 }
             }
             item(span = { GridItemSpan(cols) }) { Spacer(Modifier.height(20.dp)) }
+        }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.grid.LazyGridScope.header(t: String, cols: Int) =
+    item(span = { GridItemSpan(cols) }) { Label(t) }
+
+/** תיקייה במגירה: עד 4 סמלים קטנים בריבוע, והשם */
+@Composable
+private fun FolderTile(name: String, inside: List<HomeApp>, edits: Int, onClick: () -> Unit) {
+    val glyph = when (LocalCols.current) { 4 -> 52; 5 -> 46; else -> 40 }
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable { onClick() }.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size((glyph + 6).dp).clip(RoundedCornerShape((glyph * 0.32f).dp)).background(Color(0x33FFFFFF)).padding(5.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                inside.take(4).chunked(2).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        row.forEach { a -> AppGlyph(a, edits, (glyph - 10) / 2 - 4) }
+                    }
+                }
+            }
+        }
+        Text(
+            name, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = shadowText, modifier = Modifier.padding(top = 3.dp),
+        )
+    }
+}
+
+/** תיקייה פתוחה: האפליקציות שבה, ושינוי שם או מחיקה */
+@Composable
+private fun FolderSheet(name: String, apps: List<HomeApp>, edits: Int, onDismiss: () -> Unit, onOpen: (HomeApp) -> Unit, onLong: (HomeApp) -> Unit, onChanged: () -> Unit) {
+    val ctx = LocalContext.current
+    var renaming by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf(name) }
+    val inside = remember(edits) { LauncherStore.folderApps(ctx, name).mapNotNull { k -> apps.firstOrNull { it.key == k } } }
+    Sheet(onDismiss) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (renaming) {
+                OutlinedTextField(newName, { newName = it }, Modifier.weight(1f), singleLine = true, label = { Text("שם התיקייה") })
+                TextButton(onClick = {
+                    LauncherStore.renameFolder(ctx, name, newName.trim()); onChanged(); onDismiss()
+                }) { Text("שמירה") }
+            } else {
+                Text("📁 $name", Modifier.weight(1f), color = Neon.Text, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text("✏️", Modifier.clip(CircleShape).clickable { renaming = true }.padding(10.dp), fontSize = 18.sp)
+                Text("🗑️", Modifier.clip(CircleShape).clickable {
+                    LauncherStore.deleteFolder(ctx, name)
+                    Actions.toast(ctx, "התיקייה נמחקה (האפליקציות נשארו)")
+                    onChanged(); onDismiss()
+                }.padding(10.dp), fontSize = 18.sp)
+            }
+        }
+        if (inside.isEmpty()) {
+            Text("התיקייה ריקה. לחיצה ארוכה על אפליקציה ← \"📁 לתיקייה\"", Modifier.padding(18.dp), color = Neon.Muted, fontSize = 13.sp)
+        }
+        inside.chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
+                row.forEach { a -> Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { AppIcon(a, edits, true, { onOpen(a) }, { onLong(a) }) } }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** "לתיקייה": תיקייה קיימת או חדשה, או להוציא מהתיקייה */
+@Composable
+private fun FolderPick(a: HomeApp, onDismiss: () -> Unit, onChanged: () -> Unit) {
+    val ctx = LocalContext.current
+    val folders = remember { LauncherStore.folders(ctx) }
+    val current = remember { LauncherStore.folderOf(ctx, a.key) }
+    var newName by remember { mutableStateOf("") }
+    fun done(t: String) { Actions.toast(ctx, t); onChanged(); onDismiss() }
+    Sheet(onDismiss) {
+        Text("📁 לאיזו תיקייה להכניס את ${label(ctx, a)}?", Modifier.padding(horizontal = 18.dp, vertical = 8.dp), color = Neon.Text, fontWeight = FontWeight.Bold)
+        folders.filter { it != current }.forEach { f ->
+            SheetRow("📁", f) { LauncherStore.addToFolder(ctx, f, a.key); done("נכנס לתיקייה $f") }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(newName, { newName = it }, Modifier.weight(1f), singleLine = true, label = { Text("תיקייה חדשה") })
+            TextButton(onClick = {
+                val n = newName.trim()
+                if (n.isNotEmpty()) { LauncherStore.addToFolder(ctx, n, a.key); done("נוצרה תיקייה $n") }
+            }) { Text("ליצור") }
+        }
+        if (current != null) {
+            SheetRow("⤴", "להוציא מהתיקייה $current") { LauncherStore.removeFromFolder(ctx, a.key); done("יצא מהתיקייה") }
         }
     }
 }
@@ -940,7 +1240,7 @@ private fun SheetRow(icon: String, text: String, color: Color = Neon.Text, onCli
 
 /** לחיצה ארוכה על אפליקציה */
 @Composable
-private fun AppMenu(a: HomeApp, onDismiss: () -> Unit, onEdit: () -> Unit, onChanged: () -> Unit) {
+private fun AppMenu(a: HomeApp, onDismiss: () -> Unit, onEdit: () -> Unit, onChanged: () -> Unit, onFolder: () -> Unit) {
     val ctx = LocalContext.current
     val home = LauncherStore.home(ctx) ?: emptyList()
     val dock = LauncherStore.dock(ctx) ?: emptyList()
@@ -960,6 +1260,7 @@ private fun AppMenu(a: HomeApp, onDismiss: () -> Unit, onEdit: () -> Unit, onCha
             }
         }
         SheetRow("✏️", "עריכה: שם ותמונה") { onEdit() }
+        SheetRow("📁", "לתיקייה…") { onFolder() }
         if (a.key in home) {
             SheetRow("◀", "להזיז קדימה") {
                 val i = home.indexOf(a.key)
