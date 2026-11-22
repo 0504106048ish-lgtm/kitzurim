@@ -93,6 +93,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -103,6 +104,8 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -334,12 +337,22 @@ class LauncherActivity : ComponentActivity() {
             sp.edit().putBoolean("asked_cal", true).apply()
             requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR), 41)
         }
-        setContent { KitzurimTheme { LauncherScreen(homeAgain.intValue, pkgTick.intValue) } }
+        setContent { KitzurimTheme { LauncherScreen(homeAgain.intValue, pkgTick.intValue, backTick.intValue, enter) } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         homeAgain.intValue++
+    }
+
+    /** חוזרים למסך הבית מאפליקציה: האפליקציות "נוחתות" למקום, כמו באייפון */
+    private val backTick = mutableIntStateOf(0)
+    private val enter = androidx.compose.runtime.mutableFloatStateOf(1f)
+
+    override fun onRestart() {
+        super.onRestart()
+        enter.floatValue = 0f // לפני שהמסך מצויר, שלא יהבהב
+        backTick.intValue++
     }
 
     override fun onStart() {
@@ -401,15 +414,29 @@ private fun defaultHome(c: Context, apps: List<HomeApp>): Pair<List<String>, Lis
     return home to dock
 }
 
+/** מאיפה הקישו: כדי שהאפליקציה תיפתח בהגדלה מתוך הסמל עצמו (כמו באייפון) */
+private object LaunchFrom {
+    var view: android.view.View? = null
+    var rect: android.graphics.Rect? = null
+}
+
 private fun launch(c: Context, app: HomeApp) {
     LauncherStore.used(c, app.key)
+    val v = LaunchFrom.view
+    val r = LaunchFrom.rect
+    LaunchFrom.rect = null
+    // האפליקציה גדלה מתוך הסמל עד שהיא ממלאת את המסך
+    val opts = if (v != null && r != null) runCatching {
+        android.app.ActivityOptions.makeScaleUpAnimation(v, r.left, r.top, r.width(), r.height()).toBundle()
+    }.getOrNull() else null
     runCatching {
-        c.getSystemService(LauncherApps::class.java).startMainActivity(app.component, Process.myUserHandle(), null, null)
+        c.getSystemService(LauncherApps::class.java).startMainActivity(app.component, Process.myUserHandle(), r, opts)
     }.onFailure {
         runCatching {
             c.startActivity(
                 Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(app.component)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED),
+                opts,
             )
         }
     }
@@ -440,7 +467,7 @@ private val shadowText = TextStyle(shadow = Shadow(Color(0xAA000000), Offset(0f,
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
+fun LauncherScreen(homeAgain: Int, pkgTick: Int, backTick: Int = 0, enter: androidx.compose.runtime.MutableFloatState = androidx.compose.runtime.mutableFloatStateOf(1f)) {
     val ctx = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -472,10 +499,22 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
 
     androidx.compose.runtime.CompositionLocalProvider(LocalCols provides cols) {
     Box(Modifier.fillMaxSize()) {
+        LaunchedEffect(backTick) {
+            if (enter.floatValue < 1f) {
+                androidx.compose.animation.core.animate(enter.floatValue, 1f, animationSpec = androidx.compose.animation.core.spring(dampingRatio = 0.82f, stiffness = 320f)) { v, _ -> enter.floatValue = v }
+            }
+        }
         // ----- המסך עצמו -----
         Box(
             Modifier
                 .fillMaxSize()
+                // חוזרים מאפליקציה: הכל נכנס מגודל קצת יותר גדול ונוחת למקום
+                .graphicsLayer {
+                    val v = enter.floatValue
+                    scaleX = 1.1f - 0.1f * v
+                    scaleY = 1.1f - 0.1f * v
+                    alpha = v.coerceIn(0f, 1f)
+                }
                 .pointerInput(Unit) {
                     var sum = 0f
                     detectVerticalDragGestures(
@@ -693,11 +732,21 @@ private fun AppIcon(a: HomeApp, edits: Int, showName: Boolean, onClick: () -> Un
     val cols = LocalCols.current
     val glyph = if (dock) 52 else when (cols) { 4 -> 52; 5 -> 46; else -> 40 }
     val ctx = LocalContext.current
+    val root = LocalView.current
+    // איפה הסמל במסך: ממנו האפליקציה "גדלה" כשפותחים
+    var at by remember { mutableStateOf<android.graphics.Rect?>(null) }
     Column(
         Modifier
             .then(if (dock) Modifier.width(64.dp) else Modifier.fillMaxWidth())
+            .onGloballyPositioned { lc ->
+                val b = lc.boundsInWindow()
+                at = android.graphics.Rect(b.left.toInt(), b.top.toInt(), b.right.toInt(), b.bottom.toInt())
+            }
             .clip(RoundedCornerShape(14.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLong)
+            .combinedClickable(
+                onClick = { LaunchFrom.view = root; LaunchFrom.rect = at; onClick() },
+                onLongClick = onLong,
+            )
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
