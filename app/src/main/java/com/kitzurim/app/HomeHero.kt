@@ -63,7 +63,6 @@ val PageColors = mapOf(
     "music" to Color(0xFFFF7A59),
     "apps" to Color(0xFF38C6E8),
     "more" to Color(0xFF8B95A7),
-    "launcher" to Color(0xFF7EF0C0),
 )
 
 private fun circ(cx: Float, cy: Float, r: Float) = "M${cx - r},$cy a$r,$r 0 1,0 ${2 * r},0 a$r,$r 0 1,0 ${-2 * r},0 "
@@ -81,7 +80,6 @@ private val LinePaths = mapOf(
     "moon" to "M19 14A8 8 0 1 1 10 5a6 6 0 0 0 9 9",
     "car" to "M5 16V12l2-5h10l2 5v4 M4 16h16 " + circ(8f, 16f, 1.5f) + circ(16f, 16f, 1.5f),
     "bolt" to "M13 3 6 13h5l-1 8 7-10h-5z",
-    "launcher" to "M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z",
 )
 
 /** סמל קו שמצייר את עצמו כשהוא מופיע */
