@@ -2057,7 +2057,8 @@ object LivePill {
         kind = newKind
 
         // טיפה מהחור: קודם עיגול קטן "נוטף" מהמצלמה (יורד, נמתח, קופץ חזרה), ורק אז נמתח לגלולה
-        val drop = !instant && extra == null
+        // (אפשר לכבות בהגדרות: אז הגלולה נפתחת ישר)
+        val drop = !instant && extra == null && NotchOverlay.service?.let { NotchPrefs.pillDrip(it) } != false
         val dropMs = if (drop) 320L else 0L
         if (drop) {
             b.pivotX = collapsedW / 2f

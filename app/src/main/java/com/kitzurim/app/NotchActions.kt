@@ -399,6 +399,9 @@ object NotchPrefs {
     // ---------- הגלולה החיה (מתחילה כבויה) ----------
     fun pill(c: Context) = sp(c).getBoolean("pill", false)
     fun setPill(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill", v).apply()
+    /** טיפה שנוטפת מהחור לפני שהגלולה נפתחת */
+    fun pillDrip(c: Context) = sp(c).getBoolean("pill_drip", true)
+    fun setPillDrip(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_drip", v).apply()
     fun pillMessages(c: Context) = sp(c).getBoolean("pill_msg", true)
     fun setPillMessages(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_msg", v).apply()
     fun pillCalls(c: Context) = sp(c).getBoolean("pill_call", true)
