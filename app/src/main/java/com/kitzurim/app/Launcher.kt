@@ -155,6 +155,10 @@ object LauncherStore {
     fun hidden(c: Context) = list(c, "hidden")?.toSet() ?: emptySet()
     fun setHidden(c: Context, v: Set<String>) = setList(c, "hidden", v.toList())
     fun recent(c: Context) = list(c, "recent") ?: emptyList()
+
+    /** כמה אפליקציות בשורה (4 עד 6) */
+    fun cols(c: Context) = sp(c).getInt("cols", 4).coerceIn(4, 6)
+    fun setCols(c: Context, v: Int) = sp(c).edit().putInt("cols", v).apply()
     fun used(c: Context, key: String) = setList(c, "recent", (listOf(key) + recent(c).filter { it != key }).take(8))
 
     fun name(c: Context, key: String): String? = sp(c).getString("name_$key", null)
@@ -322,6 +326,9 @@ private fun shortcutsOf(c: Context, app: HomeApp): List<ShortcutInfo> = runCatch
 /** פעולה של מערכת דרך הנגישות של קיצורים (פתיחת ההתראות, נעילה) */
 private fun globalAction(a: Int): Boolean = NotchOverlay.service?.performGlobalAction(a) == true
 
+/** כמה אפליקציות בשורה, לכל הסמלים במסך */
+private val LocalCols = androidx.compose.runtime.compositionLocalOf { 4 }
+
 private val shadowText = TextStyle(shadow = Shadow(Color(0xAA000000), Offset(0f, 2f), 8f))
 
 // ---------------------------------------------------------------------
@@ -353,8 +360,10 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
     val home = remember(apps, edits) { (LauncherStore.home(ctx) ?: emptyList()).mapNotNull { byKey[it] } }
     val dock = remember(apps, edits) { (LauncherStore.dock(ctx) ?: emptyList()).mapNotNull { byKey[it] } }
 
+    val cols = remember(edits) { LauncherStore.cols(ctx) }
     BackHandler(enabled = true) { /* במסך הבית "חזרה" לא יוצא לשום מקום */ }
 
+    androidx.compose.runtime.CompositionLocalProvider(LocalCols provides cols) {
     Box(Modifier.fillMaxSize()) {
         // ----- המסך עצמו -----
         Box(
@@ -397,7 +406,7 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
                 SmartCard()
                 Spacer(Modifier.height(18.dp))
                 // האפליקציות במסך: 4 בשורה, סמל ושם
-                home.chunked(4).forEach { row ->
+                home.chunked(cols).forEach { row ->
                     Row(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                         row.forEach { a ->
                             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -406,7 +415,7 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
                                 })
                             }
                         }
-                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                        repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
                 Spacer(Modifier.weight(1f))
@@ -428,7 +437,7 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
                     dock.forEach { a ->
-                        AppIcon(a, edits, showName = false, onClick = { launch(ctx, a) }, onLong = {
+                        AppIcon(a, edits, showName = false, onClick = { launch(ctx, a) }, dock = true, onLong = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuFor = a
                         })
                     }
@@ -472,6 +481,27 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
         if (bgMenu) {
             Sheet(onDismiss = { bgMenu = false }) {
                 SheetRow("📌", "להוסיף אפליקציה למסך") { bgMenu = false; picking = true; drawer = true }
+                // כמה אפליקציות בשורה: 4, 5 או 6 (משנה מיד, גם במגירה)
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("🔢", fontSize = 18.sp, modifier = Modifier.width(32.dp))
+                    Text("אפליקציות בשורה", color = Neon.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    (4..6).forEach { n ->
+                        Text(
+                            "$n",
+                            Modifier
+                                .padding(start = 6.dp)
+                                .clip(CircleShape)
+                                .background(if (n == cols) Neon.Green else Neon.Tile)
+                                .clickable { LauncherStore.setCols(ctx, n); edits++ }
+                                .padding(horizontal = 13.dp, vertical = 6.dp),
+                            color = if (n == cols) Neon.Bg else Neon.Text,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
                 SheetRow("🖼️", "טפט") {
                     bgMenu = false
                     runCatching { ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), "טפט")) }
@@ -480,6 +510,7 @@ fun LauncherScreen(homeAgain: Int, pkgTick: Int) {
                 SheetRow("🏠", "להחליף מסך בית") { bgMenu = false; LauncherSwitch.openHomeSettings(ctx) }
             }
         }
+    }
     }
 }
 
@@ -530,17 +561,19 @@ private fun AppGlyph(a: HomeApp, edits: Int, size: Int = 52) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AppIcon(a: HomeApp, edits: Int, showName: Boolean, onClick: () -> Unit, onLong: () -> Unit) {
+private fun AppIcon(a: HomeApp, edits: Int, showName: Boolean, onClick: () -> Unit, onLong: () -> Unit, dock: Boolean = false) {
+    val cols = LocalCols.current
+    val glyph = if (dock) 52 else when (cols) { 4 -> 52; 5 -> 46; else -> 40 }
     val ctx = LocalContext.current
     Column(
         Modifier
-            .width(76.dp)
+            .then(if (dock) Modifier.width(64.dp) else Modifier.fillMaxWidth())
             .clip(RoundedCornerShape(14.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLong)
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AppGlyph(a, edits)
+        AppGlyph(a, edits, glyph)
         if (showName) {
             val name = remember(a.key, edits) { label(ctx, a) }
             Text(
@@ -743,6 +776,7 @@ private fun Drawer(
     val focus = LocalFocusManager.current
     var q by remember { mutableStateOf("") }
     var showHidden by remember { mutableStateOf(false) }
+    val cols = LocalCols.current
     val grid = rememberLazyGridState()
     // גוללים: המקלדת יורדת
     LaunchedEffect(grid) { snapshotFlow { grid.isScrollInProgress }.collect { if (it) { kb?.hide(); focus.clearFocus() } } }
@@ -756,7 +790,7 @@ private fun Drawer(
         label(ctx, it).contains(query, ignoreCase = true) || it.original.contains(query, ignoreCase = true)
     }
     val people = remember(query) { if (query.length >= 2) contacts(ctx, query) else emptyList() }
-    val recent = remember(edits) { LauncherStore.recent(ctx).mapNotNull { k -> apps.firstOrNull { it.key == k } }.filter { it.key !in hidden }.take(4) }
+    val recent = remember(edits) { LauncherStore.recent(ctx).mapNotNull { k -> apps.firstOrNull { it.key == k } }.filter { it.key !in hidden }.take(cols) }
 
     Column(
         Modifier
@@ -779,26 +813,26 @@ private fun Drawer(
             keyboardActions = KeyboardActions(onGo = { hits.firstOrNull()?.let(onOpen) }),
         )
         LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
+            columns = GridCells.Fixed(cols),
             state = grid,
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (query.isEmpty() && recent.isNotEmpty() && !picking) {
-                item(span = { GridItemSpan(4) }) { Label("בשימוש לאחרונה") }
+                item(span = { GridItemSpan(cols) }) { Label("בשימוש לאחרונה") }
                 items(recent, key = { "r" + it.key }) { a ->
                     Box(contentAlignment = Alignment.Center) { AppIcon(a, edits, true, { onOpen(a) }, { onLong(a) }) }
                 }
-                item(span = { GridItemSpan(4) }) { Label("כל האפליקציות · א־ת") }
+                item(span = { GridItemSpan(cols) }) { Label("כל האפליקציות · א־ת") }
             }
             items(hits.sortedBy { label(ctx, it) }, key = { it.key }) { a ->
                 Box(contentAlignment = Alignment.Center) { AppIcon(a, edits, true, { onOpen(a) }, { onLong(a) }) }
             }
             if (query.isNotEmpty()) {
                 if (people.isNotEmpty()) {
-                    item(span = { GridItemSpan(4) }) { Label("אנשי קשר") }
+                    item(span = { GridItemSpan(cols) }) { Label("אנשי קשר") }
                     people.forEach { p ->
-                        item(span = { GridItemSpan(4) }) {
+                        item(span = { GridItemSpan(cols) }) {
                             Row(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Neon.Tile)
                                     .clickable { runCatching { ctx.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${p.number}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
@@ -811,7 +845,7 @@ private fun Drawer(
                         }
                     }
                 }
-                item(span = { GridItemSpan(4) }) {
+                item(span = { GridItemSpan(cols) }) {
                     Text(
                         "🌐 לחפש \"$query\" באינטרנט",
                         Modifier.fillMaxWidth().padding(top = 6.dp).clip(RoundedCornerShape(14.dp)).background(Neon.Tile)
@@ -827,7 +861,7 @@ private fun Drawer(
                     )
                 }
             } else if (hidden.isNotEmpty()) {
-                item(span = { GridItemSpan(4) }) {
+                item(span = { GridItemSpan(cols) }) {
                     Text(
                         if (showHidden) "🙈 להסתיר שוב את המוסתרות" else "🙈 אפליקציות מוסתרות (${hidden.size})",
                         Modifier.fillMaxWidth().padding(vertical = 10.dp).clickable { showHidden = !showHidden }.padding(8.dp),
@@ -838,7 +872,7 @@ private fun Drawer(
                     Box(contentAlignment = Alignment.Center) { AppIcon(a, edits, true, { onOpen(a) }, { onLong(a) }) }
                 }
             }
-            item(span = { GridItemSpan(4) }) { Spacer(Modifier.height(20.dp)) }
+            item(span = { GridItemSpan(cols) }) { Spacer(Modifier.height(20.dp)) }
         }
     }
 }
