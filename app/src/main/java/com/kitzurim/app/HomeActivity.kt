@@ -227,25 +227,20 @@ fun HomeScreen(resumes: Int) {
                 } else {
                     val set = Gesture.entries.count { NotchPrefs.action(ctx, it).type != ActionType.NONE }
                     val on = NotchPrefs.enabled(ctx)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // תווית מצב: "● פעיל · 4 תנועות מוגדרות"
-                        Text(
-                            if (on) "● פעיל · $set תנועות מוגדרות" else "○ כבוי",
-                            Modifier
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(if (on) Neon.Green.copy(alpha = 0.12f) else scheme.surfaceVariant)
-                                .border(1.dp, if (on) Neon.Green.copy(alpha = 0.35f) else scheme.outline, RoundedCornerShape(14.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            color = if (on) Neon.Green else scheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Switch(checked = on, onCheckedChange = {
+                    // "חור חי": החור מדגים בעצמו מה הגלולה עושה, ומתחת המצב והמתג הראשי
+                    LiveHoleHero(
+                        on = on,
+                        gestures = set,
+                        pillOn = NotchPrefs.pill(ctx),
+                        onToggle = {
                             NotchPrefs.setEnabled(ctx, it)
                             NotchOverlay.refresh()
                             refresh++
-                        })
-                    }
+                        },
+                        onOpen = { openPage = "pill" },
+                    )
+                    // מתגים מהירים: בלי להיכנס לדף
+                    QuickToggles(ctx) { refresh++ }
                 }
 
                 // ---------- מסך הבית: חיפוש ואריחים ----------
@@ -274,7 +269,8 @@ fun HomeScreen(resumes: Int) {
                                             .padding(14.dp),
                                         verticalArrangement = Arrangement.spacedBy(4.dp),
                                     ) {
-                                        Text(p.emoji, style = MaterialTheme.typography.titleLarge)
+                                        PageBadge(p.id)
+                                        Spacer(Modifier.height(4.dp))
                                         Text(p.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                                         Text(p.sub, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, maxLines = 1)
                                     }
