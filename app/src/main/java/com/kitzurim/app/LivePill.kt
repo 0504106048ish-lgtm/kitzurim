@@ -105,7 +105,7 @@ object LivePill {
             append(":  ")
             append(text.replace('\n', ' ').trim())
         }
-        show("msg", 300, color, 3000, onTap = { launch(open) }, long = line, longColor = Color.rgb(210, 216, 228)) { ctx, _, right ->
+        show("msg", 300, color, 3000, onTap = { launch(open) }, long = line, longColor = Color.rgb(210, 216, 228), lead = sender.trim(), longBody = text) { ctx, _, right ->
             // תמונה שנשלחה: קטנה, ליד התמונה של השולח
             if (thumb != null) right.addView(thumbView(ctx, thumb))
             right.addView(if (photo != null) avatar(ctx, photo) else letter(ctx, sender, color))
@@ -1793,6 +1793,9 @@ object LivePill {
         onTap: (() -> Unit)?,
         long: CharSequence? = null,
         longColor: Int = Color.WHITE,
+        /** בהודעה ארוכה שזזה: השם נשאר קבוע ליד התמונה, ורק ההודעה (longBody) זזה */
+        lead: String? = null,
+        longBody: CharSequence? = null,
         extra: View? = null,
         fill: (Context, LinearLayout, LinearLayout) -> Unit,
     ) {
@@ -1942,8 +1945,19 @@ object LivePill {
                     }
                     right.gravity = Gravity.START or Gravity.CENTER_VERTICAL
                 } else {
-                    // ארוך: עובר לאורך כל הגלולה וזז פעם אחת עד הסוף
-                    longMarquee = MarqueeText(s, flat, 12.5f, col)
+                    // ארוך: עובר לאורך כל הגלולה וזז פעם אחת עד הסוף.
+                    // בהודעה: השם נשאר קבוע ליד התמונה, ורק ההודעה עצמה זזה
+                    val moving = if (lead != null && longBody != null) {
+                        val nameV = label(s, "$lead:", 12.5f, Color.WHITE, bold = true).apply {
+                            textDirection = View.TEXT_DIRECTION_RTL
+                            maxWidth = (110 * d).toInt()
+                            ellipsize = android.text.TextUtils.TruncateAt.END
+                            setSingleLine(true)
+                        }
+                        right.addView(nameV, 0, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = (5 * d).toInt() })
+                        android.text.SpannableStringBuilder(longBody.toString().replace('\n', ' ').trim())
+                    } else flat
+                    longMarquee = MarqueeText(s, moving, 12.5f, col)
                     // לכל הרוחב: גם כשהטקסט לא ארוך מספיק כדי לזוז, הוא מתחלק שווה משני צידי המצלמה (ולא נצמד לצד אחד)
                     left.addView(longMarquee, LinearLayout.LayoutParams(-1, -2).apply { marginEnd = (4 * d).toInt() })
                 }
