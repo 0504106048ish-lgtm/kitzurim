@@ -71,8 +71,8 @@ class HomeActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumes.intValue++
-        // כל עוד המסך הזה פתוח: עיגול ורוד סביב החור, כדי לראות איפה הוא יושב ולכוון
-        NotchOverlay.setPreview(true)
+        // העיגול הוורוד לכיוון מופיע רק בדף "עוד" (גודל ומיקום), ראו HomeScreen
+
     }
 
     override fun onPause() {
@@ -107,6 +107,9 @@ fun HomeScreen(resumes: Int) {
     var editingApp by remember { mutableStateOf<Pair<String, String>?>(null) }
     // התפריט: null = מסך הבית עם האריחים; אחרת הדף של נושא אחד
     var openPage by remember { mutableStateOf<String?>(null) }
+    // העיגול הוורוד (לכיוון המקום והגודל) רק בדף "עוד", שם מכוונים. בשאר הדפים רואים את הטבעת האמיתית,
+    // כך שכשמכבים אותה היא באמת נעלמת
+    androidx.compose.runtime.LaunchedEffect(openPage, resumes) { NotchOverlay.setPreview(openPage == "more") }
     var query by remember { mutableStateOf("") }
     androidx.activity.compose.BackHandler(enabled = openPage != null) { pageScroll.remove(openPage); openPage = null }
     var pendingContact by remember { mutableStateOf<Pair<Target, ActionType>?>(null) }
