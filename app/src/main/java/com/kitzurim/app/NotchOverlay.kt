@@ -164,6 +164,8 @@ object NotchOverlay {
         // נעילה ופתיחה: מסתירים או מחזירים לפי המתג "להראות גם במסך הנעילה"
         val l = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
+                // המסך נכבה: אם הבהירות הייתה דינמית לפני שכיוונו בחור, היא חוזרת להיות דינמית
+                if (i.action == Intent.ACTION_SCREEN_OFF) Brightness.restoreAuto(c)
                 if (!NotchPrefs.onLockScreen(c)) refresh()
             }
         }

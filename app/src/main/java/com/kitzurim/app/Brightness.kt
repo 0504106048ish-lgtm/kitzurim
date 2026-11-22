@@ -41,7 +41,12 @@ object Brightness {
             return false
         }
         val cr = c.contentResolver
-        // בהירות אוטומטית מחזירה את הבהירות לבד, אז מכבים אותה כשמכוונים ביד
+        // בהירות אוטומטית מחזירה את הבהירות לבד, אז מכבים אותה כשמכוונים ביד.
+        // זוכרים שהיא הייתה דלוקה: כשהמסך נכבה היא חוזרת לבד (כמו בסמסונג, הכיוון ביד הוא רק לעכשיו)
+        val wasAuto = runCatching {
+            Settings.System.getInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE) == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+        }.getOrDefault(false)
+        if (wasAuto) c.getSharedPreferences("brightness", Context.MODE_PRIVATE).edit().putBoolean("restore_auto", true).apply()
         runCatching {
             Settings.System.putInt(cr, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
         }
@@ -74,6 +79,17 @@ object Brightness {
         }.start()
     }
 
+
+    /** המסך נכבה: מחזירים את הבהירות הדינמית, אם היא הייתה דלוקה לפני הכיוון ביד */
+    fun restoreAuto(c: Context) {
+        val sp = c.getSharedPreferences("brightness", Context.MODE_PRIVATE)
+        if (!sp.getBoolean("restore_auto", false)) return
+        sp.edit().remove("restore_auto").apply()
+        if (!Settings.System.canWrite(c)) return
+        runCatching {
+            Settings.System.putInt(c.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC)
+        }
+    }
     private fun write(c: Context) {
         runCatching { Settings.System.putInt(c.contentResolver, Settings.System.SCREEN_BRIGHTNESS, toSetting(level)) }
     }
