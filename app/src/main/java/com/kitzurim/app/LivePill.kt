@@ -50,6 +50,9 @@ object LivePill {
     private var kind: String? = null
     private var timerText: TextView? = null
     private var collapsedW = 0
+
+    /** כמה קטן העיגול שיוצא מהחור ונכנס אליו (יחסית לגובה הגלולה): בגודל החור שרואים */
+    private var holeScale = 0.4f
     private val main = Handler(Looper.getMainLooper())
     private val autoClose = Runnable { hide() }
 
@@ -1840,6 +1843,8 @@ object LivePill {
         val compact = newKind == "incall" || newKind == "nav" || newKind == "musicLive"
         val padW = ((if (compact) 5 else 12) * d).toInt()
         collapsedW = h
+        // החור שרואים קטן מהמלבן שהטלפון נותן (בערך 60%): ממנו הגלולה יוצאת ואליו היא חוזרת
+        holeScale = if (hole > 0) (hole * 0.6f / h).coerceIn(0.25f, 1f) else 0.3f
 
         // החלקה למעלה סוגרת (חוץ משיחה, שלא תיסגר בטעות)
         val root: FrameLayout = if (newKind in CALL_KINDS) FrameLayout(s) else SwipeUpFrame(s) {
@@ -2062,14 +2067,24 @@ object LivePill {
         // טיפה מהחור: קודם עיגול קטן "נוטף" מהמצלמה (יורד, נמתח, קופץ חזרה), ורק אז נמתח לגלולה
         // (אפשר לכבות בהגדרות: אז הגלולה נפתחת ישר)
         val drop = !instant && extra == null && NotchOverlay.service?.let { NotchPrefs.pillDrip(it) } != false
-        val dropMs = if (drop) 320L else 0L
-        if (drop) {
+        // יוצאת מהחור: מתחילה כעיגול שחור בגודל החור, בדיוק עליו, וגדלה ממנו (לא מופיעה פתאום כעיגול נפרד)
+        val emergeMs = if (!instant && !quiet) 150L else 0L
+        if (emergeMs > 0) {
             b.pivotX = collapsedW / 2f
-            b.pivotY = 0f
+            b.pivotY = h / 2f
+            b.scaleX = holeScale; b.scaleY = holeScale; b.alpha = 0f
+            b.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(emergeMs)
+                .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+        }
+        val dripMs = if (drop) 320L else 0L
+        val dropMs = emergeMs + dripMs
+        if (drop) {
             ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = dropMs
+                duration = dripMs
+                startDelay = emergeMs
                 interpolator = android.view.animation.LinearInterpolator()
                 addUpdateListener {
+                    b.pivotX = collapsedW / 2f; b.pivotY = 0f
                     val f = it.animatedValue as Float
                     // עד 45%: יורדת ונמתחת למטה. אחר כך: חוזרת למעלה ונמעכת קצת לרוחב, ונרגעת
                     val down = if (f < 0.45f) f / 0.45f else 1f - (f - 0.45f) / 0.55f
@@ -2124,6 +2139,7 @@ object LivePill {
             if (window !== root) return@postDelayed
             left.animate().cancel(); right.animate().cancel(); extra?.animate()?.cancel()
             left.alpha = 1f; right.alpha = 1f; extra?.alpha = 1f
+            if (b.alpha < 1f || b.scaleX < 1f) { b.animate().cancel(); b.scaleX = 1f; b.scaleY = 1f; b.alpha = 1f }
             val blp = b.layoutParams
             if (blp.width < targetW) { blp.width = targetW; blp.height = targetH; b.layoutParams = blp }
         }, 750 + dropMs)
@@ -2165,9 +2181,19 @@ object LivePill {
                 lp.height = (hMin + (h0 - hMin) * f).toInt()
                 b.layoutParams = lp
             }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // נכנסת חזרה לחור: העיגול מתכווץ לגודל החור, בדיוק עליו, ונעלם בתוכו
+                    if (pill !== p) return
+                    b.pivotX = b.width / 2f
+                    b.pivotY = b.height / 2f
+                    b.animate().scaleX(holeScale).scaleY(holeScale).alpha(0f).setDuration(150)
+                        .setInterpolator(AccelerateInterpolator()).start()
+                }
+            })
             start()
         }
-        main.postDelayed({ if (pill === p) removeNow() }, 260)
+        main.postDelayed({ if (pill === p) removeNow() }, 430)
     }
 
     private fun removeNow() {
