@@ -145,7 +145,10 @@ object NotchOverlay {
                 // חיברו מטען: הגלולה מראה את האחוז והזמן עד מלא
                 if (charging && !was && batteryReady) {
                     val info = Battery.read(c, i)
-                    if (!ChargeFx.play(c, info.percent, info.minutesToFull)) LivePill.showCharging(info.percent, info.minutesToFull)
+                    // טעינה נוזלית קודם, ואחריה (אם גם "גלולת מטען" דלוקה) הגלולה עם האחוזים והזמן עד מלאה
+                    if (ChargeFx.play(c, info.percent, info.minutesToFull)) {
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ LivePill.showCharging(info.percent, info.minutesToFull) }, 4200)
+                    } else LivePill.showCharging(info.percent, info.minutesToFull)
                 }
                 // ההודעה הראשונה מגיעה מיד כשהשירות עולה: לא נחשבת כחיבור מטען
                 batteryReady = true

@@ -730,13 +730,13 @@ fun HomeScreen(resumes: Int) {
                     }
                     if (NotchPrefs.musicTap(ctx)) {
                         Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            PillLine("בנגן: פס שמראה איפה השיר והזמן", NotchPrefs.playerProgress(ctx), "player_progress") {
+                            PillLine("⏱️ פס התקדמות וזמן (בנגן: פס שמראה איפה השיר נמצא, וכמה זמן עבר)", NotchPrefs.playerProgress(ctx), "player_progress") {
                                 NotchPrefs.setPlayerProgress(ctx, it); refresh++
                             }
-                            PillLine("בנגן: כפתורי שיר קודם ושיר הבא", NotchPrefs.playerSkip(ctx), "player_skip") {
+                            PillLine("⏭️ שיר קודם ושיר הבא (בנגן: כפתורים לדלג בין שירים)", NotchPrefs.playerSkip(ctx), "player_skip") {
                                 NotchPrefs.setPlayerSkip(ctx, it); refresh++
                             }
-                            PillLine("בנגן: תמונת השיר", NotchPrefs.playerCover(ctx), "player_cover") {
+                            PillLine("🖼️ תמונת השיר (בנגן: התמונה של השיר או האלבום)", NotchPrefs.playerCover(ctx), "player_cover") {
                                 NotchPrefs.setPlayerCover(ctx, it); refresh++
                             }
                         }
@@ -1003,7 +1003,7 @@ private fun splitLabel(text: String): RowLabel {
     if (t.endsWith(")") && t.contains(" (")) {
         info = t.substringAfter(" (").removeSuffix(")")
         t = t.substringBefore(" (")
-    } else if (t.contains(": ")) {
+    } else if (t.contains(": ") && t.substringBefore(": ").trim().contains(" ")) {
         info = t.substringAfter(": ")
         t = t.substringBefore(": ")
     } else if (t.contains(" = ") && t.length > 28) {
@@ -1028,14 +1028,17 @@ private fun IosRow(text: String, trailing: @Composable () -> Unit) {
     var open by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         if (index > 0) Box(Modifier.fillMaxWidth().padding(start = if (l.icon != null) 42.dp else 0.dp).height(0.6.dp).background(Color(0x22FFFFFF)))
-        Row(Modifier.fillMaxWidth().heightIn(min = 50.dp), verticalAlignment = Alignment.CenterVertically) {
+        // מרווח נוח בין שורות; המתג תמיד בקצה השמאלי, באותו מקום בכל השורות
+        Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (l.icon != null) {
                 Box(
-                    Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)).background(iconTint(l.icon).copy(alpha = 0.22f)),
+                    Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)).background(iconTint(l.icon).copy(alpha = 0.22f)),
                     contentAlignment = Alignment.Center,
-                ) { Text(l.icon, fontSize = 15.sp) }
+                ) { Text(l.icon, fontSize = 16.sp) }
                 Spacer(Modifier.width(12.dp))
             }
+            // השם וה־ⓘ תופסים את כל המקום שנשאר, כך שמה שבצד (מתג, ▶) נדחף עד הקצה
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(l.title, Modifier.weight(1f, fill = false), fontSize = 16.sp, color = Neon.Text)
             if (l.info != null) {
                 Box(
@@ -1048,7 +1051,8 @@ private fun IosRow(text: String, trailing: @Composable () -> Unit) {
                     contentAlignment = Alignment.Center,
                 ) { Text("i", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (open) Neon.GreenSoft else Neon.Muted) }
             }
-            Spacer(Modifier.weight(0.01f).widthIn(min = 8.dp))
+            }
+            Spacer(Modifier.width(8.dp))
             trailing()
         }
         androidx.compose.animation.AnimatedVisibility(open && l.info != null) {
@@ -1404,13 +1408,19 @@ private val HomePages = listOf(
 /** כותרת קטנה של קבוצה בעמוד הגלולה (הודעות, שיחות, מוזיקה...) */
 @Composable
 private fun PillGroup(title: String) {
-    Text(
-        title,
-        Modifier.padding(top = 16.dp, bottom = 4.dp, start = 2.dp),
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = Neon.Muted,
-    )
+    // נושא חדש: רווח גדול, קו ברור, וכותרת בולטת בצבע. השורה הראשונה אחרי הכותרת בלי קו מעליה
+    val counter = LocalRowCounter.current
+    remember { counter.reset() }
+    Column(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 6.dp)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x33FFFFFF)))
+        Text(
+            title,
+            Modifier.padding(top = 14.dp, start = 2.dp),
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            color = Neon.GreenSoft,
+        )
+    }
 }
 
 /** מתג בגלולה החיה, ולידו ▶ שמראה עכשיו למעלה איך זה נראה */
