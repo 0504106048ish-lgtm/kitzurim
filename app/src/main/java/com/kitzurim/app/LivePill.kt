@@ -545,12 +545,12 @@ object LivePill {
         val screenW = dm.widthPixels
         val screenH = dm.heightPixels + (80 * d).toInt()
         val c = NotchOverlay.cutout(s)
-        val cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
-        val cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
+        var cx = c.exactCenterX() + NotchPrefs.offsetX(s) * d
+        var cy = c.exactCenterY() + NotchPrefs.offsetY(s) * d
         val hole = max(c.width(), c.height())
         // בדיוק בגודל של הגלולה הקטנה של השיחה (נקודה, חור וטלפון), כדי שבסוף ההתכווצות
         // היא לא תיראה קודם גדולה ואז "תקפוץ" לקטנה
-        val endH = (hole * 0.7f + 2 * d).coerceIn(22 * d, 26 * d)
+        var endH = (hole * 0.7f + 2 * d).coerceIn(22 * d, 26 * d)
         // (כשקיצורים היא אפליקציית הטלפון יש בגלולה גם את הזמן, אז היא קצת יותר רחבה)
         val withTime = runCatching { Calls.isDefault(s) }.getOrDefault(false)
         // הצד הרחב: הזמן, או השם עם הטלפון
@@ -558,7 +558,7 @@ object LivePill {
             android.text.TextPaint().apply { textSize = 12f * s.resources.displayMetrics.scaledDensity; isFakeBoldText = true }.measureText(it)
         } ?: 0f else 0f
         val sideW = if (withTime) max(40 * d, nameW + 26 * d) else 22 * d
-        val endW = hole + 4 * d + 2 * sideW + 10 * d
+        var endW = hole + 4 * d + 2 * sideW + 10 * d
         val green = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(42, 212, 154))
 
         // משמאל לימין: אחרת בעברית המיקום נמדד מצד ימין והמסגרת עפה לפינה במקום לחור
@@ -585,9 +585,39 @@ object LivePill {
         ValueAnimator.ofFloat(0f, 1f).apply {
             duration = if (grow) 360 else 420
             interpolator = if (grow) android.view.animation.AccelerateDecelerateInterpolator() else android.view.animation.DecelerateInterpolator(1.6f)
+            // מתכווצת: באמצע הדרך מכינים את הגלולה הקטנה האמיתית (שקופה, מוכנה עם השם והזמן),
+            // מודדים איפה ובאיזה גודל היא בדיוק, וממשיכים להתכווץ בדיוק אליה. בסוף רק מחליפים: בלי קפיצה
+            var prepared = false
             addUpdateListener {
                 // f=1 גלולה, f=0 כל המסך
                 val f = if (grow) 1f - (it.animatedValue as Float) else it.animatedValue as Float
+                if (!grow && !prepared && f > 0.45f) {
+                    prepared = true
+                    dialSince = SystemClock.elapsedRealtime() - 10_000
+                    bigUntil = 0L
+                    smallOnlyUntil = SystemClock.elapsedRealtime() + 8000
+                    instantNext = true
+                    showSmallNow = true
+                    inCall(99)
+                    showSmallNow = false
+                    instantNext = false
+                    window?.alpha = 0f
+                }
+                if (prepared) {
+                    // המקום והגודל האמיתיים של הגלולה שהוכנה
+                    bg?.let { b ->
+                        if (b.width > 0 && b.height > 0) {
+                            val loc = IntArray(2)
+                            b.getLocationOnScreen(loc)
+                            val rl = IntArray(2)
+                            root.getLocationOnScreen(rl)
+                            endW = b.width.toFloat()
+                            endH = b.height.toFloat()
+                            cx = loc[0] - rl[0] + b.width / 2f
+                            cy = loc[1] - rl[1] + b.height / 2f
+                        }
+                    }
+                }
                 val w = screenW + (endW - screenW) * f
                 val h = screenH + (endH - screenH) * f
                 val left = (screenW / 2f) + (cx - screenW / 2f) * f - w / 2f
@@ -601,8 +631,10 @@ object LivePill {
                 bgDrawable.cornerRadius = 40 * d + (endH / 2f - 40 * d) * f
                 // ליד הגלולה: שחור עם המסגרת הירוקה של הגלולה
                 if (f > 0.7f) {
-                    bgDrawable.colors = intArrayOf(GlassDrawable.TOP, GlassDrawable.TOP)
-                    bgDrawable.setStroke((1.5f * d).toInt(), green)
+                    // כמו הגלולה עצמה: זכוכית עם מסגרת, או שחור לגמרי אם המסגרת כבויה
+                    val framed = NotchPrefs.pillFrame(s)
+                    bgDrawable.colors = if (framed) intArrayOf(GlassDrawable.TOP, GlassDrawable.TOP) else intArrayOf(Color.BLACK, Color.BLACK)
+                    bgDrawable.setStroke((1.5f * d).toInt(), if (framed) green else Color.TRANSPARENT)
                 } else {
                     bgDrawable.colors = full
                     bgDrawable.setStroke((1.5f * d).toInt(), Color.TRANSPARENT)
@@ -618,6 +650,14 @@ object LivePill {
                         growRoot = root
                         main.postDelayed({ if (growRoot === root) callScreenDrawn() }, 2000)
                     } else {
+                        // הגלולה הקטנה כבר מוכנה בדיוק מתחת: רק מראים אותה, ומיד מורידים את המסגרת שהתכווצה
+                        val ready = window
+                        if (prepared && ready != null) {
+                            ready.alpha = 1f
+                            onEnd()
+                            ready.post { runCatching { wm.removeView(root) } }
+                            return
+                        }
                         // הגלולה של השיחה נכנסת למקום, ורק אז המסגרת שהתכווצה נעלמת.
                         // ישר הקטנה (בלי הגדולה עם השם ל-2 שניות): המסך התכווץ לגלולה קטנה, אז היא נשארת קטנה
                         dialSince = SystemClock.elapsedRealtime() - 10_000
