@@ -879,6 +879,9 @@ object LivePill {
     private val CALL_KINDS = setOf("call", "incall", "dial", "callbig", "callmenu")
     fun inCallPill() = kind in CALL_KINDS
 
+    /** יש עכשיו גלולה פתוחה */
+    fun showing() = kind != null
+
     /**
      * הקשה על העיגול בזמן שגלולת שיחה פתוחה: הולכת לגלולה (פותחת את השיחה),
      * ולא לקיצור שבחרת להקשה. מחזיר true אם ההקשה טופלה כאן

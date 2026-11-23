@@ -135,22 +135,11 @@ class AodActivity : Activity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // בהירות נמוכה, כמו "תמיד מופעל"
-        window.attributes = window.attributes.apply { screenBrightness = 0.04f }
         val d = resources.displayMetrics.density
-        val root = FrameLayout(this).apply {
-            setBackgroundColor(Color.BLACK)
-            addView(
-                TextClock(this@AodActivity).apply {
-                    format12Hour = "HH:mm"
-                    format24Hour = "HH:mm"
-                    textSize = 44f
-                    setTextColor(Color.argb(150, 255, 255, 255))
-                    typeface = android.graphics.Typeface.create("sans-serif-thin", android.graphics.Typeface.NORMAL)
-                },
-                FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply { topMargin = (resources.displayMetrics.heightPixels * 0.3f).toInt() },
-            )
-        }
+        // בהירות גבוהה: הרקע שחור לגמרי (פיקסלים שחורים כבויים ולא צורכים סוללה), אז רק הגלולה נדלקת, בוהקת וברורה
+        window.attributes = window.attributes.apply { screenBrightness = 0.85f }
+        // שחור לגמרי, בלי שעה: רק ההתראה בגלולה
+        val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         // נגיעה במסך: רוצים להשתמש בטלפון, אז לא מכבים אותו (וממשיכים למסך הנעילה)
         root.setOnTouchListener { _: View, e: MotionEvent ->
             if (e.actionMasked == MotionEvent.ACTION_DOWN) {
@@ -172,12 +161,24 @@ class AodActivity : Activity() {
         showNow()
     }
 
-    /** מראים את ההודעה בגלולה, ומתחילים את הספירה עד שהמסך נכבה */
+    /** מראים את ההודעה בגלולה. המסך נכבה כשהגלולה נסגרת (או אחרי 8 שניות לכל היותר) */
     fun showNow() {
         main.removeCallbacks(off)
+        main.removeCallbacks(watch)
         // רגע אחרי שהמסך נדלק, כדי שהגלולה תצויר עליו
         main.postDelayed({ Aod.pending?.invoke() }, 250)
-        main.postDelayed(off, 6500)
+        main.postDelayed(watch, 1500)
+        main.postDelayed(off, 8000)
+    }
+
+    /** הגלולה נסגרה: אין מה להראות, אז המסך נכבה מיד (לא נשאר מסך שחור) */
+    private val watch = object : Runnable {
+        override fun run() {
+            if (!LivePill.showing()) {
+                main.removeCallbacks(off)
+                main.postDelayed(off, 250)
+            } else main.postDelayed(this, 400)
+        }
     }
 
     override fun onDestroy() {
