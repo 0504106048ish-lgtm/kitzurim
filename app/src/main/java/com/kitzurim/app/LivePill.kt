@@ -1889,8 +1889,9 @@ object LivePill {
         if (kind == "callmenu" && newKind != "callmenu") menuOpen = false
         // מסך נעול או כבוי: בלי אנימציה, מופיעה מיד (שם האנימציה לפעמים נתקעת והטקסט לא נראה)
         val quiet = runCatching {
-            s.getSystemService(android.os.PowerManager::class.java)?.isInteractive == false ||
-                s.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+            // רק כשהמסך באמת כבוי. מסך נעילה דלוק (וגם המסך השחור של "הודעה כשהמסך כבוי"): בדיוק כמו בבית,
+            // יוצאת מהמצלמה עם כל מה שבחרת (טיפה, מסגרת וכו'). אם האנימציה נתקעת, אחרי רגע הכול מוצג בכל מקרה
+            s.getSystemService(android.os.PowerManager::class.java)?.isInteractive == false
         }.getOrDefault(false)
         val instant = instantNext || quiet
         main.removeCallbacks(autoClose)

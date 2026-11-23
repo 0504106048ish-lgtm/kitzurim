@@ -219,7 +219,7 @@ class ReplyListener : NotificationListenerService() {
         NotchOverlay.notificationPosted(sbn.key, color, m)
         LivePill.showMessage(pillTitle, pillText, color, n.contentIntent, msg = m, burst = count > 1)
         // המסך כבוי: "תמיד מופעל" של קיצורים מדליק לרגע מסך שחור ומראה את ההודעה בגלולה
-        Aod.message(this) { LivePill.showMessage(pillTitle, pillText, color, n.contentIntent, fromRing = true, msg = m) }
+        Aod.message(this) { LivePill.showMessage(pillTitle, pillText, color, n.contentIntent, msg = m) }
     }
 
     /** הרכב התחבר/התנתק, או שפתחו את הטלפון: מורידים מהטלפון את העותקים של הרכב שכבר לא צריך */

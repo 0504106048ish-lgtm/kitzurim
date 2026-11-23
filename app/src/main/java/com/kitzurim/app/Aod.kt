@@ -49,6 +49,8 @@ object Aod {
         }
         safeToWake(c) { ok ->
             if (!ok) return@safeToWake
+            // הגלולה שנפתחה על המסך הכבוי (ואף אחד לא ראה): סוגרים, כדי שתצא מהמצלמה מחדש כשהמסך נדלק
+            LivePill.hide()
             pending = show
             runCatching {
                 val ctx = NotchOverlay.service ?: c
