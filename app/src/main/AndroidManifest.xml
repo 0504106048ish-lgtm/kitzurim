@@ -187,6 +187,8 @@
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
             android:taskAffinity="com.kitzurim.app.call"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
 
         <!-- מה קרה היום -->
         <activity
