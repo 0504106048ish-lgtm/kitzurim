@@ -837,7 +837,7 @@ object LivePill {
     fun isPlayerOpen() = kind == "player"
 
     private val CALL_KINDS = setOf("call", "incall", "dial", "callbig", "callmenu")
-    private fun inCallPill() = kind in CALL_KINDS
+    fun inCallPill() = kind in CALL_KINDS
 
     /**
      * הקשה על העיגול בזמן שגלולת שיחה פתוחה: הולכת לגלולה (פותחת את השיחה),

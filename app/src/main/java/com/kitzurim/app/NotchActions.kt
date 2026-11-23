@@ -399,6 +399,9 @@ object NotchPrefs {
     // ---------- הגלולה החיה (מתחילה כבויה) ----------
     fun pill(c: Context) = sp(c).getBoolean("pill", false)
     fun setPill(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill", v).apply()
+    /** "תמיד מופעל" של קיצורים: הודעה כשהמסך כבוי ← מסך שחור לרגע עם הגלולה */
+    fun aodMsg(c: Context) = sp(c).getBoolean("aod_msg", true)
+    fun setAodMsg(c: Context, v: Boolean) = sp(c).edit().putBoolean("aod_msg", v).apply()
     /** מסגרת צבעונית וזכוכית לגלולה. כבוי: הגלולה שחורה לגמרי, כמו המצלמה */
     fun pillFrame(c: Context) = sp(c).getBoolean("pill_frame", true)
     fun setPillFrame(c: Context, v: Boolean) = sp(c).edit().putBoolean("pill_frame", v).apply()

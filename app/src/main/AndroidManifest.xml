@@ -86,6 +86,16 @@
             </intent-filter>
         </activity>
 
+        <!-- "תמיד מופעל" של קיצורים: מסך שחור לרגע מעל מסך הנעילה, עם הגלולה של ההודעה -->
+        <activity
+            android:name=".AodActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.kitzurim.app.aod"
+            android:theme="@style/Theme.Kitzurim.Translucent" />
+
         <!-- המסך הראשי -->
         <activity
             android:name=".HomeActivity"
@@ -177,8 +187,6 @@
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
             android:taskAffinity="com.kitzurim.app.call"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true" />
 
         <!-- מה קרה היום -->
         <activity
