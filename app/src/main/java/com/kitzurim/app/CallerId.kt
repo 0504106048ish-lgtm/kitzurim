@@ -468,21 +468,29 @@ object LastChat {
         val text = (last?.text ?: n.extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()?.trim() ?: return
         if (text.isBlank() || Regex("^\\d+ (הודעות|new messages)").containsMatchIn(text)) return
         val title = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim()
-        val v = "${System.currentTimeMillis()}|$text"
+        // זמן | האפליקציה (וואטסאפ או וואטסאפ עסקי, בשביל הסמל) | ההודעה
+        val v = "${System.currentTimeMillis()}|${sbn.packageName}|$text"
         val e = sp(c).edit()
         CallerId.key(Driving.chatNumber(sbn, style))?.let { e.putString(it, v) }
         title?.takeIf { it.isNotBlank() }?.let { e.putString("n:$it", v) }
         e.apply()
     }
 
-    /** "💬 ההודעה · לפני שעתיים", אם הייתה הודעה בשבוע האחרון */
-    fun forCall(c: Context, number: String?, name: String?): String? {
+    /** ההודעה האחרונה ("ההודעה · לפני שעתיים") ומאיזו אפליקציה, אם הייתה הודעה בשבוע האחרון */
+    fun forCall(c: Context, number: String?, name: String?): Pair<String, String>? {
         val p = sp(c)
         val raw = CallerId.key(number)?.let { p.getString(it, null) }
             ?: name?.let { p.getString("n:${it.trim()}", null) }
             ?: return null
         val at = raw.substringBefore('|').toLongOrNull() ?: return null
-        val text = raw.substringAfter('|')
+        var rest = raw.substringAfter('|')
+        // פורמט חדש: גם שם האפליקציה. ישן: רק ההודעה (אז וואטסאפ)
+        var pkg = "com.whatsapp"
+        if (rest.startsWith("com.") && rest.contains('|')) {
+            pkg = rest.substringBefore('|')
+            rest = rest.substringAfter('|')
+        }
+        val text = rest
         val ago = System.currentTimeMillis() - at
         if (ago > WEEK || ago < 0) return null
         val min = ago / 60_000
@@ -494,6 +502,6 @@ object LastChat {
             min < 48 * 60 -> "אתמול"
             else -> "לפני ${min / (24 * 60)} ימים"
         }
-        return "💬 $text · $whenText"
+        return pkg to "$text · $whenText"
     }
 }

@@ -634,7 +634,14 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                         shown, empty, showTime = searching || tab == 0 || tab == 3, recents = recents, onCall = onCall, onChanged = { changed++ },
                         days = !searching && (tab == 0 || tab == 3), hl = if (searching) splitDate(q)?.second ?: q else "",
                         header = { tabsRow(); idButton() },
-                        topPad = with(density) { searchH.toDp() },
+                        // קצת רווח מתחת לחיפוש, כדי שהדעיכה לא תכסה את הלשוניות (רק מה שנגלל עובר מתחתיה)
+                        topPad = with(density) { searchH.toDp() } + 18.dp,
+                        sections = if (!searching) emptyMap() else buildMap {
+                            val r = shown.indexOfFirst { it.date > 0 }
+                            val p = shown.indexOfFirst { it.date == 0L }
+                            if (r >= 0) put(r, "📞 שיחות אחרונות")
+                            if (p >= 0) put(p, "👤 אנשי קשר")
+                        },
                     )
                     // החיפוש צף למעלה: רקע כהה שקוף מאחוריו, ומתחתיו דעיכה רכה, כך שמה שנגלל לא נראה מעליו
                     Column(Modifier.fillMaxWidth()) {
@@ -647,7 +654,7 @@ private fun DialerUi(start: String, reload: Int, openPad: Boolean = false, onCal
                         Box(
                             Modifier
                                 .fillMaxWidth()
-                                .height(22.dp)
+                                .height(18.dp)
                                 .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xE60B0D13), Color.Transparent))),
                         )
                     }
@@ -998,7 +1005,7 @@ private fun Keypad(start: String, contacts: List<PhoneEntry>, recents: List<Phon
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, recents: List<PhoneEntry>, onCall: (String) -> Unit, onChanged: () -> Unit = {}, days: Boolean = false, hl: String = "",
-    header: @Composable () -> Unit = {}, topPad: androidx.compose.ui.unit.Dp = 0.dp) {
+    header: @Composable () -> Unit = {}, topPad: androidx.compose.ui.unit.Dp = 0.dp, sections: Map<Int, String> = emptyMap()) {
     val ctx = LocalContext.current
     if (list.isEmpty()) {
         // הלשוניות נשארות גם כשאין מה להראות
@@ -1096,6 +1103,16 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
             val canSel = showTime && e.date > 0
             val isSel = selKey(e) in selected
             val (c1, c2) = dialColors(e.name)
+            // בחיפוש: כותרת עם קו, כדי שיהיה ברור מה שיחות אחרונות ומה אנשי קשר
+            sections[idx]?.let { title ->
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = if (idx == 0) 4.dp else 16.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(title, color = G, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Box(Modifier.padding(start = 10.dp).weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.14f)))
+                }
+            }
             // יום חדש ברשימה: תגית קטנה באמצע (היום / אתמול / יום שלישי / 9 בנובמבר)
             if (days && e.date > 0 && (idx == 0 || !sameDay(list[idx - 1].date, e.date))) {
                 Box(Modifier.fillMaxWidth().padding(top = if (idx == 0) 2.dp else 10.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {

@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -286,8 +287,8 @@ private class CallView(
     val spam: Boolean = false,
     // מאיזו אפליקציה הגיע הזיהוי (Truecaller או Me)
     val idSource: String = "Truecaller",
-    // ההודעה האחרונה שלו בוואטסאפ
-    val lastMsg: String? = null,
+    // ההודעה האחרונה שלו בוואטסאפ: (האפליקציה, הטקסט)
+    val lastMsg: Pair<String, String>? = null,
     // שיחה נכנסת: הצלצול הושתק
     val silenced: Boolean = false,
 )
@@ -694,19 +695,40 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
             }
             // "על מה דיברנו": ההודעה האחרונה שלו בוואטסאפ (לא כשהמקלדת פתוחה)
             if (v.lastMsg != null && (v.ringing || !keypad)) {
-                Text(
-                    v.lastMsg,
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier
+                val ctxIcon = androidx.compose.ui.platform.LocalContext.current
+                // הסמל האמיתי של וואטסאפ (כמו שהוא בטלפון), שיהיה ברור שההודעה משם ולא SMS
+                val appIcon = androidx.compose.runtime.remember(v.lastMsg.first) {
+                    runCatching {
+                        ctxIcon.packageManager.getApplicationIcon(v.lastMsg.first)
+                            .toBitmap(64, 64)
+                            .asImageBitmap()
+                    }.getOrNull()
+                }
+                androidx.compose.foundation.layout.Row(
+                    Modifier
                         .padding(top = 10.dp, start = 28.dp, end = 28.dp)
                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
                         .background(Color.White.copy(alpha = 0.10f))
                         .padding(horizontal = 12.dp, vertical = 6.dp),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (appIcon != null) {
+                        androidx.compose.foundation.Image(
+                            appIcon,
+                            contentDescription = "וואטסאפ",
+                            modifier = Modifier.size(18.dp).clip(androidx.compose.foundation.shape.CircleShape),
+                        )
+                        androidx.compose.foundation.layout.Spacer(Modifier.width(7.dp))
+                    }
+                    Text(
+                        v.lastMsg.second,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                }
             }
             if (!v.ringing) {
                 Text(
