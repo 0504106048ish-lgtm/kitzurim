@@ -193,7 +193,7 @@ class ReplyListener : NotificationListenerService() {
             else -> text
         }
         val pillTitle = if (isGroup) style?.conversationTitle?.toString()?.takeIf { it.isNotBlank() } ?: sender else sender
-        val m = LastMsg(sender, text, color, n.contentIntent, reply, read, sbn.key, photo, thumb)
+        val m = LastMsg(sender, text, color, n.contentIntent, reply, read, sbn.key, photo, thumb, sbn.packageName)
         // אנדרואיד אוטו: מחוברים לרכב? ההודעה עוברת גם למסך הרכב (הקראה ותשובה בקול)
         // (הודעות SMS כבר מגיעות לרכב לבד, אז רק אפליקציות צ'אט, כדי שלא יהיו פעמיים)
         // אפליקציה שכבר מגיעה לרכב לבד (כמו וואטסאפ: הודעה בסגנון צ'אט + "השב" + "סמן כנקרא"):

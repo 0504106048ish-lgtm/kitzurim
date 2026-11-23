@@ -1033,4 +1033,6 @@ data class LastMsg(
     val photo: android.graphics.Bitmap? = null,
     /** תמונה שנשלחה בהודעה: מוצגת קטנה בגלולה */
     val thumb: android.graphics.Bitmap? = null,
+    /** מאיזו אפליקציה ההודעה (בשביל הסמל הקטן על התמונה בגלולה) */
+    val pkg: String? = null,
 )

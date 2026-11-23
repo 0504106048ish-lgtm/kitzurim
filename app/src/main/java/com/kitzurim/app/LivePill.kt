@@ -29,6 +29,7 @@ import android.view.animation.LinearInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
+import androidx.core.graphics.drawable.toBitmap
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
@@ -77,7 +78,7 @@ object LivePill {
         val frame = if (photo != null && NotchPrefs.pillPhotoColor(s)) vivid(photo) ?: color else color
         // שורה אחת בשורת המצב (לא יורדת): מימין לחור השם, ובקצה התמונה (או העיגול עם האות).
         // משמאל לחור ההודעה, שזזה פעם אחת לאט עד הסוף. הקשה פותחת
-        val marquee = msgRow(sender, text, frame, open, photo, msg?.thumb)
+        val marquee = msgRow(sender, text, frame, open, photo, msg?.thumb, msg?.pkg)
         instantNext = false
         // הודעה חדשה (לא עוד אחת באותו רצף): הקצוות של המסך זוהרים לרגע
         if (!fromRing && !burst && kind == "msg" && NotchPrefs.edgeGlow(s)) edgeGlow(frame)
@@ -87,7 +88,7 @@ object LivePill {
     }
 
     /** גלולת ההודעה בשורה אחת. מחזירה את הטקסט שזז (כדי לדעת מתי לסגור) */
-    private fun msgRow(sender: String, text: String, color: Int, open: PendingIntent?, photo: Bitmap? = null, thumb: Bitmap? = null): MarqueeText? {
+    private fun msgRow(sender: String, text: String, color: Int, open: PendingIntent?, photo: Bitmap? = null, thumb: Bitmap? = null, pkg: String? = null): MarqueeText? {
         // הודעה קצרה שנכנסת בצד אחד: מחולקת לשניים, השם (והעיגול עם האות) מימין לחור וההודעה משמאל
         val s = NotchOverlay.service ?: return null
         val d = s.resources.displayMetrics.density
@@ -108,11 +109,50 @@ object LivePill {
         show("msg", 300, color, 3000, onTap = { launch(open) }, long = line, longColor = Color.rgb(210, 216, 228), lead = sender.trim(), longBody = text) { ctx, _, right ->
             // תמונה שנשלחה: קטנה, ליד התמונה של השולח
             if (thumb != null) right.addView(thumbView(ctx, thumb))
-            right.addView(if (photo != null) avatar(ctx, photo) else letter(ctx, sender, color))
+            // התמונה (או העיגול עם האות), ובפינה שלה הסמל המקורי של האפליקציה (וואטסאפ, טלגרם...), כמו בסמסונג
+            right.addView(withAppBadge(ctx, if (photo != null) avatar(ctx, photo) else letter(ctx, sender, color), pkg))
         }
         return null
     }
 
+
+    /** סמלי אפליקציות קטנים (שומרים כדי לא לטעון כל פעם) */
+    private val appIcons = HashMap<String, Bitmap?>()
+
+    /**
+     * התמונה של מי ששלח, ובפינה התחתונה עיגול קטן עם הסמל המקורי של האפליקציה (הלוגו של וואטסאפ, של טלגרם...),
+     * כדי לדעת מאיפה ההודעה. אם אין סמל: רק התמונה
+     */
+    private fun withAppBadge(ctx: Context, face: View, pkg: String?): View {
+        val d = ctx.resources.displayMetrics.density
+        val icon = pkg?.let { p ->
+            appIcons.getOrPut(p) {
+                runCatching { ctx.packageManager.getApplicationIcon(p).toBitmap((32 * d).toInt(), (32 * d).toInt()) }.getOrNull()
+            }
+        } ?: return face
+        val size = (22 * d).toInt()
+        val badge = (11 * d).toInt()
+        return FrameLayout(ctx).apply {
+            // קצת מקום מסביב, כדי שהסמל יוכל לבלוט מהפינה של התמונה
+            layoutParams = LinearLayout.LayoutParams(size + (3 * d).toInt(), size + (3 * d).toInt())
+            addView(face, FrameLayout.LayoutParams(size, size, Gravity.TOP or Gravity.END))
+            addView(
+                ImageView(ctx).apply {
+                    setImageBitmap(icon)
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    // טבעת שחורה דקה מסביב, שהסמל לא יתמזג עם התמונה
+                    background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.BLACK) }
+                    val ring = (1.2f * d).toInt().coerceAtLeast(1)
+                    setPadding(ring, ring, ring, ring)
+                    clipToOutline = true
+                    outlineProvider = object : android.view.ViewOutlineProvider() {
+                        override fun getOutline(v: View, o: android.graphics.Outline) = o.setOval(0, 0, v.width, v.height)
+                    }
+                },
+                FrameLayout.LayoutParams(badge, badge, Gravity.BOTTOM or Gravity.START),
+            )
+        }
+    }
     /** תמונת הפרופיל העגולה של מי ששלח, במקום העיגול עם האות */
     private fun avatar(ctx: Context, photo: Bitmap): ImageView {
         val d = ctx.resources.displayMetrics.density
