@@ -36,6 +36,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -883,7 +885,9 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                     }
                 }
                 // הכפתורים קצת יותר למעלה, נוח יותר לאגודל (עם המקלדת פחות, שיהיה לה מקום)
-                val bottom by androidx.compose.animation.core.animateDpAsState(if (keypad) 40.dp else 84.dp, tween(300), label = "bottom")
+                // תמיד מעל שורת הניווט של הטלפון (הכפתורים למטה): אחרת הניתוק נדחק לתוך העיגול של מסך הבית
+                val nav = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                val bottom by androidx.compose.animation.core.animateDpAsState(nav + if (keypad) 18.dp else 56.dp, tween(300), label = "bottom")
                 Spacer(Modifier.height(bottom))
             }
         }
