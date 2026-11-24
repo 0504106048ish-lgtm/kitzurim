@@ -22,6 +22,9 @@ object WaBlock {
     /** מספרים ש-Truecaller סימנה כספאם */
     fun spam(c: Context) = sp(c).getBoolean("spam", true)
     fun setSpam(c: Context, v: Boolean) = sp(c).edit().putBoolean("spam", v).apply()
+    /** אנשי קשר שמורים (כבוי כברירת מחדל: מי ששמור אצלך מגיע כרגיל) */
+    fun contacts(c: Context) = sp(c).getBoolean("contacts", false)
+    fun setContacts(c: Context, v: Boolean) = sp(c).edit().putBoolean("contacts", v).apply()
 
     /** אנשים שחסמת (השם כמו שוואטסאפ מראה אותו, או המספר) */
     fun list(c: Context): Set<String> = sp(c).getStringSet("list", emptySet()) ?: emptySet()
@@ -66,7 +69,7 @@ object WaBlock {
         if (looksLikeNumber(who)) {
             if (spam(c) && CallerId.isSpam(c, who)) return true
             if (unknown(c)) return true
-        }
+        } else if (who.isNotEmpty() && contacts(c)) return true
         return false
     }
 

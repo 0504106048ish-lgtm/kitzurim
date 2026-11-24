@@ -739,6 +739,19 @@ fun HomeScreen(resumes: Int) {
                     if (WaBlock.on(ctx)) {
                         SwitchLine("❓ מספרים שלא שמורים אצלך", WaBlock.unknown(ctx), demo = { LivePill.explain("❓", "שיחת וואטסאפ ממספר שלא שמור אצלך: נחסמת בשקט") }) { WaBlock.setUnknown(ctx, it); refresh++ }
                         SwitchLine("⚠️ ספאם (לפי Truecaller)", WaBlock.spam(ctx), demo = { LivePill.explain("⚠️", "שיחת וואטסאפ ממספר ש-Truecaller סימנה כספאם: נחסמת בשקט") }) { WaBlock.setSpam(ctx, it); refresh++ }
+                        SwitchLine("👤 אנשי קשר שמורים", WaBlock.contacts(ctx), demo = { LivePill.explain("👤", "שיחת וואטסאפ מאיש קשר ששמור אצלך: נחסמת בשקט") }) { WaBlock.setContacts(ctx, it); refresh++ }
+                        // שורה שאומרת בדיוק מה נחסם עכשיו לפי המתגים
+                        val what = listOfNotNull(
+                            if (WaBlock.unknown(ctx)) "מי שלא שמור אצלך" else if (WaBlock.spam(ctx)) "ספאם" else null,
+                            if (WaBlock.contacts(ctx)) "אנשי קשר שמורים" else null,
+                            "מי שברשימת החסומים",
+                        )
+                        Text(
+                            if (what.size == 1) "עכשיו נחסמים רק מי שברשימת החסומים למטה. כל השאר מגיעים כרגיל"
+                            else "עכשיו נחסמים: " + what.joinToString(", ") + (if (what.size == 3) ". כלומר כל שיחות הוואטסאפ, חוץ ממי שאישרת" else ""),
+                            Modifier.padding(vertical = 6.dp),
+                            color = Neon.GreenSoft, style = MaterialTheme.typography.bodySmall,
+                        )
                         // מי שחסמת בעצמך (מהכרטיס של השיחה)
                         val blocked = WaBlock.list(ctx).sorted()
                         PillGroup("🚫 חסומים (${blocked.size})")
