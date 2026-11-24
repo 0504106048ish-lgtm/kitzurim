@@ -602,6 +602,8 @@ private fun PreviewScreen(onEnable: () -> Unit, onClose: () -> Unit) {
 @Composable
 private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp = 70.dp) {
     var keypad by remember { mutableStateOf(false) }
+    // שיחה נכנסת (גם שיחה ממתינה באמצע שיחה): המקלדת נסגרת לבד, כדי שכפתורי ענה ודחה יופיעו במקומם ולא יידחקו למטה
+    androidx.compose.runtime.LaunchedEffect(v.ringing) { if (v.ringing) keypad = false }
     // זכוכית בצבעי איש הקשר: רקע כהה עם הילה בשני צבעים (מהתמונה שלו, או צבעים קבועים לפי השם)
     val acc = remember(v.name, v.photo) { contactColors(v.name, v.photo) }
     // כניסה רכה: הכול מופיע יחד ומיד, עולה קצת למעלה ומתבהר (בלי רקע שחור שמחכה לכפתורים)
@@ -1048,7 +1050,8 @@ private fun RoundBtn(
         Box(
             Modifier
                 .size(sz)
-                .shadow(10.dp, CircleShape)
+                // צל רק לכפתור דלוק (מלא): מתחת לכפתור שקוף הצל נראה דרכו כמשושה לבן
+                .shadow(if (on) 10.dp else 0.dp, CircleShape)
                 .clip(CircleShape)
                 .background(
                     if (on) Brush.verticalGradient(listOf(Color.White, Color(0xFFE3E6EE)))
