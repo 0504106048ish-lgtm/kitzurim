@@ -83,7 +83,9 @@ class ReplyListener : NotificationListenerService() {
             }
             val answer = find(listOf("ענה", "מענה", "קבל", "answer", "accept")) ?: actions.lastOrNull()
             val decline = find(listOf("דחה", "דחיי", "נתק", "decline", "reject", "dismiss")) ?: actions.firstOrNull()
-            LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent)
+            // התמונה של מי שמתקשר (מההתראה), בשביל הכרטיס בצבעים שלו
+            val callPhoto = runCatching { n.getLargeIcon()?.loadDrawable(this)?.toBitmap(96, 96) }.getOrNull()
+            LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent, callPhoto)
             return
         }
 

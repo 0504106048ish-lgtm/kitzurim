@@ -289,29 +289,101 @@ object LivePill {
             LinearLayout.LayoutParams(-2, -2).apply { gravity = Gravity.RIGHT })
     }
 
-    fun showCall(key: String, name: String, decline: PendingIntent?, answer: PendingIntent?) {
-        FaceDown.noteCall(key, name)
+    /** מה שצריך כדי לפתוח שוב את כרטיס השיחה (אחרי שהתקפל לגלולה הקטנה) */
+    private var ringArgs: (() -> Unit)? = null
+    /** נגיעה מחוץ לגלולה: במקום לסגור, עושים את זה (בשיחה נכנסת: מתקפלים לקטנה) */
+    private var onOutside: (() -> Unit)? = null
+    private val foldCall = Runnable { if (kind == "call" && callExpanded) callCompact?.invoke() }
+    private var callExpanded = false
+    private var callCompact: (() -> Unit)? = null
+
+    /**
+     * שיחה נכנסת: הגלולה יוצאת מהמצלמה ונפתחת לכרטיס בצבעים של המתקשר (מהתמונה שלו): תמונה, שם, דחה וענה.
+     * אחרי 5 שניות, או בנגיעה במסך, הכרטיס מתקפל לשורה הקטנה (השם, דחה וענה) והטלפון ממשיך לצלצל.
+     * הקשה על השורה הקטנה פותחת את הכרטיס שוב.
+     */
+    fun showCall(key: String, name: String, decline: PendingIntent?, answer: PendingIntent?, photo: Bitmap? = null, expanded: Boolean = true, force: Boolean = false) {
+        // אותה שיחה שכבר מוצגת (ההתראה התעדכנה): לא פותחים שוב את הכרטיס אחרי שהתקפל
+        if (expanded && !force && kind == "call" && callKey == key) return
+        if (expanded && callKey != key) FaceDown.noteCall(key, name)
         val s = NotchOverlay.service ?: return
         if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillCalls(s))) return
         callKey = key
+        main.removeCallbacks(foldCall)
+        // התמונה: מההתראה, ואם זו שיחה של קיצורים עצמה, מאנשי הקשר (או מוואטסאפ)
+        val pic = photo ?: runCatching { Calls.main()?.let { Calls.photo(s, it) } }.getOrNull()
+        val cols = artColors(pic) ?: songColors(name)
         val blue = NotchPrefs.tint(NotchOverlay.service, "call", Color.rgb(79, 179, 255))
-        // שורה אחת דקה: מימין מי מתקשר, משמאל דחה וענה
-        show("call", 320, blue, null, onTap = null) { ctx, left, right ->
-            left.addView(thinBtn(ctx, R.drawable.ic_c_close, Color.rgb(229, 72, 77), true) {
-                runCatching { decline?.send() }
-                hide()
-            })
-            left.addView(thinBtn(ctx, R.drawable.ic_c_phone, Color.rgb(42, 212, 154), true) {
-                runCatching { answer?.send() }
-                hide()
-            })
-            right.addView(twoLines(ctx, name, "שיחה נכנסת", blue))
+        val green = Color.rgb(34, 197, 94)
+        val red = Color.rgb(229, 72, 77)
+        callExpanded = expanded
+        callCompact = { instantNext = true; showCall(key, name, decline, answer, pic, expanded = false) }
+        ringArgs = { showCall(key, name, decline, answer, pic, expanded = true, force = true) }
+        fun doAnswer() { runCatching { answer?.send() }; onOutside = null; hide() }
+        fun doDecline() { runCatching { decline?.send() }; onOutside = null; hide() }
+        if (!expanded) {
+            // השורה הקטנה: מימין מי מתקשר ("מצלצל"), משמאל דחה וענה. הקשה עליה פותחת שוב את הכרטיס
+            onOutside = null
+            show("call", 320, blue, null, onTap = { ringArgs?.invoke() }) { ctx, left, right ->
+                left.addView(thinBtn(ctx, R.drawable.ic_c_close, red, true) { doDecline() })
+                left.addView(thinBtn(ctx, R.drawable.ic_c_phone, Color.rgb(42, 212, 154), true) { doAnswer() })
+                right.addView(twoLines(ctx, name, "מצלצל", blue))
+            }
+            return
         }
+        // הכרטיס: מתחת לשורה של השם, שני כפתורים גדולים בצורת גלולה (דחה / ענה) עם סמל ומילה
+        val ctx0: Context = s
+        val d = ctx0.resources.displayMetrics.density
+        fun bigBtn(icon: Int, text: String, bg: Int, pulse: Boolean, onClick: () -> Unit) = LinearLayout(ctx0).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            background = GradientDrawable().apply { cornerRadius = 18 * d; setColor(bg) }
+            setPadding(0, (9 * d).toInt(), 0, (9 * d).toInt())
+            addView(ImageView(ctx0).apply { setImageResource(icon); setColorFilter(Color.WHITE) }, LinearLayout.LayoutParams((17 * d).toInt(), (17 * d).toInt()))
+            addView(label(ctx0, "  $text", 14f, Color.WHITE, bold = true))
+            setOnClickListener { onClick() }
+            if (pulse) {
+                // ענה: פועם קלות, כמו טלפון שמצלצל
+                ValueAnimator.ofFloat(1f, 1.05f).apply {
+                    duration = 650; repeatMode = ValueAnimator.REVERSE; repeatCount = ValueAnimator.INFINITE
+                    addUpdateListener { v ->
+                        if (!isAttachedToWindow && v.currentPlayTime > 1500) { v.cancel(); return@addUpdateListener }
+                        val f = v.animatedValue as Float; scaleX = f; scaleY = f
+                    }
+                    start()
+                }
+            }
+        }
+        val card = LinearLayout(ctx0).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding((10 * d).toInt(), (4 * d).toInt(), (10 * d).toInt(), (2 * d).toInt())
+            addView(bigBtn(R.drawable.ic_c_phone, "ענה", green, true) { doAnswer() }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = (4 * d).toInt() })
+            addView(bigBtn(R.drawable.ic_c_close, "דחה", red, false) { doDecline() }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = (8 * d).toInt() })
+        }
+        // נגיעה במסך מחוץ לכרטיס: מתקפל לשורה הקטנה (הטלפון ממשיך לצלצל)
+        onOutside = { callCompact?.invoke() }
+        show("call", 320, cols.first, null, onTap = null, extra = card) { ctx, left, right ->
+            left.addView(label(ctx, "שיחה נכנסת", 11.5f, Color.argb(200, 255, 255, 255)))
+            right.addView(withAppBadge(ctx, if (pic != null) avatar(ctx, pic) else letter(ctx, name, cols.first), null))
+            right.addView(label(ctx, name, 13f, Color.WHITE, bold = true).apply { setPadding((6 * d).toInt(), 0, 0, 0) }, 0)
+        }
+        // הצבעים של המתקשר: הילה בתוך הכרטיס ומסגרת בצבע שלו
+        (bg?.background as? GlassDrawable)?.let { g ->
+            g.glowA = cols.first
+            g.glowB = cols.second
+            g.setStroke((1.5f * d).toInt(), cols.first)
+            g.invalidateSelf()
+        }
+        main.postDelayed(foldCall, 5000)
     }
 
     fun callNotificationRemoved(key: String) {
         if (key == callKey) {
             callKey = null
+            onOutside = null
+            main.removeCallbacks(foldCall)
             if (kind == "call") hide()
         }
     }
@@ -2144,10 +2216,13 @@ object LivePill {
 
         // הנגן: נגיעה בכל מקום אחר במסך סוגרת אותו
         val lp = NotchOverlay.params(winW, pillTop + targetH + (6 * d).toInt(), (cx - winW / 2f).toInt(), 0, touchable = newKind != "dial")
-        if (newKind == "player" || newKind == "callmenu") {
+        if (newKind == "player" || newKind == "callmenu" || (newKind == "call" && extra != null)) {
             lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
             root.setOnTouchListener { _, e ->
-                if (e.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+                if (e.actionMasked == MotionEvent.ACTION_OUTSIDE && newKind == "call") {
+                    // שיחה נכנסת: נגיעה במסך מקפלת את הכרטיס לשורה הקטנה (ממשיך לצלצל)
+                    main.post { onOutside?.invoke() }
+                } else if (e.actionMasked == MotionEvent.ACTION_OUTSIDE) {
                     closedByOutside = SystemClock.elapsedRealtime()
                     menuOpen = false
                     hide()
