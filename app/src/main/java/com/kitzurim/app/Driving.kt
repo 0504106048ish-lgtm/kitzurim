@@ -87,12 +87,12 @@ class ReplyListener : NotificationListenerService() {
             val callPhoto = runCatching { n.getLargeIcon()?.loadDrawable(this)?.toBitmap(96, 96) }.getOrNull()
             // חסימת שיחות וואטסאפ (אם הדלקת): בשקט, בלי צלצול ובלי חלון. אצלו ממשיך לצלצל כאילו לא ענית
             if (WaBlock.isWhatsApp(sbn.packageName) && WaBlock.shouldBlock(this, name)) {
-                WaBlock.silence(this, sbn)
+                WaBlock.silence(this, sbn, name)
                 return
             }
             // שיחת וואטסאפ כשהחסימה דלוקה: בכרטיס יש גם "חסום", שחוסם אותו מעכשיו ומשתיק מיד
             val block: (() -> Unit)? = if (WaBlock.isWhatsApp(sbn.packageName) && WaBlock.on(this)) {
-                { WaBlock.add(this, name); WaBlock.silence(this, sbn) }
+                { WaBlock.add(this, name); WaBlock.silence(this, sbn, name) }
             } else null
             LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent, callPhoto, onBlock = block)
             return

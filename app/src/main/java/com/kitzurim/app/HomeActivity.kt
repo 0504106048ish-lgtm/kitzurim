@@ -735,21 +735,38 @@ fun HomeScreen(resumes: Int) {
                     if (WaBlock.on(ctx)) {
                         SwitchLine("❓ מספרים שלא שמורים אצלך", WaBlock.unknown(ctx)) { WaBlock.setUnknown(ctx, it); refresh++ }
                         SwitchLine("⚠️ ספאם (לפי Truecaller)", WaBlock.spam(ctx)) { WaBlock.setSpam(ctx, it); refresh++ }
+                        // מי שחסמת בעצמך (מהכרטיס של השיחה)
                         val blocked = WaBlock.list(ctx).sorted()
-                        Text(
-                            if (blocked.isEmpty()) "כדי לחסום מישהו מסוים: כשהוא מתקשר בוואטסאפ, לוחצים \"חסום\" בכרטיס של השיחה."
-                            else "חסומים (לחיצה על ✕ מחזירה):",
-                            color = scheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 6.dp),
+                        PillGroup("🚫 חסומים (${blocked.size})")
+                        if (blocked.isEmpty()) Text(
+                            "כדי לחסום מישהו מסוים: כשהוא מתקשר בוואטסאפ, לוחצים \"חסום\" בכרטיס של השיחה.",
+                            color = scheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
                         )
                         blocked.forEach { who ->
-                            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text("🚫 $who", Modifier.weight(1f))
-                                Text("✕", Modifier.clip(CircleShape).clickable { WaBlock.remove(ctx, who); refresh++ }.padding(10.dp), color = Neon.Muted)
+                                Text("בטל חסימה", Modifier.clip(RoundedCornerShape(10.dp)).clickable { WaBlock.remove(ctx, who); refresh++ }.padding(8.dp), color = Neon.GreenSoft, fontSize = 13.sp)
                             }
                         }
-                        if (WaBlock.count(ctx) > 0) Text("נחסמו עד עכשיו ${WaBlock.count(ctx)} שיחות", color = Neon.Muted, style = MaterialTheme.typography.bodySmall)
+                        // כל השיחות שנחסמו: מי ומתי. "לאפשר" = ממנו השיחות יגיעו כרגיל
+                        val log = WaBlock.log(ctx)
+                        PillGroup("📋 שיחות שנחסמו (${log.size})")
+                        if (log.isEmpty()) Text("עוד לא נחסמה אף שיחה.", color = scheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                        val fmt = remember { java.text.SimpleDateFormat("d/M HH:mm", java.util.Locale.getDefault()) }
+                        log.take(30).forEach { (t, who) ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(who)
+                                    Text(fmt.format(java.util.Date(t)), color = Neon.Muted, fontSize = 12.sp)
+                                }
+                                if (who !in WaBlock.allowed(ctx)) Text(
+                                    "לאפשר",
+                                    Modifier.clip(RoundedCornerShape(10.dp)).clickable { WaBlock.allow(ctx, who); Actions.toast(ctx, "$who: השיחות יגיעו כרגיל"); refresh++ }.padding(8.dp),
+                                    color = Neon.GreenSoft, fontSize = 13.sp,
+                                ) else Text("מאופשר ✓", color = Neon.Muted, fontSize = 12.sp)
+                            }
+                        }
+                        if (log.isNotEmpty()) TextButton(onClick = { WaBlock.clearLog(ctx); refresh++ }) { Text("🧹 לנקות את הרשימה") }
                     }
                 }
 

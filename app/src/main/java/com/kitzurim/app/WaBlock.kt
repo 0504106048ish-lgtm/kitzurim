@@ -36,9 +36,30 @@ object WaBlock {
     /** השם שבהתראה הוא בעצם מספר (כך וואטסאפ מראה מי שלא שמור אצלך) */
     private fun looksLikeNumber(s: String) = s.count { it.isDigit() } >= 7 && s.none { it.isLetter() }
 
+    /** מי שאישרת ("לאפשר"): לא נחסם גם אם הוא לא שמור אצלך */
+    fun allowed(c: Context): Set<String> = sp(c).getStringSet("allow", emptySet()) ?: emptySet()
+    fun allow(c: Context, who: String) {
+        sp(c).edit().putStringSet("allow", allowed(c) + who.trim()).putStringSet("list", list(c) - who.trim()).apply()
+    }
+
+    /** כל השיחות שנחסמו (הכי חדשה ראשונה): זמן ומי */
+    fun log(c: Context): List<Pair<Long, String>> =
+        (sp(c).getString("log", "") ?: "").split("\n").mapNotNull { line ->
+            val t = line.substringBefore('|').toLongOrNull() ?: return@mapNotNull null
+            t to line.substringAfter('|')
+        }
+
+    private fun addLog(c: Context, who: String) {
+        val lines = listOf("${System.currentTimeMillis()}|$who") + log(c).map { "${it.first}|${it.second}" }
+        sp(c).edit().putString("log", lines.take(50).joinToString("\n")).apply()
+    }
+
+    fun clearLog(c: Context) = sp(c).edit().remove("log").putInt("count", 0).apply()
+
     fun shouldBlock(c: Context, name: String): Boolean {
         if (!on(c)) return false
         val who = name.trim()
+        if (who in allowed(c)) return false
         if (who in list(c)) return true
         val digits = who.filter { it.isDigit() }
         if (digits.length >= 7 && list(c).any { it.filter { ch -> ch.isDigit() }.takeLast(9) == digits.takeLast(9) }) return true
@@ -57,7 +78,7 @@ object WaBlock {
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
     /** שיחה חסומה הגיעה: משתיקים צלצול ורטט, ומסתירים את החלון הקופץ של וואטסאפ */
-    fun silence(l: NotificationListenerService, sbn: StatusBarNotification) {
+    fun silence(l: NotificationListenerService, sbn: StatusBarNotification, who: String = "") {
         if (silencedKey == sbn.key) return
         val am = l.getSystemService(AudioManager::class.java) ?: return
         val nm = l.getSystemService(NotificationManager::class.java)
@@ -72,6 +93,7 @@ object WaBlock {
         // החלון הקופץ של השיחה: נעלם (חוזר לבד אם השיחה עוד נמשכת אחרי דקה)
         runCatching { l.snoozeNotification(sbn.key, 60_000L) }
         sp(l).edit().putInt("count", count(l) + 1).apply()
+        if (who.isNotBlank()) addLog(l, who)
         ActivityLog.add(l, "🚫", "שיחת וואטסאפ חסומה (בשקט)")
         // ליתר ביטחון: שיחת וואטסאפ לא מצלצלת יותר מדקה, אז אחרי 70 שניות הצלצול חוזר בכל מקרה
         val k = sbn.key
