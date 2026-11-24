@@ -302,7 +302,7 @@ object LivePill {
      * אחרי 5 שניות, או בנגיעה במסך, הכרטיס מתקפל לשורה הקטנה (השם, דחה וענה) והטלפון ממשיך לצלצל.
      * הקשה על השורה הקטנה פותחת את הכרטיס שוב.
      */
-    fun showCall(key: String, name: String, decline: PendingIntent?, answer: PendingIntent?, photo: Bitmap? = null, expanded: Boolean = true, force: Boolean = false) {
+    fun showCall(key: String, name: String, decline: PendingIntent?, answer: PendingIntent?, photo: Bitmap? = null, expanded: Boolean = true, force: Boolean = false, onBlock: (() -> Unit)? = null) {
         // אותה שיחה שכבר מוצגת (ההתראה התעדכנה): לא פותחים שוב את הכרטיס אחרי שהתקפל
         if (expanded && !force && kind == "call" && callKey == key) return
         if (expanded && callKey != key) FaceDown.noteCall(key, name)
@@ -317,8 +317,8 @@ object LivePill {
         val green = Color.rgb(34, 197, 94)
         val red = Color.rgb(229, 72, 77)
         callExpanded = expanded
-        callCompact = { instantNext = true; showCall(key, name, decline, answer, pic, expanded = false) }
-        ringArgs = { showCall(key, name, decline, answer, pic, expanded = true, force = true) }
+        callCompact = { instantNext = true; showCall(key, name, decline, answer, pic, expanded = false, onBlock = onBlock) }
+        ringArgs = { showCall(key, name, decline, answer, pic, expanded = true, force = true, onBlock = onBlock) }
         fun doAnswer() { runCatching { answer?.send() }; onOutside = null; hide() }
         fun doDecline() { runCatching { decline?.send() }; onOutside = null; hide() }
         if (!expanded) {
@@ -361,6 +361,8 @@ object LivePill {
             setPadding((10 * d).toInt(), (4 * d).toInt(), (10 * d).toInt(), (2 * d).toInt())
             addView(bigBtn(R.drawable.ic_c_phone, "ענה", green, true) { doAnswer() }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = (4 * d).toInt() })
             addView(bigBtn(R.drawable.ic_c_close, "דחה", red, false) { doDecline() }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = (8 * d).toInt() })
+            // שיחת וואטסאפ כשהחסימה דלוקה: "חסום" בשקט (מעכשיו הוא לא יצלצל, ואצלו ימשיך לצלצל כאילו לא ענית)
+            if (onBlock != null) addView(bigBtn(R.drawable.ic_c_close, "חסום", Color.rgb(60, 64, 76), false) { onBlock(); onOutside = null; hide() }, LinearLayout.LayoutParams(0, -2, 0.8f).apply { marginStart = (8 * d).toInt() })
         }
         // נגיעה במסך מחוץ לכרטיס: מתקפל לשורה הקטנה (הטלפון ממשיך לצלצל)
         onOutside = { callCompact?.invoke() }

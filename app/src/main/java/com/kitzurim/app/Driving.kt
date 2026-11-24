@@ -85,7 +85,16 @@ class ReplyListener : NotificationListenerService() {
             val decline = find(listOf("דחה", "דחיי", "נתק", "decline", "reject", "dismiss")) ?: actions.firstOrNull()
             // התמונה של מי שמתקשר (מההתראה), בשביל הכרטיס בצבעים שלו
             val callPhoto = runCatching { n.getLargeIcon()?.loadDrawable(this)?.toBitmap(96, 96) }.getOrNull()
-            LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent, callPhoto)
+            // חסימת שיחות וואטסאפ (אם הדלקת): בשקט, בלי צלצול ובלי חלון. אצלו ממשיך לצלצל כאילו לא ענית
+            if (WaBlock.isWhatsApp(sbn.packageName) && WaBlock.shouldBlock(this, name)) {
+                WaBlock.silence(this, sbn)
+                return
+            }
+            // שיחת וואטסאפ כשהחסימה דלוקה: בכרטיס יש גם "חסום", שחוסם אותו מעכשיו ומשתיק מיד
+            val block: (() -> Unit)? = if (WaBlock.isWhatsApp(sbn.packageName) && WaBlock.on(this)) {
+                { WaBlock.add(this, name); WaBlock.silence(this, sbn) }
+            } else null
+            LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent, callPhoto, onBlock = block)
             return
         }
 
@@ -287,6 +296,7 @@ class ReplyListener : NotificationListenerService() {
     private val downloadNames = HashMap<String, String>()
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        WaBlock.ended(this, sbn.key)
         // נקרא או נמחק: הספירה של ההודעות ברצף מתחילה מחדש
         burst.remove(sbn.key)
         CarMirror.removed(this, sbn.key)

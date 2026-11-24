@@ -720,6 +720,39 @@ fun HomeScreen(resumes: Int) {
                     }
                 }
 
+                // ---------- חסימת שיחות וואטסאפ (בדף שיחות) ----------
+                if (page == "calls") Card {
+                    PillGroup("🚫 חסימת שיחות וואטסאפ")
+                    SwitchLine("🚫 לחסום שיחות וואטסאפ (בשקט: אצלך לא מצלצל, ואצלו ממשיך לצלצל כאילו לא ענית. הוא לא יודע שנחסם. כבוי: כל השיחות מגיעות כרגיל)", WaBlock.on(ctx)) { on ->
+                        WaBlock.setOn(ctx, on); refresh++
+                        // השתקה מלאה צריכה הרשאת "נא לא להפריע" (בלעדיה: רק הצלצול מושתק)
+                        val nm = ctx.getSystemService(android.app.NotificationManager::class.java)
+                        if (on && nm?.isNotificationPolicyAccessGranted != true) {
+                            Actions.toast(ctx, "להדליק את קיצורים כאן, כדי שגם הרטט ייעצר")
+                            runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) }
+                        }
+                    }
+                    if (WaBlock.on(ctx)) {
+                        SwitchLine("❓ מספרים שלא שמורים אצלך", WaBlock.unknown(ctx)) { WaBlock.setUnknown(ctx, it); refresh++ }
+                        SwitchLine("⚠️ ספאם (לפי Truecaller)", WaBlock.spam(ctx)) { WaBlock.setSpam(ctx, it); refresh++ }
+                        val blocked = WaBlock.list(ctx).sorted()
+                        Text(
+                            if (blocked.isEmpty()) "כדי לחסום מישהו מסוים: כשהוא מתקשר בוואטסאפ, לוחצים \"חסום\" בכרטיס של השיחה."
+                            else "חסומים (לחיצה על ✕ מחזירה):",
+                            color = scheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                        blocked.forEach { who ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("🚫 $who", Modifier.weight(1f))
+                                Text("✕", Modifier.clip(CircleShape).clickable { WaBlock.remove(ctx, who); refresh++ }.padding(10.dp), color = Neon.Muted)
+                            }
+                        }
+                        if (WaBlock.count(ctx) > 0) Text("נחסמו עד עכשיו ${WaBlock.count(ctx)} שיחות", color = Neon.Muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
                 // ---------- מוזיקה ----------
                 if (page == "music") Card {
                     // נגן: הקשה על העיגול כשמתנגן שיר
@@ -1394,7 +1427,7 @@ private val HomePages = listOf(
         "צבע הודעות", "צבע שיחות", "צבע מוזיקה", "צבע ניווט", "צבע הורדות", "צבע צילום מסך", "צבע טעינה", "צבע אוזניות", "צבע עוצמת קול",
     )),
     HomePage("calls", "📞", "שיחות", "מסך ניאון וחייגן", listOf(
-        "מסך שיחה בניאון", "אפליקציית הטלפון", "חייגן", "קיצור טלפון", "מועדפים",
+        "מסך שיחה בניאון", "אפליקציית הטלפון", "חייגן", "קיצור טלפון", "מועדפים", "חסימת שיחות וואטסאפ", "חסימה",
     )),
     HomePage("music", "🎵", "מוזיקה", "נגן בהקשה על העיגול", listOf(
         "נגן בהקשה על העיגול", "פס התקדמות וזמן", "שיר קודם / הבא", "תמונת האלבום",
