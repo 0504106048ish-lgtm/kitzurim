@@ -127,7 +127,7 @@ object PhoneBook {
             )?.use { c ->
                 while (c.moveToNext() && out.size < max) {
                     val num = c.getString(0) ?: ""
-                    val name = c.getString(1)?.takeIf { it.isNotBlank() } ?: CallerId.nameFor(ctx, num) ?: num.ifBlank { "מספר חסוי" }
+                    val name = c.getString(1)?.takeIf { it.isNotBlank() } ?: CallerId.nameFor(ctx, num) ?: WaPhotos.name(ctx, num) ?: num.ifBlank { "מספר חסוי" }
                     out += PhoneEntry(name, num, type = c.getInt(2), date = c.getLong(3))
                 }
             }
@@ -1172,7 +1172,12 @@ private fun EntryList(list: List<PhoneEntry>, empty: String, showTime: Boolean, 
                             .clip(CircleShape)
                             .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(c1, c2))),
                         contentAlignment = Alignment.Center,
-                    ) { Text(e.name.trim().take(1), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+                    ) {
+                        // מי שכתב לך פעם בוואטסאפ: התמונה שלו משם (גם כשהוא לא שמור אצלך)
+                        val wa = remember(e.number) { WaPhotos.photo(ctx, e.number)?.asImageBitmap() }
+                        if (wa != null) androidx.compose.foundation.Image(wa, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        else Text(e.name.trim().take(1), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    }
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                         HlName(
                             e.name,

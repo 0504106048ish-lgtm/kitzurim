@@ -77,6 +77,8 @@ object Calls {
         lookup(ctx, n)?.first?.let { return it }
         // לא שמור אצלך: השם ש-Truecaller הראתה
         CallerId.nameFor(ctx, n)?.let { return it }
+        // השם שלו בוואטסאפ (אם כתב לך פעם)
+        WaPhotos.name(ctx, n)?.let { return it }
         // השם שרשום ברשימת השיחות של הטלפון (למשל ש-Me או סמסונג זיהו)
         logName(ctx, n)?.let { return it }
         return n?.takeIf { it.isNotBlank() } ?: "מספר חסוי"
@@ -112,8 +114,10 @@ object Calls {
     }
 
     fun photo(ctx: Context, c: Call): Bitmap? {
-        val p = lookup(ctx, number(c))?.second ?: return null
-        return runCatching { ctx.contentResolver.openInputStream(Uri.parse(p))?.use { BitmapFactory.decodeStream(it) } }.getOrNull()
+        val p = lookup(ctx, number(c))?.second
+        if (p != null) runCatching { ctx.contentResolver.openInputStream(Uri.parse(p))?.use { BitmapFactory.decodeStream(it) } }.getOrNull()?.let { return it }
+        // לא שמור אצלך (או בלי תמונה): תמונת הפרופיל שלו מוואטסאפ, אם כתב לך פעם
+        return WaPhotos.photo(ctx, number(c))
     }
 
     fun answer(c: Call) = c.answer(VideoProfile.STATE_AUDIO_ONLY)
