@@ -237,6 +237,56 @@ object NotchOverlay {
 
     fun isRunning() = service != null
 
+    /** הדגמה של הטבעת (מכפתור ▶ בהגדרות): מצב מזויף לכמה שניות, גם כשהאפשרות כבויה */
+    private var demoState: RingState? = null
+    private val demoMain = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * מראה עכשיו, סביב המצלמה, איך נראית אפשרות של הטבעת:
+     * battery, charging, spin, pulse, volume, music, call
+     */
+    fun demoRing(kind: String): Boolean {
+        val s = service ?: return false
+        val msg = NotchPrefs.tint(s, "msg", Color.rgb(37, 211, 102))
+        val base = RingState(level = 72, charging = false, pulse = null, onlyCharging = false, chargeAnim = false,
+            battery = false, volume = null, music = null, ringing = false, callSeconds = null)
+        demoState = when (kind) {
+            "battery" -> base.copy(battery = true)
+            "charging" -> base.copy(battery = true, charging = true, onlyCharging = true)
+            "spin" -> base.copy(battery = true, charging = true, chargeAnim = true)
+            "pulse" -> base.copy(pulse = msg)
+            "volume" -> base.copy(volume = 0.6f)
+            "music" -> base.copy(music = 0.35f)
+            "call" -> base.copy(ringing = true)
+            else -> return false
+        }
+        // בלי העיגול הוורוד של הכיוון, כדי לראות בדיוק איך זה ייראה
+        val wasPreview = preview
+        preview = false
+        refresh()
+        demoMain.removeCallbacksAndMessages(null)
+        // עוצמה ושיר: הטבעת מתמלאת לאט, כמו באמת
+        if (kind == "volume" || kind == "music") {
+            var f = 0.05f
+            val step = object : Runnable {
+                override fun run() {
+                    val st = demoState ?: return
+                    f = (f + 0.05f).coerceAtMost(1f)
+                    demoState = if (kind == "volume") st.copy(volume = f) else st.copy(music = f)
+                    updateRing()
+                    if (f < 1f) demoMain.postDelayed(this, 90)
+                }
+            }
+            demoMain.post(step)
+        }
+        demoMain.postDelayed({
+            demoState = null
+            preview = wasPreview
+            refresh()
+        }, 3500)
+        return true
+    }
+
     /**
      * החלקה לצדדים על גלולה פתוחה: הגלולה מכסה את החור, אז היא עושה את מה שהחלקה על החור הייתה עושה
      * (למשל שיר הבא, ושוב שיר הבא). בהירות לא, כי היא צריכה גרירה רציפה
@@ -539,6 +589,8 @@ object NotchOverlay {
 
     private fun updateRing() {
         val s = service ?: return
+        // הדגמה מההגדרות: מראים את המצב המזויף
+        demoState?.let { d -> ring?.update(d); return }
         ring?.update(
             RingState(
                 level = level,
@@ -657,7 +709,7 @@ object NotchOverlay {
         val d = s.resources.displayMetrics.density
         val g = geom(s)
 
-        val needRing = preview || NotchPrefs.ringOn(s) || NotchPrefs.notifyLight(s) ||
+        val needRing = preview || demoState != null || NotchPrefs.ringOn(s) || NotchPrefs.notifyLight(s) ||
             NotchPrefs.volumeRing(s) || NotchPrefs.musicRing(s) || NotchPrefs.callRing(s) || NotchPrefs.pillDownloads(s)
         if (needRing) {
             val v = RingView(s, g.radius, g.thick, preview)

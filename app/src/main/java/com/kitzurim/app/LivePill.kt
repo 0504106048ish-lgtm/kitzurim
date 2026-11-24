@@ -2545,6 +2545,20 @@ object LivePill {
     }
 
     /** כפתור "דוגמא" במסך הבית: מראה איך תיראה הגלולה, גם כשהמתגים כבויים */
+    /** הדגמה במילים (לאפשרויות שאין להן מראה משלהן): הגלולה יוצאת מהמצלמה עם הסבר קצר של מה זה עושה */
+    fun explain(icon: String, text: String) {
+        val s = NotchOverlay.service ?: return
+        val col = NotchPrefs.tint(s, "msg", Color.rgb(42, 212, 154))
+        demoMode = true
+        try {
+            show("explain", 320, col, 5000, onTap = null, long = text) { ctx, _, right ->
+                right.addView(label(ctx, icon, 15f, Color.WHITE))
+            }
+        } finally {
+            demoMode = false
+        }
+    }
+
     fun demo(type: String): Boolean {
         val s = NotchOverlay.service ?: return false
         if (inCallPill()) return true

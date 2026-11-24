@@ -32,6 +32,17 @@ object Aod {
     /** ההודעה שהמסך השחור מראה */
     internal var pending: (() -> Unit)? = null
 
+    /** הדגמה מההגדרות: המסך השחור נפתח עכשיו (המסך דלוק), ובסוף רק נסגר בלי לנעול */
+    internal var demoRun = false
+
+    fun demo(c: Context) {
+        demoRun = true
+        pending = { LivePill.demo("msg") }
+        runCatching {
+            c.startActivity(Intent(c, AodActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION))
+        }
+    }
+
     private val main = Handler(Looper.getMainLooper())
 
     /** הגיעה הודעה: אם המסך כבוי ומותר, בודקים שהטלפון לא בכיס ולא הפוך, ומדליקים */
@@ -115,7 +126,7 @@ class AodActivity : Activity() {
         if (touched) return@Runnable
         finish()
         overridePendingTransition(0, 0)
-        Aod.sleep()
+        if (Aod.demoRun) Aod.demoRun = false else Aod.sleep()
     }
 
     /** פתחו את הטלפון בזמן שהמסך השחור דלוק: נעלמים בלי לכבות את המסך */

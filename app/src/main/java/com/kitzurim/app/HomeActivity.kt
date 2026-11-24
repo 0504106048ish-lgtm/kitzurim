@@ -362,26 +362,26 @@ fun HomeScreen(resumes: Int) {
                 // ---------- הטבעת ----------
                 if (page == "ring") Card {
                     Text("הטבעת סביב המצלמה", style = MaterialTheme.typography.titleMedium)
-                    SwitchLine("🔋 טבעת סוללה (מראה כמה סוללה נשארה)", NotchPrefs.ringOn(ctx)) {
+                    SwitchLine("🔋 טבעת סוללה (מראה כמה סוללה נשארה)", NotchPrefs.ringOn(ctx), demo = { NotchOverlay.demoRing("battery") }) {
                         NotchPrefs.setRingOn(ctx, it); NotchOverlay.refresh(); refresh++
                     }
                     // האפשרויות של הטבעת מופיעות רק כשהיא דלוקה
                     if (NotchPrefs.ringOn(ctx)) {
                         Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SwitchLine("להראות רק בזמן טעינה", NotchPrefs.onlyCharging(ctx)) {
+                            SwitchLine("להראות רק בזמן טעינה", NotchPrefs.onlyCharging(ctx), demo = { NotchOverlay.demoRing("charging") }) {
                                 NotchPrefs.setOnlyCharging(ctx, it); NotchOverlay.refresh(); refresh++
                             }
-                            SwitchLine("נקודה מסתובבת בזמן טעינה", NotchPrefs.chargeAnim(ctx)) {
+                            SwitchLine("נקודה מסתובבת בזמן טעינה", NotchPrefs.chargeAnim(ctx), demo = { NotchOverlay.demoRing("spin") }) {
                                 NotchPrefs.setChargeAnim(ctx, it); NotchOverlay.refresh(); refresh++
                             }
                         }
                     }
                     HorizontalDivider(color = Neon.Line)
-                    SwitchLine("💬 נורת התראות (מהבהבת בצבע של האפליקציה)", NotchPrefs.notifyLight(ctx)) {
+                    SwitchLine("💬 נורת התראות (מהבהבת בצבע של האפליקציה)", NotchPrefs.notifyLight(ctx), demo = { NotchOverlay.demoRing("pulse") }) {
                         NotchPrefs.setNotifyLight(ctx, it); NotchOverlay.refresh(); refresh++
                     }
                     // אותו מתג כמו בגלולה החיה: גם כאן, ליד הנורה, כדי שיהיה קל למצוא
-                    SwitchLine("✨ קצוות המסך זוהרים כשמגיעה הודעה", NotchPrefs.edgeGlow(ctx)) {
+                    SwitchLine("✨ קצוות המסך זוהרים כשמגיעה הודעה", NotchPrefs.edgeGlow(ctx), demo = { LivePill.edgeGlow(0xFF25D366.toInt()) }) {
                         NotchPrefs.setEdgeGlow(ctx, it); refresh++
                     }
                     if (NotchPrefs.notifyLight(ctx) && !Driving.listenerAllowed(ctx)) {
@@ -416,10 +416,10 @@ fun HomeScreen(resumes: Int) {
                         }
                     }
                     HorizontalDivider(color = Neon.Line)
-                    SwitchLine("🔊 עוצמת קול (הטבעת מתמלאת כשמשנים ווליום)", NotchPrefs.volumeRing(ctx)) {
+                    SwitchLine("🔊 עוצמת קול (הטבעת מתמלאת כשמשנים ווליום)", NotchPrefs.volumeRing(ctx), demo = { NotchOverlay.demoRing("volume") }) {
                         NotchPrefs.setVolumeRing(ctx, it); NotchOverlay.refresh(); refresh++
                     }
-                    SwitchLine("🎵 התקדמות השיר (בזמן שמוזיקה מתנגנת)", NotchPrefs.musicRing(ctx)) {
+                    SwitchLine("🎵 התקדמות השיר (בזמן שמוזיקה מתנגנת)", NotchPrefs.musicRing(ctx), demo = { NotchOverlay.demoRing("music") }) {
                         NotchPrefs.setMusicRing(ctx, it); NotchOverlay.refresh(); refresh++
                     }
                     if (NotchPrefs.musicRing(ctx) && !Driving.listenerAllowed(ctx)) {
@@ -427,7 +427,7 @@ fun HomeScreen(resumes: Int) {
                             Text("לשיר צריך גישה להתראות ←")
                         }
                     }
-                    SwitchLine("📞 שיחות (הבהוב בצלצול, וזמן השיחה)", NotchPrefs.callRing(ctx)) {
+                    SwitchLine("📞 שיחות (הבהוב בצלצול, וזמן השיחה)", NotchPrefs.callRing(ctx), demo = { NotchOverlay.demoRing("call") }) {
                         NotchPrefs.setCallRing(ctx, it); NotchOverlay.refresh(); refresh++
                     }
                 }
@@ -458,14 +458,14 @@ fun HomeScreen(resumes: Int) {
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant,
                     )
-                    SwitchLine("להפעיל את הגלולה החיה", NotchPrefs.pill(ctx)) {
+                    SwitchLine("להפעיל את הגלולה החיה", NotchPrefs.pill(ctx), demo = { LivePill.demo("msg") }) {
                         NotchPrefs.setPill(ctx, it); refresh++
                     }
                     if (NotchPrefs.pill(ctx)) {
-                        SwitchLine("💧 טיפה נוטפת מהחור לפני שהגלולה נפתחת", NotchPrefs.pillDrip(ctx)) {
+                        SwitchLine("💧 טיפה נוטפת מהחור לפני שהגלולה נפתחת", NotchPrefs.pillDrip(ctx), demo = { LivePill.demo("msg") }) {
                             NotchPrefs.setPillDrip(ctx, it); refresh++
                         }
-                        SwitchLine("⬛ מסגרת צבעונית לגלולה (כבוי: הגלולה שחורה לגמרי, בלי מסגרת, ונראית כמו המצלמה עצמה)", NotchPrefs.pillFrame(ctx)) {
+                        SwitchLine("⬛ מסגרת צבעונית לגלולה (כבוי: הגלולה שחורה לגמרי, בלי מסגרת, ונראית כמו המצלמה עצמה)", NotchPrefs.pillFrame(ctx), demo = { LivePill.demo("msg") }) {
                             NotchPrefs.setPillFrame(ctx, it); refresh++
                             LivePill.demo("msg")
                         }
@@ -476,17 +476,17 @@ fun HomeScreen(resumes: Int) {
                                 NotchPrefs.setPillMessages(ctx, it); refresh++
                             }
                             if (NotchPrefs.pillMessages(ctx)) Column(Modifier.padding(start = 12.dp)) {
-                                SwitchLine("🖼️ התמונה של מי ששלח (ותמונה קטנה ממה שנשלח)", NotchPrefs.pillPhoto(ctx)) {
+                                SwitchLine("🖼️ התמונה של מי ששלח (ותמונה קטנה ממה שנשלח)", NotchPrefs.pillPhoto(ctx), demo = { LivePill.explain("🖼️", "בגלולה של הודעה: התמונה של מי ששלח, ותמונה קטנה ממה שנשלח") }) {
                                     NotchPrefs.setPillPhoto(ctx, it); refresh++
                                 }
-                                if (NotchPrefs.pillPhoto(ctx)) SwitchLine("🎨 צבע המסגרת לפי התמונה", NotchPrefs.pillPhotoColor(ctx)) {
+                                if (NotchPrefs.pillPhoto(ctx)) SwitchLine("🎨 צבע המסגרת לפי התמונה", NotchPrefs.pillPhotoColor(ctx), demo = { LivePill.explain("🎨", "המסגרת של הגלולה בצבע מתוך התמונה של מי ששלח, כך שכל אחד נראה אחרת") }) {
                                     NotchPrefs.setPillPhotoColor(ctx, it); refresh++
                                 }
-                                SwitchLine("✨ קצוות המסך זוהרים", NotchPrefs.edgeGlow(ctx)) {
+                                SwitchLine("✨ קצוות המסך זוהרים", NotchPrefs.edgeGlow(ctx), demo = { LivePill.edgeGlow(0xFF25D366.toInt()) }) {
                                     NotchPrefs.setEdgeGlow(ctx, it); refresh++
                                 }
                             }
-                            SwitchLine("🌙 הודעה כשהמסך כבוי (המסך נדלק לכמה שניות, שחור ובבהירות נמוכה, רק עם הגלולה והשעה, ונכבה לבד. לא בכיס ולא כשהטלפון הפוך)", NotchPrefs.aodMsg(ctx)) {
+                            SwitchLine("🌙 הודעה כשהמסך כבוי (המסך נדלק לכמה שניות, שחור ובבהירות נמוכה, רק עם הגלולה והשעה, ונכבה לבד. לא בכיס ולא כשהטלפון הפוך)", NotchPrefs.aodMsg(ctx), demo = { Aod.demo(ctx) }) {
                                 NotchPrefs.setAodMsg(ctx, it); refresh++
                             }
                             PillLine("🔑 קוד אימות (מועתק לבד, ומוצג בגדול)", NotchPrefs.pillCodes(ctx), "code") {
@@ -537,7 +537,7 @@ fun HomeScreen(resumes: Int) {
                                 LowBattery.setOn(ctx, it); refresh++
                                 if (it && !LowBattery.hasAccess(ctx)) { Actions.toast(ctx, "לאשר לקיצורים לראות זמני שימוש"); LowBattery.openAccess(ctx) }
                             }
-                            SwitchLine("💧 טעינה נוזלית (טיפה מהמצלמה כשמחברים מטען)", NotchPrefs.chargeFx(ctx)) {
+                            SwitchLine("💧 טעינה נוזלית (טיפה מהמצלמה כשמחברים מטען)", NotchPrefs.chargeFx(ctx), demo = { Battery.read(ctx, null).let { b -> ChargeFx.play(ctx, b.percent, b.minutesToFull, force = true) } }) {
                                 NotchPrefs.setChargeFx(ctx, it); refresh++
                             }
                             if (NotchPrefs.chargeFx(ctx)) {
@@ -583,7 +583,7 @@ fun HomeScreen(resumes: Int) {
                                 if (it && !Screenshots.allowed(ctx)) shotPerm.launch(Screenshots.permission)
                                 refresh++
                             }
-                            SwitchLine("🔦 פנס דולק (הקשה מכבה)", NotchPrefs.pillTorch(ctx)) {
+                            SwitchLine("🔦 פנס דולק (הקשה מכבה)", NotchPrefs.pillTorch(ctx), demo = { LivePill.explain("🔦", "כשהפנס דולק הגלולה מראה את זה, והקשה עליה מכבה אותו") }) {
                                 NotchPrefs.setPillTorch(ctx, it); refresh++
                             }
                         }
@@ -628,20 +628,20 @@ fun HomeScreen(resumes: Int) {
 
                 // ---------- נגיעות: רטט ----------
                 if (page == "touch") Card {
-                    SwitchLine("📳 רטט קטן בכל נגיעה בחור", NotchPrefs.haptic(ctx)) {
+                    SwitchLine("📳 רטט קטן בכל נגיעה בחור", NotchPrefs.haptic(ctx), demo = { LivePill.explain("📳", "כל נגיעה בחור של המצלמה עושה רטט קטן, כדי להרגיש שהיא נקלטה") }) {
                         NotchPrefs.setHaptic(ctx, it); refresh++
                     }
                 }
 
                 // ---------- אפליקציות ומסכים ----------
                 if (page == "apps") Card {
-                    SwitchLine("🙈 להסתיר במסך מלא (סרטון, משחק, תמונה)", NotchPrefs.hideFullscreen(ctx)) {
+                    SwitchLine("🙈 להסתיר במסך מלא (סרטון, משחק, תמונה)", NotchPrefs.hideFullscreen(ctx), demo = { LivePill.explain("🙈", "בסרטון או משחק במסך מלא, הגלולה והטבעת לא מופיעות ולא מפריעות") }) {
                         NotchPrefs.setHideFullscreen(ctx, it); NotchOverlay.refresh(); refresh++
                     }
-                    SwitchLine("🔒 לעבוד גם במסך הנעילה (טבעת, התראות וגלולה)", NotchPrefs.onLockScreen(ctx)) {
+                    SwitchLine("🔒 לעבוד גם במסך הנעילה (טבעת, התראות וגלולה)", NotchPrefs.onLockScreen(ctx), demo = { LivePill.explain("🔒", "גם כשהטלפון נעול: הטבעת, ההתראות והגלולה מופיעות") }) {
                         NotchPrefs.setOnLockScreen(ctx, it); NotchOverlay.refresh(); refresh++
                     }
-                    SwitchLine("🙃 הופכים את הטלפון על המסך = שקט (מרימים: הצלצול חוזר, ורואים מה הגיע)", NotchPrefs.faceDown(ctx)) { on ->
+                    SwitchLine("🙃 הופכים את הטלפון על המסך = שקט (מרימים: הצלצול חוזר, ורואים מה הגיע)", NotchPrefs.faceDown(ctx), demo = { LivePill.showFaceUp("בזמן שהיה הפוך: 2 הודעות מאבא, שיחה מאמא") }) { on ->
                         NotchPrefs.setFaceDown(ctx, on)
                         FaceDown.update(ctx)
                         // שקט מלא צריך הרשאת "נא לא להפריע" (בלעדיה: רק רטט)
@@ -657,7 +657,7 @@ fun HomeScreen(resumes: Int) {
                 // ---------- שיחות ----------
                 if (page == "calls") Card {
                     // קיצורים כאפליקציית הטלפון: כל השיחות במסך הניאון. כבוי כברירת מחדל
-                    SwitchLine("📞 מסך שיחה בניאון (קיצורים כאפליקציית הטלפון)", Calls.isDefault(ctx)) { on ->
+                    SwitchLine("📞 מסך שיחה בניאון (קיצורים כאפליקציית הטלפון)", Calls.isDefault(ctx), demo = { LivePill.explain("📞", "כשקיצורים היא אפליקציית הטלפון: מסך השיחה בעיצוב ניאון, עם תמונה, הקלטה ועוד") }) { on ->
                         if (on) {
                             // קודם תצוגה מקדימה של מסך השיחה, ומשם "להפעיל"
                             ctx.startActivity(Intent(ctx, CallActivity::class.java).putExtra(CallActivity.PREVIEW, true))
@@ -676,7 +676,7 @@ fun HomeScreen(resumes: Int) {
                     if (Calls.isDefault(ctx)) {
                         Column(Modifier.padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             // קיצור "טלפון" ווידג'ט מועדפים במסך הבית
-                            SwitchLine("📱 קיצור \"טלפון\" ווידג'ט מועדפים במסך הבית", NotchPrefs.dialerHome(ctx)) { on ->
+                            SwitchLine("📱 קיצור \"טלפון\" ווידג'ט מועדפים במסך הבית", NotchPrefs.dialerHome(ctx), demo = { LivePill.explain("📱", "סמל של החייגן של קיצורים במסך הבית, לפתיחה מהירה") }) { on ->
                                 NotchPrefs.setDialerHome(ctx, on)
                                 if (on) DialerHome.install(ctx.applicationContext) else DialerHome.remove(ctx.applicationContext)
                                 refresh++
@@ -700,12 +700,12 @@ fun HomeScreen(resumes: Int) {
                                     .padding(vertical = 10.dp),
                             )
                             // ספאם לפי Truecaller: הצלצול משתתק לבד
-                            SwitchLine("🚫 ספאם משתתק לבד: כש-Truecaller או Me מסמנות שיחה כספאם, הצלצול נעצר", NotchPrefs.spamSilence(ctx)) { on ->
+                            SwitchLine("🚫 ספאם משתתק לבד: כש-Truecaller או Me מסמנות שיחה כספאם, הצלצול נעצר", NotchPrefs.spamSilence(ctx), demo = { LivePill.explain("🚫", "מספר שמסומן כספאם ב-Truecaller: הצלצול נעצר לבד") }) { on ->
                                 NotchPrefs.setSpamSilence(ctx, on)
                                 refresh++
                             }
                             // הקלטת שיחות: רק בטלפון שמאפשר (נבדק כשמדליקים)
-                            SwitchLine("🎙️ כפתור \"הקלט\" בשיחה", CallRecorder.enabled(ctx)) { on ->
+                            SwitchLine("🎙️ כפתור \"הקלט\" בשיחה", CallRecorder.enabled(ctx), demo = { LivePill.explain("🎙️", "כפתור במסך השיחה שמקליט את השיחה (רק בטלפונים שמאפשרים)") }) { on ->
                                 if (!on) {
                                     CallRecorder.setEnabled(ctx, false)
                                     refresh++
@@ -727,7 +727,7 @@ fun HomeScreen(resumes: Int) {
                 // ---------- חסימת שיחות וואטסאפ (בדף שיחות) ----------
                 if (page == "calls") Card {
                     PillGroup("🚫 חסימת שיחות וואטסאפ")
-                    SwitchLine("🚫 לחסום שיחות וואטסאפ (בשקט: אצלך לא מצלצל, ואצלו ממשיך לצלצל כאילו לא ענית. הוא לא יודע שנחסם. כבוי: כל השיחות מגיעות כרגיל)", WaBlock.on(ctx)) { on ->
+                    SwitchLine("🚫 לחסום שיחות וואטסאפ (בשקט: אצלך לא מצלצל, ואצלו ממשיך לצלצל כאילו לא ענית. הוא לא יודע שנחסם. כבוי: כל השיחות מגיעות כרגיל)", WaBlock.on(ctx), demo = { LivePill.explain("🚫", "שיחת וואטסאפ חסומה: אצלך לא מצלצל, ואצלו ממשיך לצלצל כאילו לא ענית") }) { on ->
                         WaBlock.setOn(ctx, on); refresh++
                         // השתקה מלאה צריכה הרשאת "נא לא להפריע" (בלעדיה: רק הצלצול מושתק)
                         val nm = ctx.getSystemService(android.app.NotificationManager::class.java)
@@ -737,8 +737,8 @@ fun HomeScreen(resumes: Int) {
                         }
                     }
                     if (WaBlock.on(ctx)) {
-                        SwitchLine("❓ מספרים שלא שמורים אצלך", WaBlock.unknown(ctx)) { WaBlock.setUnknown(ctx, it); refresh++ }
-                        SwitchLine("⚠️ ספאם (לפי Truecaller)", WaBlock.spam(ctx)) { WaBlock.setSpam(ctx, it); refresh++ }
+                        SwitchLine("❓ מספרים שלא שמורים אצלך", WaBlock.unknown(ctx), demo = { LivePill.explain("❓", "שיחת וואטסאפ ממספר שלא שמור אצלך: נחסמת בשקט") }) { WaBlock.setUnknown(ctx, it); refresh++ }
+                        SwitchLine("⚠️ ספאם (לפי Truecaller)", WaBlock.spam(ctx), demo = { LivePill.explain("⚠️", "שיחת וואטסאפ ממספר ש-Truecaller סימנה כספאם: נחסמת בשקט") }) { WaBlock.setSpam(ctx, it); refresh++ }
                         // מי שחסמת בעצמך (מהכרטיס של השיחה)
                         val blocked = WaBlock.list(ctx).sorted()
                         PillGroup("🚫 חסומים (${blocked.size})")
@@ -863,7 +863,7 @@ fun HomeScreen(resumes: Int) {
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant,
                     )
-                    SwitchLine("להעביר הודעות למסך הרכב", NotchPrefs.carMirror(ctx)) {
+                    SwitchLine("להעביר הודעות למסך הרכב", NotchPrefs.carMirror(ctx), demo = { LivePill.explain("🚗", "מחוברים לאנדרואיד אוטו: הודעות מוואטסאפ קופצות במסך הרכב ונקראות בקול") }) {
                         NotchPrefs.setCarMirror(ctx, it); refresh++
                     }
                     // SMS: בדרך כלל מגיעות לרכב לבד. אם כיבית גם להן את החלון הקופץ, מדליקים כאן
@@ -906,7 +906,7 @@ fun HomeScreen(resumes: Int) {
                             NotchPrefs.setPillMargin(ctx, 100f - it)
                             LivePill.demo("charge")
                         }
-                        SwitchLine("להראות את אזור הנגיעה", NotchPrefs.showZone(ctx)) {
+                        SwitchLine("להראות את אזור הנגיעה", NotchPrefs.showZone(ctx), demo = { LivePill.explain("👆", "עיגול דק מראה בדיוק איפה לגעת כדי שהחור של המצלמה יגיב") }) {
                             NotchPrefs.setShowZone(ctx, it); NotchOverlay.refresh(); refresh++
                         }
                         TextButton(onClick = {
@@ -1129,10 +1129,32 @@ private fun IosRow(text: String, trailing: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SwitchLine(text: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    IosRow(text) { Switch(checked = checked, onCheckedChange = onChange) }
+private fun SwitchLine(text: String, checked: Boolean, demo: (() -> Unit)? = null, onChange: (Boolean) -> Unit) {
+    IosRow(text) {
+        // ▶ מראה עכשיו, על המסך, מה האפשרות הזאת עושה
+        if (demo != null) DemoBtn(demo)
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
 }
 
+/** כפתור ▶ ירוק קטן: הדגמה של האפשרות */
+@Composable
+private fun DemoBtn(onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    Text(
+        "▶",
+        Modifier
+            .padding(end = 6.dp)
+            .clip(CircleShape)
+            .background(Neon.Green.copy(alpha = 0.14f))
+            .clickable {
+                if (!NotchOverlay.isRunning()) Actions.toast(ctx, "קודם צריך להדליק את קיצורים בנגישות") else onClick()
+            }
+            .padding(horizontal = 11.dp, vertical = 6.dp),
+        color = Neon.GreenSoft,
+        fontSize = 13.sp,
+    )
+}
 /** מחוון שהשינוי שלו נראה על הטבעת תוך כדי הזזה (בזמן אמת) */
 @Composable
 private fun PrefSlider(label: String, initial: Float, range: ClosedFloatingPointRange<Float>, onSave: (Float) -> Unit) {
