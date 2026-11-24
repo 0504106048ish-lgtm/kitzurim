@@ -150,6 +150,8 @@ class ReplyListener : NotificationListenerService() {
         // ענית בעצמך: סימן שקראת, העיגול נכבה
         if (style != null && last != null && last.person == null) {
             NotchOverlay.notificationRemoved(sbn.key)
+            // ענית: מתחילים לספור מחדש, כדי שההודעה הבאה שלו לא תיספר כ"2 הודעות"
+            burst.remove(sbn.key)
             return
         }
         val sender = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return
@@ -283,6 +285,8 @@ class ReplyListener : NotificationListenerService() {
     private val downloadNames = HashMap<String, String>()
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        // נקרא או נמחק: הספירה של ההודעות ברצף מתחילה מחדש
+        burst.remove(sbn.key)
         CarMirror.removed(this, sbn.key)
         NotchOverlay.notificationRemoved(sbn.key)
         LivePill.callNotificationRemoved(sbn.key)
