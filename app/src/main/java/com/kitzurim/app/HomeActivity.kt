@@ -476,10 +476,10 @@ fun HomeScreen(resumes: Int) {
                                 NotchPrefs.setPillMessages(ctx, it); refresh++
                             }
                             if (NotchPrefs.pillMessages(ctx)) Column(Modifier.padding(start = 12.dp)) {
-                                SwitchLine("🖼️ התמונה של מי ששלח (ותמונה קטנה ממה שנשלח)", NotchPrefs.pillPhoto(ctx), demo = { LivePill.explain("🖼️", "בגלולה של הודעה: התמונה של מי ששלח, ותמונה קטנה ממה שנשלח") }) {
+                                SwitchLine("🖼️ התמונה של מי ששלח (ותמונה קטנה ממה שנשלח)", NotchPrefs.pillPhoto(ctx), demo = { LivePill.demo("photo") }) {
                                     NotchPrefs.setPillPhoto(ctx, it); refresh++
                                 }
-                                if (NotchPrefs.pillPhoto(ctx)) SwitchLine("🎨 צבע המסגרת לפי התמונה", NotchPrefs.pillPhotoColor(ctx), demo = { LivePill.explain("🎨", "המסגרת של הגלולה בצבע מתוך התמונה של מי ששלח, כך שכל אחד נראה אחרת") }) {
+                                if (NotchPrefs.pillPhoto(ctx)) SwitchLine("🎨 צבע המסגרת לפי התמונה", NotchPrefs.pillPhotoColor(ctx), demo = { LivePill.demo("photo") }) {
                                     NotchPrefs.setPillPhotoColor(ctx, it); refresh++
                                 }
                                 SwitchLine("✨ קצוות המסך זוהרים", NotchPrefs.edgeGlow(ctx), demo = { LivePill.edgeGlow(0xFF25D366.toInt()) }) {
@@ -583,7 +583,7 @@ fun HomeScreen(resumes: Int) {
                                 if (it && !Screenshots.allowed(ctx)) shotPerm.launch(Screenshots.permission)
                                 refresh++
                             }
-                            SwitchLine("🔦 פנס דולק (הקשה מכבה)", NotchPrefs.pillTorch(ctx), demo = { LivePill.explain("🔦", "כשהפנס דולק הגלולה מראה את זה, והקשה עליה מכבה אותו") }) {
+                            SwitchLine("🔦 פנס דולק (הקשה מכבה)", NotchPrefs.pillTorch(ctx), demo = { LivePill.demo("torch") }) {
                                 NotchPrefs.setPillTorch(ctx, it); refresh++
                             }
                         }

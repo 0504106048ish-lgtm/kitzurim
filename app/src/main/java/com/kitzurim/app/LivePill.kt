@@ -2559,15 +2559,57 @@ object LivePill {
         }
     }
 
+    /** תמונת פרופיל לדוגמה (עיגול כתום עם האות ד), בשביל ההדגמות */
+    private fun demoFace(c: Context): Bitmap {
+        val b = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+        val cv = android.graphics.Canvas(b)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.shader = android.graphics.LinearGradient(0f, 0f, 96f, 96f, Color.rgb(240, 160, 96), Color.rgb(192, 57, 43), android.graphics.Shader.TileMode.CLAMP)
+        cv.drawRect(0f, 0f, 96f, 96f, p)
+        p.shader = null
+        p.color = Color.WHITE
+        p.textSize = 52f
+        p.textAlign = android.graphics.Paint.Align.CENTER
+        p.isFakeBoldText = true
+        cv.drawText("ד", 48f, 66f, p)
+        return b
+    }
+
+    /** תמונה קטנה לדוגמה (כאילו נשלחה תמונה בהודעה) */
+    private fun demoThumb(c: Context): Bitmap {
+        val b = Bitmap.createBitmap(120, 80, Bitmap.Config.ARGB_8888)
+        val cv = android.graphics.Canvas(b)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.shader = android.graphics.LinearGradient(0f, 0f, 0f, 80f, Color.rgb(90, 170, 255), Color.rgb(255, 200, 120), android.graphics.Shader.TileMode.CLAMP)
+        cv.drawRect(0f, 0f, 120f, 80f, p)
+        p.shader = null
+        p.color = Color.rgb(40, 120, 60)
+        cv.drawCircle(30f, 90f, 45f, p)
+        cv.drawCircle(95f, 95f, 50f, p)
+        return b
+    }
+
     fun demo(type: String): Boolean {
         val s = NotchOverlay.service ?: return false
         if (inCallPill()) return true
         val grey = Color.rgb(210, 216, 228)
         when (type) {
-            "msg", "long" -> {
+            "msg", "long", "photo" -> {
+                // בדיוק כמו הודעה אמיתית מוואטסאפ: תמונה של השולח (אם "התמונה של מי ששלח" דלוק), סמל וואטסאפ בפינה,
+                // ומסגרת בצבע מהתמונה (אם "צבע המסגרת לפי התמונה" דלוק)
                 val green = NotchPrefs.tint(NotchOverlay.service, "msg", Color.rgb(37, 211, 102))
-                val text = if (type == "msg") "מה קורה?" else "אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר?"
-                msgRow("דני", text, green, null)?.let { closeAfterMarquee(it) }
+                val text = if (type == "long") "אני כבר בדרך, תגיד לי אם צריך להביא משהו מהסופר?" else "מה קורה?"
+                val face = if (NotchPrefs.pillPhoto(s) || type == "photo") demoFace(s) else null
+                val thumb = if (type == "photo") demoThumb(s) else null
+                val frame = if (face != null && NotchPrefs.pillPhotoColor(s)) vivid(face) ?: green else green
+                msgRow("דני", text, frame, null, face, thumb, "com.whatsapp")?.let { closeAfterMarquee(it) }
+            }
+            "torch" -> {
+                // כמו כשהפנס באמת דולק (בלי להדליק אותו)
+                val yellow = Color.rgb(255, 213, 74)
+                show("torch", 220, yellow, 4000, onTap = { hide() }, long = "הפנס דולק · הקש לכבות", longColor = yellow) { ctx, _, right ->
+                    right.addView(LineIcon(ctx, "torch", yellow))
+                }
             }
             "charge" -> {
                 val green = NotchPrefs.tint(NotchOverlay.service, "charge", Color.rgb(62, 209, 140))
