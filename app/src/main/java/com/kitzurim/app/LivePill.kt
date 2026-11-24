@@ -1926,6 +1926,76 @@ object LivePill {
         }
     }
 
+    /**
+     * סוללה חלשה (15%): מי אכל את הסוללה. שורה עם האחוז, ומתחת האפליקציות שהכי היו בשימוש היום (סמל, שם, פס ואחוז),
+     * ושני כפתורים: לעצור את הראשונה (פותח את הדף שלה, שם "עצירה בכפייה") ו"חיסכון" (מצב חיסכון בסוללה).
+     * בלי הרשאה לזמני שימוש: כפתור שמבקש אותה.
+     */
+    fun showLowBattery(level: Int, apps: List<Triple<String, String, Int>>) {
+        val s = NotchOverlay.service ?: return
+        if (!demoMode && !NotchPrefs.pill(s)) return
+        if (inCallPill()) return
+        val d = s.resources.displayMetrics.density
+        val orange = Color.rgb(255, 159, 67)
+        val ctx0: Context = s
+        fun open(i: android.content.Intent) { runCatching { s.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }; hide() }
+        fun pillBtn(text: String, bg: Int, onClick: () -> Unit) = label(ctx0, text, 13f, Color.WHITE, bold = true).apply {
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply { cornerRadius = 16 * d; setColor(bg) }
+            setPadding(0, (8 * d).toInt(), 0, (8 * d).toInt())
+            setOnClickListener { onClick() }
+        }
+        val card = LinearLayout(ctx0).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding((12 * d).toInt(), (2 * d).toInt(), (12 * d).toInt(), (4 * d).toInt())
+            if (apps.isEmpty()) {
+                addView(label(ctx0, "כדי לראות מה צרך הכי הרבה, צריך לאשר לקיצורים לראות זמני שימוש (פעם אחת)", 12f, Color.argb(200, 255, 255, 255)).apply { setSingleLine(false) })
+            } else {
+                addView(label(ctx0, "הכי צרכו היום:", 11.5f, Color.argb(190, 255, 255, 255)))
+                apps.forEachIndexed { i, (pkg, name, pct) ->
+                    val col = when (i) { 0 -> Color.rgb(255, 77, 94); 1 -> orange; else -> Color.rgb(42, 212, 154) }
+                    addView(LinearLayout(ctx0).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        setPadding(0, (6 * d).toInt(), 0, 0)
+                        addView(ImageView(ctx0).apply {
+                            runCatching { setImageDrawable(ctx0.packageManager.getApplicationIcon(pkg)) }
+                        }, LinearLayout.LayoutParams((18 * d).toInt(), (18 * d).toInt()))
+                        addView(label(ctx0, "  $name", 12.5f, Color.WHITE), LinearLayout.LayoutParams(0, -2, 1f))
+                        addView(label(ctx0, "$pct%", 12.5f, Color.WHITE, bold = true))
+                    })
+                    // פס בצבע: אדום לראשונה, כתום לשנייה, ירוק לשלישית
+                    addView(FrameLayout(ctx0).apply {
+                        background = GradientDrawable().apply { cornerRadius = 4 * d; setColor(Color.argb(40, 255, 255, 255)) }
+                        addView(View(ctx0).apply {
+                            background = GradientDrawable().apply { cornerRadius = 4 * d; setColor(col) }
+                        }, FrameLayout.LayoutParams(0, -1).also { lp -> post { lp.width = (width * pct / 100f).toInt(); requestLayout() } })
+                    }, LinearLayout.LayoutParams(-1, (6 * d).toInt()).apply { topMargin = (3 * d).toInt() })
+                }
+            }
+            addView(LinearLayout(ctx0).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, (10 * d).toInt(), 0, 0)
+                if (apps.isEmpty()) {
+                    addView(pillBtn("לאשר", orange) { LowBattery.openAccess(s); hide() }, LinearLayout.LayoutParams(0, -2, 1f))
+                } else {
+                    val first = apps[0]
+                    addView(pillBtn("לעצור את ${first.second}", Color.rgb(229, 72, 77)) {
+                        open(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${first.first}")))
+                    }, LinearLayout.LayoutParams(0, -2, 1.4f))
+                }
+                addView(pillBtn("חיסכון", Color.argb(45, 255, 255, 255)) {
+                    open(android.content.Intent(android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS))
+                }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = (8 * d).toInt() })
+            })
+        }
+        show("lowbat", 320, orange, 9000, onTap = null, extra = card) { ctx, left, right ->
+            right.addView(label(ctx, "🪫 $level%", 14f, orange, bold = true))
+            left.addView(label(ctx, "סוללה חלשה", 12.5f, Color.WHITE))
+        }
+    }
+
     fun showCharging(percent: Int, minutesToFull: Long?) {
         val s = NotchOverlay.service ?: return
         if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillCharging(s))) return
@@ -2495,6 +2565,7 @@ object LivePill {
                     left.addView(label(ctx, text, 13.5f, Color.WHITE))
                 }
             }
+            "lowbat" -> showLowBattery(15, LowBattery.top(s).ifEmpty { listOf(Triple("com.google.android.youtube", "יוטיוב", 38), Triple("com.waze", "וויז", 21), Triple("com.whatsapp", "וואטסאפ", 9)) })
             "music" -> {
                 val purple = NotchPrefs.tint(NotchOverlay.service, "music", Color.rgb(179, 136, 255))
                 show("music", 240, purple, 3500, onTap = null, long = "שיר לדוגמא") { ctx, left, right ->

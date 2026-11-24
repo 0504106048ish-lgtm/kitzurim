@@ -142,6 +142,8 @@ object NotchOverlay {
                 val st = i.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
                 val was = charging
                 charging = st == BatteryManager.BATTERY_STATUS_CHARGING || st == BatteryManager.BATTERY_STATUS_FULL
+                // 15% בלי מטען: מי אכל את הסוללה
+                if (batteryReady) runCatching { LowBattery.check(c, level, charging) }
                 // חיברו מטען: הגלולה מראה את האחוז והזמן עד מלא
                 if (charging && !was && batteryReady) {
                     val info = Battery.read(c, i)

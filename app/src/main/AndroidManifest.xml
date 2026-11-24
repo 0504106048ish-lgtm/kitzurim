@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- מצב נהיגה: לדעת מתי הטלפון מתחבר לבלוטות' של הרכב -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
@@ -14,6 +15,8 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <!-- פקודה קולית: למצוא את איש הקשר שאמרת -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- "מי אכל את הסוללה": זמני השימוש של היום (מאשרים פעם אחת בהגדרות) -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <!-- "תתקשר לדוד": חיוג מיד, אחרי ספירה של 3 שניות שאפשר לבטל -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <!-- קיצורים כאפליקציית הטלפון: מסך השיחה נפתח גם כשהמסך נעול -->
