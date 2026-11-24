@@ -75,7 +75,10 @@ class ReplyListener : NotificationListenerService() {
         if (n.category == Notification.CATEGORY_CALL && n.fullScreenIntent != null) {
             // שיחה של קיצורים עצמה (כשהיא אפליקציית הטלפון): מסך השיחה בניאון כבר פתוח
             if (sbn.packageName == packageName && CallActivity.visible) return
-            val name = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "שיחה"
+            val rawName = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "שיחה"
+            // זיהוי תמיד (גם עם החייגן של סמסונג): מספר לא שמור מקבל את השם מ-Truecaller, ואם אין, מוואטסאפ
+            val isNum = rawName.count { it.isDigit() } >= 7 && rawName.none { it.isLetter() }
+            val name = if (isNum) CallerId.nameFor(this, rawName) ?: WaPhotos.name(this, rawName) ?: rawName else rawName
             val actions = n.actions?.toList() ?: emptyList()
             fun find(words: List<String>) = actions.firstOrNull { a ->
                 val t = a.title?.toString()?.lowercase() ?: ""
@@ -85,14 +88,15 @@ class ReplyListener : NotificationListenerService() {
             val decline = find(listOf("דחה", "דחיי", "נתק", "decline", "reject", "dismiss")) ?: actions.firstOrNull()
             // התמונה של מי שמתקשר (מההתראה), בשביל הכרטיס בצבעים שלו
             val callPhoto = runCatching { n.getLargeIcon()?.loadDrawable(this)?.toBitmap(96, 96) }.getOrNull()
+                ?: WaPhotos.photo(this, rawName)
             // חסימת שיחות וואטסאפ (אם הדלקת): בשקט, בלי צלצול ובלי חלון. אצלו ממשיך לצלצל כאילו לא ענית
-            if (WaBlock.isWhatsApp(sbn.packageName) && WaBlock.shouldBlock(this, name)) {
-                WaBlock.silence(this, sbn, name)
+            if (WaBlock.isWhatsApp(sbn.packageName) && WaBlock.shouldBlock(this, rawName)) {
+                WaBlock.silence(this, sbn, rawName)
                 return
             }
             // שיחת וואטסאפ כשהחסימה דלוקה: בכרטיס יש גם "חסום", שחוסם אותו מעכשיו ומשתיק מיד
             val block: (() -> Unit)? = if (WaBlock.isWhatsApp(sbn.packageName) && WaBlock.on(this)) {
-                { WaBlock.add(this, name); WaBlock.silence(this, sbn, name) }
+                { WaBlock.add(this, rawName); WaBlock.silence(this, sbn, rawName) }
             } else null
             LivePill.showCall(sbn.key, name, decline?.actionIntent, answer?.actionIntent, callPhoto, onBlock = block)
             return
@@ -100,7 +104,9 @@ class ReplyListener : NotificationListenerService() {
 
         // שיחה פעילה (יוצאת, או אחרי שענית): השם, והאם כבר ענו (כשההתראה מתחילה לספור זמן)
         if (n.category == Notification.CATEGORY_CALL && n.flags and Notification.FLAG_ONGOING_EVENT != 0) {
-            val name = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "שיחה"
+            val title = n.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "שיחה"
+            // מספר לא שמור: השם מ-Truecaller (או מוואטסאפ), גם בשיחות של החייגן של סמסונג
+            val name = if (title.count { it.isDigit() } >= 7 && title.none { it.isLetter() }) CallerId.nameFor(this, title) ?: WaPhotos.name(this, title) ?: title else title
             val counting = n.extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false)
             // לא כל טלפון מסמן "סופר זמן": אם כבר לא כתוב "מחייג" / "מתקשר", סימן שענו
             val status = n.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.lowercase() ?: ""

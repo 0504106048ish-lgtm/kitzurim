@@ -657,7 +657,7 @@ fun HomeScreen(resumes: Int) {
                 // ---------- שיחות ----------
                 if (page == "calls") Card {
                     // קיצורים כאפליקציית הטלפון: כל השיחות במסך הניאון. כבוי כברירת מחדל
-                    SwitchLine("📞 מסך שיחה בניאון (קיצורים כאפליקציית הטלפון)", Calls.isDefault(ctx), demo = { LivePill.explain("📞", "כשקיצורים היא אפליקציית הטלפון: מסך השיחה בעיצוב ניאון, עם תמונה, הקלטה ועוד") }) { on ->
+                    SwitchLine("📞 החייגן ומסך השיחה של קיצורים (כבוי: החייגן של סמסונג, עם ההקלטה המקורית שלו. הזיהוי מ-Truecaller, התמונות מוואטסאפ והגלולה עובדים בשני המצבים)", Calls.isDefault(ctx), demo = { LivePill.explain("📞", "דלוק: החייגן ומסך השיחה של קיצורים. כבוי: של סמסונג. הזיהוי והגלולה תמיד עובדים") }) { on ->
                         if (on) {
                             // קודם תצוגה מקדימה של מסך השיחה, ומשם "להפעיל"
                             ctx.startActivity(Intent(ctx, CallActivity::class.java).putExtra(CallActivity.PREVIEW, true))
