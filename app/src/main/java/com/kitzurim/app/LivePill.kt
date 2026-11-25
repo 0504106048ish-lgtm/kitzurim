@@ -51,6 +51,8 @@ object LivePill {
     private var kind: String? = null
     private var timerText: TextView? = null
     private var collapsedW = 0
+    /** הגלולה הבאה נמתחת ישר מהגלולה שעל המסך (בלי להיכנס לחור ולצאת שוב), למשל הקשה על גלולת השיחה */
+    private var growNext = false
 
     /** כמה קטן העיגול שיוצא מהחור ונכנס אליו (יחסית לגובה הגלולה): בגודל החור שרואים */
     private var holeScale = 0.4f
@@ -572,7 +574,10 @@ object LivePill {
     private fun openCallMenu() {
         // הגלולה מתארכת לשורה אחת: השם והזמן, והשתק, נתק ורמקול. הקשה על השם פותחת את מסך השיחה המלא
         menuOpen = true
-        main.postDelayed({ showCallMenu() }, 280)
+        // נמתחת ישר מהגלולה הקטנה, בלי להתכווץ קודם לחור
+        growNext = true
+        showCallMenu()
+        growNext = false
     }
 
     /** מסך השיחה המלא של קיצורים: הגלולה מתרחבת לכל המסך (ההפך ממה שקורה כשיוצאים), ואז הוא נפתח */
@@ -859,7 +864,13 @@ object LivePill {
             if (own) Calls.toggleSpeaker() else audio?.let { it.isSpeakerphoneOn = !it.isSpeakerphoneOn }
         })
         // הקשה על השם: חוזרים לגלולה הקטנה
-        show("callmenu", 300, green, 6000, onTap = { menuOpen = false }) { _, left, right ->
+        show("callmenu", 300, green, 6000, onTap = {
+            // מתכווצת ישר לגלולה הקטנה (בלי להיכנס לחור ולצאת שוב)
+            menuOpen = false
+            growNext = true
+            runCatching { inCall(99) }
+            growNext = false
+        }) { _, left, right ->
             row.forEach { left.addView(it) }
             right.addView(who)
         }
@@ -2039,6 +2050,11 @@ object LivePill {
         }.getOrDefault(false)
         val instant = instantNext || quiet
         main.removeCallbacks(autoClose)
+        // נמתחת מהגלולה שעל המסך: זוכרים את הגודל שלה, והיא נשארת עד שהחדשה מופיעה (בלי הבהוב)
+        val from = if (growNext && !instant) bg?.let { if (it.width > 0) it.width to it.height else null } else null
+        growNext = false
+        val oldWindow = if (from != null) window else null
+        if (oldWindow != null) window = null
         removeNow()
         timerText = null
 
@@ -2113,7 +2129,8 @@ object LivePill {
         if (onTap != null) {
             p.setOnClickListener {
                 onTap()
-                hide()
+                // אם ההקשה כבר פתחה גלולה אחרת (למשל תפריט השיחה), לא סוגרים אותה
+                if (window === root) hide()
             }
         }
 
@@ -2262,7 +2279,7 @@ object LivePill {
         if (expanded) (b.background as GradientDrawable).cornerRadius = min(h / 2f, 20 * d)
         root.addView(
             b,
-            FrameLayout.LayoutParams(collapsedW, h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
+            FrameLayout.LayoutParams(from?.first ?: collapsedW, from?.second ?: h, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pillTop },
         )
         root.addView(
             p,
@@ -2276,7 +2293,7 @@ object LivePill {
                 FrameLayout.LayoutParams(2 * side + gapW, bodyH, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
                     .apply { topMargin = pillTop + h - (6 * d).toInt() },
             )
-            if (onTap != null) body.setOnClickListener { onTap(); hide() }
+            if (onTap != null) body.setOnClickListener { onTap(); if (window === root) hide() }
         }
         if (extra != null) {
             root.addView(
@@ -2302,7 +2319,9 @@ object LivePill {
                 false
             }
         }
-        runCatching { wm.addView(root, lp) }.onFailure { return }
+        runCatching { wm.addView(root, lp) }.onFailure { oldWindow?.let { w -> runCatching { wm.removeView(w) } }; return }
+        // הגלולה הקודמת יורדת רק אחרי שהחדשה כבר על המסך, באותו גודל ומקום
+        oldWindow?.let { w -> main.postDelayed({ runCatching { wm.removeView(w) } }, 32) }
         window = root
         pill = p
         bg = b
@@ -2311,9 +2330,13 @@ object LivePill {
 
         // טיפה מהחור: קודם עיגול קטן "נוטף" מהמצלמה (יורד, נמתח, קופץ חזרה), ורק אז נמתח לגלולה
         // (אפשר לכבות בהגדרות: אז הגלולה נפתחת ישר)
-        val drop = !instant && extra == null && NotchOverlay.service?.let { NotchPrefs.pillDrip(it) } != false
+        val drop = from == null && !instant && extra == null && NotchOverlay.service?.let { NotchPrefs.pillDrip(it) } != false
         // יוצאת מהחור: מתחילה כעיגול שחור בגודל החור, בדיוק עליו, וגדלה ממנו (לא מופיעה פתאום כעיגול נפרד)
-        val emergeMs = if (!instant && !quiet) 150L else 0L
+        // (נמתחת מגלולה קיימת: בלי לצאת מהחור)
+        val emergeMs = if (from == null && !instant && !quiet) 150L else 0L
+        val startW = from?.first ?: collapsedW
+        val startH = from?.second ?: h
+        if (from != null) b.translationY = (h - startH) / 2f
         if (emergeMs > 0) {
             b.pivotX = collapsedW / 2f
             b.pivotY = h / 2f
@@ -2358,15 +2381,21 @@ object LivePill {
                 val fw = if (expanded) (f / 0.6f).coerceAtMost(1f) + max(0f, f - 1f) else f
                 val fh = if (expanded) ((f - 0.35f) / 0.65f).coerceIn(0f, 1.1f) else 0f
                 val lp = b.layoutParams
-                lp.width = (collapsedW + (targetW - collapsedW) * fw).toInt().coerceAtLeast(collapsedW)
-                lp.height = (h + (bodyH + extraH) * fh).toInt().coerceAtLeast(h)
+                lp.width = (startW + (targetW - startW) * fw).toInt().coerceAtLeast(collapsedW)
+                lp.height = if (from != null) {
+                    // מהגובה של הגלולה הקודמת לגובה החדש, ונשארת ממורכזת על החור
+                    val hh = (startH + (h - startH) * f.coerceAtMost(1f)).toInt()
+                    b.translationY = (h - hh) / 2f
+                    hh
+                } else (h + (bodyH + extraH) * fh).toInt().coerceAtLeast(h)
                 b.layoutParams = lp
             }
             start()
         }
         val dl = if (instant) 0L else 1L
-        left.animate().alpha(1f).setStartDelay(220 * dl + dropMs).setDuration(180 * dl).start()
-        right.animate().alpha(1f).setStartDelay(220 * dl + dropMs).setDuration(180 * dl).start()
+        val textDelay = if (from != null) 120L else 220L
+        left.animate().alpha(1f).setStartDelay(textDelay * dl + dropMs).setDuration(180 * dl).start()
+        right.animate().alpha(1f).setStartDelay(textDelay * dl + dropMs).setDuration(180 * dl).start()
         body?.animate()?.alpha(1f)?.setStartDelay(340)?.setDuration(180)?.start()
         extra?.animate()?.alpha(1f)?.setStartDelay(360)?.setDuration(180)?.start()
         this.extra = extra
