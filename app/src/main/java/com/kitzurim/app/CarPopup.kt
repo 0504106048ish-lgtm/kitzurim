@@ -77,20 +77,71 @@ object CarPopup {
 
     /** מחוברים לרכב: מדליקים את החלון הקופץ להודעות של וואטסאפ (רק מה שהיה "התראה" בלי חלון קופץ) */
     fun boost(l: NotificationListenerService) {
-        if (!on(l) || !approved(l)) return
+        if (!on(l)) return
+        if (!approved(l)) { note(l, "❌ אין אישור חד-פעמי"); return }
         val user = android.os.Process.myUserHandle()
         val saved = (sp(l).getStringSet("saved", emptySet()) ?: emptySet()).toMutableSet()
+        var changed = 0
+        var high = 0
+        var err: String? = null
         apps.forEach { pkg ->
-            val chans = runCatching { l.getNotificationChannels(pkg, user) }.getOrNull() ?: return@forEach
-            chans.filter { isChat(it.id) && it.importance == NotificationManager.IMPORTANCE_DEFAULT }.forEach { ch ->
-                // זוכרים מה היה, כדי להחזיר בדיוק את זה
-                if (saved.none { it.startsWith("$pkg|${ch.id}|") }) saved += "$pkg|${ch.id}|${ch.importance}"
-                ch.importance = NotificationManager.IMPORTANCE_HIGH
-                runCatching { l.updateNotificationChannel(pkg, user, ch) }
+            val chans = runCatching { l.getNotificationChannels(pkg, user) }
+                .onFailure { err = it.javaClass.simpleName + ": " + it.message }
+                .getOrNull() ?: return@forEach
+            chans.filter { isChat(it.id) }.forEach { ch ->
+                when {
+                    ch.importance >= NotificationManager.IMPORTANCE_HIGH -> high++
+                    // "חסום" (NONE) נשאר חסום. כל השאר (שקט / התראה בלי קפיצה) עולה לקפיצה
+                    ch.importance > NotificationManager.IMPORTANCE_NONE -> {
+                        // זוכרים מה היה, כדי להחזיר בדיוק את זה
+                        if (saved.none { it.startsWith("$pkg|${ch.id}|") }) saved += "$pkg|${ch.id}|${ch.importance}"
+                        ch.importance = NotificationManager.IMPORTANCE_HIGH
+                        runCatching { l.updateNotificationChannel(pkg, user, ch) }
+                            .onSuccess { changed++ }
+                            .onFailure { err = it.javaClass.simpleName + ": " + it.message }
+                    }
+                }
             }
         }
         sp(l).edit().putStringSet("saved", saved).apply()
-        if (saved.isNotEmpty()) ActivityLog.add(l, "🚗", "ברכב: ההודעות של וואטסאפ קופצות")
+        note(l, when {
+            err != null -> "❌ אנדרואיד לא נתן לשנות: $err"
+            changed > 0 -> "✅ הודלק חלון קופץ ל-$changed ערוצים של וואטסאפ"
+            high > 0 -> "✅ החלון הקופץ של וואטסאפ דלוק ($high ערוצים)"
+            else -> "❌ לא נמצאו ערוצי הודעות של וואטסאפ"
+        })
+        if (changed > 0) ActivityLog.add(l, "🚗", "ברכב: ההודעות של וואטסאפ קופצות")
+    }
+
+    /** מה קרה בפעם האחרונה (מוצג במסך, כדי לדעת מה עובד ומה לא) */
+    private fun note(c: Context, s: String) {
+        val t = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+        sp(c).edit().putString("last", "$t  $s").apply()
+    }
+
+    /** מצב מלא, בשביל השורה במסך: אישור, רכב, ומה מצב כל ערוץ של וואטסאפ עכשיו */
+    fun status(c: Context): String {
+        val l = listener
+        val lines = mutableListOf<String>()
+        lines += (if (approved(c)) "✅" else "❌") + " אישור חד-פעמי"
+        lines += (if (CarMirror.connected(c)) "✅ מחובר לרכב" else "⚪ לא מחובר לרכב עכשיו")
+        if (l == null) lines += "❌ גישה להתראות לא פעילה"
+        else apps.forEach { pkg ->
+            val chans = runCatching { l.getNotificationChannels(pkg, android.os.Process.myUserHandle()) }
+            chans.onFailure { lines += "❌ אין גישה לערוצים: ${it.javaClass.simpleName}" }
+            chans.getOrNull()?.filter { isChat(it.id) }?.forEach { ch ->
+                val imp = when (ch.importance) {
+                    NotificationManager.IMPORTANCE_HIGH, NotificationManager.IMPORTANCE_MAX -> "קופץ"
+                    NotificationManager.IMPORTANCE_DEFAULT -> "בלי קפיצה"
+                    NotificationManager.IMPORTANCE_LOW, NotificationManager.IMPORTANCE_MIN -> "שקט"
+                    NotificationManager.IMPORTANCE_NONE -> "חסום"
+                    else -> ch.importance.toString()
+                }
+                lines += "• ${ch.name ?: ch.id}: $imp"
+            }
+        }
+        sp(c).getString("last", null)?.let { lines += "פעם אחרונה: $it" }
+        return lines.joinToString("\n")
     }
 
     /** התנתקו מהרכב (או כיבית): מחזירים את ההגדרות של וואטסאפ בדיוק כמו שהיו */

@@ -892,6 +892,18 @@ fun HomeScreen(resumes: Int) {
                             if (act != null) CarPopup.approve(act) { refresh++ }
                         }) { Text("לאשר עכשיו ←") }
                     }
+                    // מה המצב עכשיו: רואים בעיניים אם וואטסאפ באמת מוגדר לקפוץ
+                    if (CarPopup.on(ctx)) {
+                        Text(
+                            remember(refresh) { CarPopup.status(ctx) },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                        )
+                        TextButton(onClick = {
+                            CarPopup.listener?.let { CarPopup.boost(it) }
+                            refresh++
+                        }) { Text("🔔 להדליק עכשיו את הקפיצה של וואטסאפ") }
+                    }
                     SwitchLine("להעביר הודעות למסך הרכב", NotchPrefs.carMirror(ctx), demo = { LivePill.explain("🚗", "מחוברים לאנדרואיד אוטו: הודעות מוואטסאפ קופצות במסך הרכב ונקראות בקול") }) {
                         NotchPrefs.setCarMirror(ctx, it); refresh++
                     }
