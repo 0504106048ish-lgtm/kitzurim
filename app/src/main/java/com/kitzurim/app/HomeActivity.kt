@@ -898,11 +898,16 @@ fun HomeScreen(resumes: Int) {
                     // SMS: בדרך כלל מגיעות לרכב לבד. אם כיבית גם להן את החלון הקופץ, מדליקים כאן
                     if (NotchPrefs.carMirror(ctx)) {
                         Text("מאילו אפליקציות:", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-                        NotchPrefs.CAR_APPS
+                        val carList = NotchPrefs.CAR_APPS
                             .filter { (pkg, _) -> ctx.packageManager.getLaunchIntentForPackage(pkg) != null }
-                            .forEach { (pkg, name) ->
-                                SwitchLine(name, NotchPrefs.carApp(ctx, pkg)) { NotchPrefs.setCarApp(ctx, pkg, it); refresh++ }
-                            }
+                        // "הכל": מדליק (או מכבה) את כולן בבת אחת. רוצים הכל חוץ מאחת? מדליקים הכל ומכבים רק אותה
+                        if (carList.size > 1) SwitchLine("✅ הכל", carList.all { (pkg, _) -> NotchPrefs.carApp(ctx, pkg) }) { on ->
+                            carList.forEach { (pkg, _) -> NotchPrefs.setCarApp(ctx, pkg, on) }
+                            refresh++
+                        }
+                        carList.forEach { (pkg, name) ->
+                            SwitchLine(name, NotchPrefs.carApp(ctx, pkg)) { NotchPrefs.setCarApp(ctx, pkg, it); refresh++ }
+                        }
                     }
                     Text(
                         "פעם אחת: אנדרואיד אוטו מציג רק אפליקציות מחנות Play. כדי שיציג גם את קיצורים:\n1. פותחים את הגדרות אנדרואיד אוטו (בכפתור כאן)\n2. לוחצים 10 פעמים על \"גרסה\" למטה, ומאשרים\n3. בתפריט ⋮ למעלה ← הגדרות מפתח ← מסמנים \"מקורות לא ידועים\"",

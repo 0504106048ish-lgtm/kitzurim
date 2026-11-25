@@ -166,15 +166,25 @@ fun SettingsScreen(
                     if (car) {
                         // בוחרים מאילו אפליקציות ההודעות עוברות לרכב (רק מה שמותקן בטלפון)
                         Text("מאילו אפליקציות:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        NotchPrefs.CAR_APPS
+                        val carList = NotchPrefs.CAR_APPS
                             .filter { (pkg, _) -> ctx.packageManager.getLaunchIntentForPackage(pkg) != null }
-                            .forEach { (pkg, name) ->
-                                var on by remember { mutableStateOf(NotchPrefs.carApp(ctx, pkg)) }
+                        // "הכל": מדליק (או מכבה) את כולן בבת אחת
+                        var carVer by remember { mutableStateOf(0) }
+                        if (carList.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("✅ הכל", Modifier.weight(1f))
+                            Switch(checked = carVer >= 0 && carList.all { (pkg, _) -> NotchPrefs.carApp(ctx, pkg) }, onCheckedChange = { v ->
+                                carList.forEach { (pkg, _) -> NotchPrefs.setCarApp(ctx, pkg, v) }
+                                carVer++
+                            })
+                        }
+                        carList.forEach { (pkg, name) ->
+                                var on by remember(carVer) { mutableStateOf(NotchPrefs.carApp(ctx, pkg)) }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(name, Modifier.weight(1f))
                                     Switch(checked = on, onCheckedChange = {
                                         on = it
                                         NotchPrefs.setCarApp(ctx, pkg, it)
+                                        carVer++
                                     })
                                 }
                             }
