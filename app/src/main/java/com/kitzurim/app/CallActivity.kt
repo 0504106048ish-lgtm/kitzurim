@@ -801,7 +801,9 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                     // ענה ודחה באותה החלקה: ימינה לענות, שמאלה לדחות (אין כפתור שאפשר ללחוץ בטעות)
                     SlideAnswerDecline(onAnswer = { act.answer() }, onDecline = { act.reject() })
                 }
-                Spacer(Modifier.height(30.dp))
+                // תמיד מעל שורת הניווט של הטלפון, כמו במסך השיחה עצמה
+                val navRing = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                Spacer(Modifier.height(navRing + 30.dp))
             } else {
                 // המקלדת נפתחת מעל הכפתורים (נפרשת למעלה ומתבהרת, והמקשים מופיעים אחד אחרי השני),
                 // כך שהשתקה ורמקול תמיד נשארים גלויים מתחתיה
