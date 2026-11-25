@@ -225,6 +225,8 @@ class ReplyListener : NotificationListenerService() {
             acts.any { it.semanticAction == Notification.Action.SEMANTIC_ACTION_MARK_AS_READ }
         if (native) {
             CarMirror.removed(this, sbn.key)
+            // ליתר ביטחון (אם ההודעה על החיבור לרכב לא הגיעה): ברכב החלון הקופץ של וואטסאפ דלוק
+            if (WaBlock.isWhatsApp(sbn.packageName) && CarPopup.on(this) && CarMirror.connected(this)) runCatching { CarPopup.boost(this) }
         } else if ((sbn.packageName in carApps || sbn.packageName in smsApps) && NotchPrefs.carApp(this, sbn.packageName)) {
             val group = style?.isGroupConversation == true
             val who = last?.person?.name?.toString()?.takeIf { it.isNotBlank() } ?: sender
@@ -244,6 +246,8 @@ class ReplyListener : NotificationListenerService() {
         override fun onReceive(c: Context, i: Intent) {
             // התנתקו מהרכב: כל העותקים יורדים מיד. פתחו את הטלפון ביד: ההודעות המקוריות כבר מולך, אז העותקים יורדים
             if (i.action == Intent.ACTION_USER_PRESENT || !CarMirror.connected(c)) CarMirror.clearAll(c)
+            // החלון הקופץ של וואטסאפ: דלוק רק כשמחוברים לרכב
+            CarPopup.sync(this@ReplyListener)
         }
     }
     private var carWatching = false
@@ -251,6 +255,8 @@ class ReplyListener : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         if (!CarMirror.connected(this)) CarMirror.clearAll(this)
+        CarPopup.listener = this
+        CarPopup.sync(this)
         if (!carWatching) runCatching {
             val f = android.content.IntentFilter().apply {
                 addAction("androidx.car.app.connection.action.CAR_CONNECTION_UPDATED")
@@ -262,6 +268,7 @@ class ReplyListener : NotificationListenerService() {
     }
 
     override fun onListenerDisconnected() {
+        if (CarPopup.listener === this) CarPopup.listener = null
         if (carWatching) runCatching { unregisterReceiver(carWatch) }
         carWatching = false
         super.onListenerDisconnected()

@@ -876,6 +876,22 @@ fun HomeScreen(resumes: Int) {
                         style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant,
                     )
+                    // ברכב וואטסאפ קופצת, ובטלפון לא: קיצורים מדליקה את החלון הקופץ שלה רק כשמחוברים לרכב
+                    SwitchLine("🔔 ברכב ההודעות של וואטסאפ קופצות (בטלפון נשאר רק הגלולה: כשמתנתקים מהרכב הכול חוזר כמו שהיה)", CarPopup.on(ctx), demo = { LivePill.explain("🔔", "מחוברים לרכב: הודעת וואטסאפ קופצת במסך הרכב. בטלפון: רק הגלולה") }) {
+                        CarPopup.setOn(ctx, it); refresh++
+                    }
+                    if (CarPopup.on(ctx) && !CarPopup.approved(ctx)) {
+                        Text(
+                            "פעם אחת צריך לאשר: אנדרואיד מראה רשימת מכשירי בלוטות', ובוחרים את הרכב (או כל מכשיר אחר). בלי זה אנדרואיד לא מרשה לקיצורים להדליק את החלון הקופץ של וואטסאפ.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant,
+                        )
+                        TextButton(onClick = {
+                            val act = generateSequence(ctx) { (it as? android.content.ContextWrapper)?.baseContext }
+                                .filterIsInstance<android.app.Activity>().firstOrNull()
+                            if (act != null) CarPopup.approve(act) { refresh++ }
+                        }) { Text("לאשר עכשיו ←") }
+                    }
                     SwitchLine("להעביר הודעות למסך הרכב", NotchPrefs.carMirror(ctx), demo = { LivePill.explain("🚗", "מחוברים לאנדרואיד אוטו: הודעות מוואטסאפ קופצות במסך הרכב ונקראות בקול") }) {
                         NotchPrefs.setCarMirror(ctx, it); refresh++
                     }
