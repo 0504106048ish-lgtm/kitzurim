@@ -42,8 +42,12 @@ object CarPopup {
         val cdm = a.getSystemService(CompanionDeviceManager::class.java) ?: run {
             Actions.toast(a, "הטלפון לא מאפשר את זה"); return
         }
+        // הרשימה מראה כל מה שבסביבה: בלוטות' רגיל, בלוטות' חסכוני (שעונים, אוזניות, טלוויזיות) ורשתות Wi-Fi.
+        // לא משנה מה בוחרים: האישור עצמו הוא מה שחשוב (רכב שכבר מחובר לא תמיד מופיע, כי הוא לא "מחפש")
         val req = AssociationRequest.Builder()
             .addDeviceFilter(BluetoothDeviceFilter.Builder().build())
+            .addDeviceFilter(android.companion.BluetoothLeDeviceFilter.Builder().build())
+            .addDeviceFilter(android.companion.WifiDeviceFilter.Builder().build())
             .build()
         val cb = object : CompanionDeviceManager.Callback() {
             private fun ask(sender: IntentSender) {
