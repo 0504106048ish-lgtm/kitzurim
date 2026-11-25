@@ -14,7 +14,6 @@ import java.util.Calendar
  *  שזה כמעט תמיד מה שאוכל את הסוללה.)
  */
 object LowBattery {
-    private var shownThisTime = false
 
     fun on(c: Context) = c.getSharedPreferences("kitzurim_notch", Context.MODE_PRIVATE).getBoolean("low_bat", true)
     fun setOn(c: Context, v: Boolean) = c.getSharedPreferences("kitzurim_notch", Context.MODE_PRIVATE).edit().putBoolean("low_bat", v).apply()
@@ -58,9 +57,11 @@ object LowBattery {
 
     /** כל שינוי בסוללה: ב-15% (פעם אחת בכל פעם שהיא יורדת) מראים את הגלולה */
     fun check(c: Context, level: Int, charging: Boolean) {
-        if (charging || level > 20) { shownThisTime = false; return }
-        if (shownThisTime || level > 15 || level < 0 || !on(c)) return
-        shownThisTime = true
+        val sp = c.getSharedPreferences("kitzurim_notch", Context.MODE_PRIVATE)
+        // מתאפס רק כשהסוללה באמת עלתה מעל 20% (לא כשרק חיברו ונתקו מטען), ונשמר גם אחרי הפעלה מחדש
+        if (level > 20) { if (sp.getBoolean("low_bat_shown", false)) sp.edit().putBoolean("low_bat_shown", false).apply(); return }
+        if (charging || level > 15 || level < 0 || !on(c) || sp.getBoolean("low_bat_shown", false)) return
+        sp.edit().putBoolean("low_bat_shown", true).apply()
         LivePill.showLowBattery(level, top(c))
     }
 }
