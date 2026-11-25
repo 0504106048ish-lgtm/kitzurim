@@ -219,11 +219,9 @@ class ReplyListener : NotificationListenerService() {
         // לא מעבירים עותק, אחרת ההודעה מופיעה ברכב פעמיים
         // אבל אנדרואיד אוטו מראה אותה לבד רק אם ההתראה "קופצת" (חשיבות גבוהה). כשהחלון הקופץ של וואטסאפ כבוי
         // היא לא מגיעה לרכב בכלל, ואז כן מעבירים עותק (אחרת לא מופיע כלום)
-        val pops = runCatching {
-            val r = NotificationListenerService.Ranking()
-            currentRanking.getRanking(sbn.key, r) && r.importance >= android.app.NotificationManager.IMPORTANCE_HIGH
-        }.getOrDefault(true)
-        val native = pops && style != null && reply != null && Build.VERSION.SDK_INT >= 28 &&
+        // (נבדק ברכב: גם כשהחלון הקופץ של וואטסאפ כבוי היא כן מופיעה ברשימה של הרכב, רק בלי לקפוץ.
+        //  אז עותק תמיד יצר כפילות: מעבירים עותק רק לאפליקציה שלא מגיעה לרכב בכלל)
+        val native = style != null && reply != null && Build.VERSION.SDK_INT >= 28 &&
             acts.any { it.semanticAction == Notification.Action.SEMANTIC_ACTION_MARK_AS_READ }
         if (native) {
             CarMirror.removed(this, sbn.key)
