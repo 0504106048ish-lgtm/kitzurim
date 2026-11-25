@@ -800,7 +800,7 @@ object LivePill {
                 if (!sent) runCatching { own() }
                 after?.invoke(v)
                 main.removeCallbacks(autoClose)
-                main.postDelayed(autoClose, 6000)
+                main.postDelayed(autoClose, 5000)
             }
             return v
         }
@@ -843,7 +843,7 @@ object LivePill {
                     }, 450)
                 }, 700)
                 main.removeCallbacks(autoClose)
-                main.postDelayed(autoClose, 6000)
+                main.postDelayed(autoClose, 5000)
             }
             setBtnOn(v, read())
             return v
@@ -873,7 +873,7 @@ object LivePill {
             if (own) Calls.toggleSpeaker() else audio?.let { it.isSpeakerphoneOn = !it.isSpeakerphoneOn }
         })
         // הקשה על השם: חוזרים לגלולה הקטנה
-        show("callmenu", 300, green, 6000, onTap = { collapseMenu() }) { _, left, right ->
+        show("callmenu", 300, green, 5000, onTap = { collapseMenu() }) { _, left, right ->
             row.forEach { left.addView(it) }
             right.addView(who)
         }
@@ -2097,11 +2097,14 @@ object LivePill {
         holeScale = if (hole > 0) (hole * 0.6f / h).coerceIn(0.25f, 1f) else 0.3f
 
         // החלקה למעלה סוגרת (חוץ משיחה, שלא תיסגר בטעות)
-        val root: FrameLayout = if (newKind in CALL_KINDS) FrameLayout(s) else SwipeUpFrame(s) {
-            if (kind == newKind) { menuOpen = false; hide() }
+        // (תפריט השיחה: החלקה למעלה סוגרת אותו לגלולה הקטנה, השיחה עצמה נשארת)
+        val root: FrameLayout = if (newKind in CALL_KINDS && newKind != "callmenu") FrameLayout(s) else SwipeUpFrame(s) {
+            if (kind == newKind) {
+                if (newKind == "callmenu") collapseMenu() else { menuOpen = false; hide() }
+            }
         }
         // החלקה לצדדים על הגלולה הפתוחה: כמו על החור (למשל עוד שיר הבא)
-        (root as? SwipeUpFrame)?.onSideSwipe = { right -> NotchOverlay.pillSideSwipe(right) }
+        if (newKind != "callmenu") (root as? SwipeUpFrame)?.onSideSwipe = { right -> NotchOverlay.pillSideSwipe(right) }
         // רק הרקע נמתח; התוכן כבר בגודל הסופי ורק מופיע, כדי שהטקסט לא יקפוץ בזמן המתיחה
         val b = View(s).apply {
             background = GlassDrawable(d).apply {
@@ -2308,7 +2311,8 @@ object LivePill {
 
         // הנגן: נגיעה בכל מקום אחר במסך סוגרת אותו
         val lp = NotchOverlay.params(winW, pillTop + targetH + (6 * d).toInt(), (cx - winW / 2f).toInt(), 0, touchable = newKind != "dial")
-        if (newKind == "player" || newKind == "callmenu" || (newKind == "call" && extra != null)) {
+        // (תפריט השיחה לא נסגר בנגיעה בחוץ: רק בהקשה עליו, בהחלקה למעלה או לבד אחרי 5 שניות)
+        if (newKind == "player" || (newKind == "call" && extra != null)) {
             lp.flags = lp.flags or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
             root.setOnTouchListener { _, e ->
                 if (e.actionMasked == MotionEvent.ACTION_OUTSIDE && newKind == "call") {
@@ -2316,12 +2320,8 @@ object LivePill {
                     main.post { onOutside?.invoke() }
                 } else if (e.actionMasked == MotionEvent.ACTION_OUTSIDE) {
                     closedByOutside = SystemClock.elapsedRealtime()
-                    // תפריט השיחה: מתכווץ ישר לגלולה הקטנה
-                    if (newKind == "callmenu") main.post { if (window === root) collapseMenu() }
-                    else {
-                        menuOpen = false
-                        hide()
-                    }
+                    menuOpen = false
+                    hide()
                 }
                 false
             }
