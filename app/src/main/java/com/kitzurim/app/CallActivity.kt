@@ -678,6 +678,18 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
             // מקום למעלה (בתצוגה המקדימה יותר, כי שם יש מסגרת הסבר)
             Spacer(Modifier.height(if (v.ringing) top + 20.dp else top))
             if (v.ringing) Text(v.topText, color = Color.White.copy(alpha = 0.8f), fontSize = 15.sp)
+            // זמן השיחה (או "מחייג…" / "בהמתנה"): למעלה וגדול, שרואים במבט אחד
+            if (!v.ringing) {
+                Text(
+                    v.status,
+                    color = Color.White.copy(alpha = 0.92f),
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(16.dp))
+            }
             Spacer(Modifier.height(if (v.ringing) 30.dp else 0.dp))
             // המקלדת פתוחה: התמונה מתכווצת ונעלמת בעדינות, והשם קטן, כדי לפנות מקום למקלדת
             androidx.compose.animation.AnimatedVisibility(
@@ -735,12 +747,6 @@ private fun CallFace(v: CallView, act: CallAct, top: androidx.compose.ui.unit.Dp
                 }
             }
             if (!v.ringing) {
-                Text(
-                    v.status,
-                    color = Color.White.copy(alpha = 0.78f),
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
                 // המקלדת סגורה: מה שכבר הוקש בשיחה מופיע בקטן (הקשה פותחת שוב את המקלדת)
                 val typed = act.typed()
                 androidx.compose.animation.AnimatedVisibility(visible = !keypad && typed.isNotEmpty()) {
