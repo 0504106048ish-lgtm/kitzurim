@@ -57,7 +57,16 @@ object LivePill {
     /** כמה קטן העיגול שיוצא מהחור ונכנס אליו (יחסית לגובה הגלולה): בגודל החור שרואים */
     private var holeScale = 0.4f
     private val main = Handler(Looper.getMainLooper())
-    private val autoClose = Runnable { hide() }
+    private val autoClose = Runnable { if (kind == "callmenu") collapseMenu() else hide() }
+
+    /** תפריט השיחה נסגר (לבד, בנגיעה מחוץ לו או בהקשה עליו): מתכווץ ישר לגלולה הקטנה, בלי להיכנס לחור */
+    private fun collapseMenu() {
+        menuOpen = false
+        growNext = true
+        runCatching { inCall(99) }
+        growNext = false
+        if (kind == "callmenu") hide()
+    }
 
     /** מפתח ההתראה של השיחה הנכנסת שמוצגת עכשיו */
     var callKey: String? = null
@@ -864,13 +873,7 @@ object LivePill {
             if (own) Calls.toggleSpeaker() else audio?.let { it.isSpeakerphoneOn = !it.isSpeakerphoneOn }
         })
         // הקשה על השם: חוזרים לגלולה הקטנה
-        show("callmenu", 300, green, 6000, onTap = {
-            // מתכווצת ישר לגלולה הקטנה (בלי להיכנס לחור ולצאת שוב)
-            menuOpen = false
-            growNext = true
-            runCatching { inCall(99) }
-            growNext = false
-        }) { _, left, right ->
+        show("callmenu", 300, green, 6000, onTap = { collapseMenu() }) { _, left, right ->
             row.forEach { left.addView(it) }
             right.addView(who)
         }
@@ -2313,8 +2316,12 @@ object LivePill {
                     main.post { onOutside?.invoke() }
                 } else if (e.actionMasked == MotionEvent.ACTION_OUTSIDE) {
                     closedByOutside = SystemClock.elapsedRealtime()
-                    menuOpen = false
-                    hide()
+                    // תפריט השיחה: מתכווץ ישר לגלולה הקטנה
+                    if (newKind == "callmenu") main.post { if (window === root) collapseMenu() }
+                    else {
+                        menuOpen = false
+                        hide()
+                    }
                 }
                 false
             }
