@@ -2987,7 +2987,21 @@ class SwipeUpFrame(ctx: Context, private val onSwipeUp: () -> Unit) : FrameLayou
  * עד שרואים את הסוף, ונעצר. טקסט קצר שנכנס לא זז. הקצוות נמוגים כדי שהמעבר ייראה רך
  */
 @SuppressLint("ViewConstructor")
-class MarqueeText(ctx: Context, text: CharSequence, sp: Float, color: Int) : View(ctx) {
+class MarqueeText(ctx: Context, raw: CharSequence, sp: Float, color: Int) : View(ctx) {
+    // תמיד שורה אחת: כל ירידת שורה (גם בשיר, בניווט או בהודעה) הופכת לנקודה, אף פעם לא שתי שורות זו על זו
+    private val text: CharSequence = android.text.SpannableStringBuilder(raw).also { b ->
+        var i = b.length - 1
+        while (i >= 0) {
+            if (b[i] == '\n' || b[i] == '\r' || b[i] == ' ' || b[i] == ' ') {
+                var start = i
+                while (start > 0 && (b[start - 1].isWhitespace())) start--
+                var end = i + 1
+                while (end < b.length && b[end].isWhitespace()) end++
+                b.replace(start, end, if (start == 0 || end == b.length) "" else " · ")
+                i = start - 1
+            } else i--
+        }
+    }
     private val d = ctx.resources.displayMetrics.density
     private val paint = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         this.color = color
