@@ -238,7 +238,8 @@ class ReplyListener : NotificationListenerService() {
         if (native) {
             CarMirror.removed(this, sbn.key)
             // ליתר ביטחון (אם ההודעה על החיבור לרכב לא הגיעה): ברכב החלון הקופץ של וואטסאפ דלוק
-            if (WaBlock.isWhatsApp(sbn.packageName) && CarPopup.on(this) && CarMirror.connected(this)) runCatching { CarPopup.boost(this) }
+            // ובטלפון (לא ברכב) הוא כבוי, כדי שתופיע רק הגלולה (אם הדלקת אותו מחדש בהגדרות)
+            if (WaBlock.isWhatsApp(sbn.packageName) && CarPopup.on(this)) runCatching { if (CarMirror.connected(this)) CarPopup.boost(this) else CarPopup.calm(this) }
             // בדיקה: מה בדיוק ההודעה הזאת מבקשת מהטלפון (קופצת? בשקט? חסומה ב"נא לא להפריע"?)
             if (WaBlock.isWhatsApp(sbn.packageName)) runCatching { CarPopup.inspect(this, sbn) }
         } else if ((sbn.packageName in carApps || sbn.packageName in smsApps) && NotchPrefs.carApp(this, sbn.packageName)) {

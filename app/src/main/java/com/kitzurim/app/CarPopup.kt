@@ -27,7 +27,7 @@ object CarPopup {
     fun on(c: Context) = sp(c).getBoolean("on", true)
     fun setOn(c: Context, v: Boolean) {
         sp(c).edit().putBoolean("on", v).apply()
-        listener?.let { l -> if (v && CarMirror.connected(l)) boost(l) else restore(l) }
+        listener?.let { l -> if (!v) { restore(l); unCalm(l) } else sync(l) }
     }
 
     /** האם כבר אישרת פעם אחת (מכשיר מקושר לקיצורים) */
@@ -196,8 +196,42 @@ object CarPopup {
         sp(l).edit().putStringSet("saved", left).apply()
     }
 
-    /** כל בדיקה של מצב הרכב: מחוברים = מדליקים, לא מחוברים = מחזירים */
+    /**
+     * בטלפון (לא ברכב): ההודעות של וואטסאפ לא קופצות, כדי שתופיע רק הגלולה של קיצורים.
+     * הצליל והרטט נשארים כמו שהם, רק החלון הקופץ יורד. ברכב הוא עולה שוב (boost)
+     */
+    fun calm(l: NotificationListenerService) {
+        if (!on(l) || !approved(l)) return
+        val user = android.os.Process.myUserHandle()
+        val lowered = (sp(l).getStringSet("lowered", emptySet()) ?: emptySet()).toMutableSet()
+        apps.forEach { pkg ->
+            val chans = runCatching { l.getNotificationChannels(pkg, user) }.getOrNull() ?: return@forEach
+            chans.filter { isChat(it.id) && it.importance >= NotificationManager.IMPORTANCE_HIGH }.forEach { ch ->
+                ch.importance = NotificationManager.IMPORTANCE_DEFAULT
+                if (runCatching { l.updateNotificationChannel(pkg, user, ch) }.isSuccess) lowered += "$pkg|${ch.id}"
+            }
+        }
+        sp(l).edit().putStringSet("lowered", lowered).apply()
+    }
+
+    /** כיבית את האפשרות: מחזירים את החלון הקופץ שהורדנו בטלפון */
+    private fun unCalm(l: NotificationListenerService) {
+        val lowered = sp(l).getStringSet("lowered", emptySet()) ?: emptySet()
+        val user = android.os.Process.myUserHandle()
+        lowered.forEach { e ->
+            val parts = e.split("|")
+            if (parts.size != 2) return@forEach
+            val ch = runCatching { l.getNotificationChannels(parts[0], user) }.getOrNull()?.firstOrNull { it.id == parts[1] } ?: return@forEach
+            if (ch.importance == NotificationManager.IMPORTANCE_DEFAULT) {
+                ch.importance = NotificationManager.IMPORTANCE_HIGH
+                runCatching { l.updateNotificationChannel(parts[0], user, ch) }
+            }
+        }
+        sp(l).edit().remove("lowered").apply()
+    }
+
+    /** כל בדיקה של מצב הרכב: מחוברים = קופץ ברכב, לא מחוברים = בטלפון רק הגלולה */
     fun sync(l: NotificationListenerService) {
-        runCatching { if (CarMirror.connected(l)) boost(l) else restore(l) }
+        runCatching { if (CarMirror.connected(l)) boost(l) else { restore(l); calm(l) } }
     }
 }
