@@ -81,6 +81,24 @@ object CarPopup {
         // וואטסאפ: ערוצי צ'אט. טלגרם: ערוצי פרטי / קבוצות / ערוצים (לטלגרם אין "chat" בשם)
         (id.contains("chat", true) || id.contains("group", true) || id.contains("channel", true) || id.contains("private", true))
 
+    /**
+     * כל אפליקציה שקיצורים מראה ממנה הודעה בגלולה: זוכרים את ערוץ ההתראה שלה (בדיוק אותו ערוץ, לא לפי שם),
+     * ומעכשיו גם הוא קופץ רק ברכב ובטלפון יש רק את הגלולה
+     */
+    fun seen(l: NotificationListenerService, pkg: String, channel: String?) {
+        if (channel == null || pkg == l.packageName || !on(l)) return
+        val key = "$pkg|$channel"
+        val known = sp(l).getStringSet("known", emptySet()) ?: emptySet()
+        if (key !in known) sp(l).edit().putStringSet("known", known + key).apply()
+        runCatching { if (CarMirror.connected(l)) boost(l) else calm(l) }
+    }
+
+    private fun known(c: Context) = sp(c).getStringSet("known", emptySet()) ?: emptySet()
+    private fun packages(c: Context) = (apps + known(c).map { it.substringBefore("|") }).distinct()
+    /** הערוץ הזה בשליטה כאן: ערוצי הודעות של וואטסאפ וטלגרם, או ערוץ שכבר הראינו ממנו גלולה */
+    private fun mine(c: Context, pkg: String, id: String) =
+        "$pkg|$id" in known(c) || (pkg in apps && isChat(id))
+
     /** מחוברים לרכב: מדליקים את החלון הקופץ להודעות של וואטסאפ (רק מה שהיה "התראה" בלי חלון קופץ) */
     fun boost(l: NotificationListenerService) {
         if (!on(l)) return
@@ -90,11 +108,11 @@ object CarPopup {
         var changed = 0
         var high = 0
         var err: String? = null
-        apps.forEach { pkg ->
+        packages(l).forEach { pkg ->
             val chans = runCatching { l.getNotificationChannels(pkg, user) }
                 .onFailure { err = it.javaClass.simpleName + ": " + it.message }
                 .getOrNull() ?: return@forEach
-            chans.filter { isChat(it.id) }.forEach { ch ->
+            chans.filter { mine(l, pkg, it.id) }.forEach { ch ->
                 when {
                     ch.importance >= NotificationManager.IMPORTANCE_HIGH -> high++
                     // "חסום" (NONE) נשאר חסום. כל השאר (שקט / התראה בלי קפיצה) עולה לקפיצה
@@ -112,11 +130,11 @@ object CarPopup {
         sp(l).edit().putStringSet("saved", saved).apply()
         note(l, when {
             err != null -> "❌ אנדרואיד לא נתן לשנות: $err"
-            changed > 0 -> "✅ הודלק חלון קופץ ל-$changed ערוצים של וואטסאפ"
-            high > 0 -> "✅ החלון הקופץ של וואטסאפ דלוק ($high ערוצים)"
-            else -> "❌ לא נמצאו ערוצי הודעות של וואטסאפ"
+            changed > 0 -> "✅ הודלק חלון קופץ ל-$changed ערוצי הודעות"
+            high > 0 -> "✅ החלון הקופץ של ההודעות דלוק ($high ערוצים)"
+            else -> "❌ לא נמצאו ערוצי הודעות"
         })
-        if (changed > 0) ActivityLog.add(l, "🚗", "ברכב: ההודעות של וואטסאפ קופצות")
+        if (changed > 0) ActivityLog.add(l, "🚗", "ברכב: ההודעות קופצות")
     }
 
     /** מה קרה בפעם האחרונה (מוצג במסך, כדי לדעת מה עובד ומה לא) */
@@ -159,10 +177,10 @@ object CarPopup {
         lines += (if (approved(c)) "✅" else "❌") + " אישור חד-פעמי"
         lines += (if (CarMirror.connected(c)) "✅ מחובר לרכב" else "⚪ לא מחובר לרכב עכשיו")
         if (l == null) lines += "❌ גישה להתראות לא פעילה"
-        else apps.forEach { pkg ->
+        else packages(c).forEach { pkg ->
             val chans = runCatching { l.getNotificationChannels(pkg, android.os.Process.myUserHandle()) }
             chans.onFailure { lines += "❌ אין גישה לערוצים: ${it.javaClass.simpleName}" }
-            chans.getOrNull()?.filter { isChat(it.id) }?.forEach { ch ->
+            chans.getOrNull()?.filter { mine(c, pkg, it.id) }?.forEach { ch ->
                 val imp = when (ch.importance) {
                     NotificationManager.IMPORTANCE_HIGH, NotificationManager.IMPORTANCE_MAX -> "קופץ"
                     NotificationManager.IMPORTANCE_DEFAULT -> "בלי קפיצה"
@@ -210,9 +228,9 @@ object CarPopup {
         if (!on(l) || !approved(l)) return
         val user = android.os.Process.myUserHandle()
         val lowered = (sp(l).getStringSet("lowered", emptySet()) ?: emptySet()).toMutableSet()
-        apps.forEach { pkg ->
+        packages(l).forEach { pkg ->
             val chans = runCatching { l.getNotificationChannels(pkg, user) }.getOrNull() ?: return@forEach
-            chans.filter { isChat(it.id) && it.importance >= NotificationManager.IMPORTANCE_HIGH }.forEach { ch ->
+            chans.filter { mine(l, pkg, it.id) && it.importance >= NotificationManager.IMPORTANCE_HIGH }.forEach { ch ->
                 ch.importance = NotificationManager.IMPORTANCE_DEFAULT
                 if (runCatching { l.updateNotificationChannel(pkg, user, ch) }.isSuccess) lowered += "$pkg|${ch.id}"
             }

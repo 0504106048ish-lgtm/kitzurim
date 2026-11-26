@@ -237,9 +237,6 @@ class ReplyListener : NotificationListenerService() {
             acts.any { it.semanticAction == Notification.Action.SEMANTIC_ACTION_MARK_AS_READ }
         if (native) {
             CarMirror.removed(this, sbn.key)
-            // ליתר ביטחון (אם ההודעה על החיבור לרכב לא הגיעה): ברכב החלון הקופץ של וואטסאפ דלוק
-            // ובטלפון (לא ברכב) הוא כבוי, כדי שתופיע רק הגלולה (אם הדלקת אותו מחדש בהגדרות)
-            if (CarPopup.handles(sbn.packageName) && CarPopup.on(this)) runCatching { if (CarMirror.connected(this)) CarPopup.boost(this) else CarPopup.calm(this) }
             // בדיקה: מה בדיוק ההודעה הזאת מבקשת מהטלפון (קופצת? בשקט? חסומה ב"נא לא להפריע"?)
             if (WaBlock.isWhatsApp(sbn.packageName)) runCatching { CarPopup.inspect(this, sbn) }
         } else if ((sbn.packageName in carApps || sbn.packageName in smsApps) && NotchPrefs.carApp(this, sbn.packageName)) {
@@ -250,6 +247,8 @@ class ReplyListener : NotificationListenerService() {
                 ?: n.getLargeIcon()?.let { runCatching { androidx.core.graphics.drawable.IconCompat.createFromIcon(this, it) }.getOrNull() }
             CarMirror.mirror(this, sbn.key, who, text, if (group) (style?.conversationTitle?.toString() ?: sender) else null, reply, read, icon, n.contentIntent)
         }
+        // כל אפליקציה שמגיעה לגלולה: ברכב ההודעות שלה קופצות, ובטלפון רק הגלולה (בלי החלון הקופץ שלה)
+        runCatching { CarPopup.seen(this, sbn.packageName, n.channelId) }
         NotchOverlay.notificationPosted(sbn.key, color, m)
         LivePill.showMessage(pillTitle, pillText, color, n.contentIntent, msg = m, burst = count > 1)
         // המסך כבוי: "תמיד מופעל" של קיצורים מדליק לרגע מסך שחור ומראה את ההודעה בגלולה
