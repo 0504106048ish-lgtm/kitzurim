@@ -57,16 +57,21 @@ object ClipWatch {
     // ההחזרה שלנו ללוח (בשביל המקלדת) לא נחשבת העתקה חדשה
     private var ownUntil = 0L
 
+    /** קיצורים עצמה העתיקה (קוד אימות): ה"הועתק" שאחרי זה הוא לא העתקה שלך */
+    fun ownCopy() { ownUntil = SystemClock.elapsedRealtime() + 3000 }
+
     private fun trigger(s: AccessibilityService) {
-        if (pending || SystemClock.elapsedRealtime() < ownUntil) return
+        // לחיצה על "העתק" ואחריה ה"הועתק" של המערכת הן אותה העתקה: גלולה אחת, לא שתיים
+        if (pending || SystemClock.elapsedRealtime() < ownUntil || SystemClock.elapsedRealtime() - shownAt < 2500) return
         pending = true
         main.postDelayed({
             pending = false
-            val sel = lastSel?.takeIf { SystemClock.elapsedRealtime() - selAt < 60_000 }
+            // רק בחירה מהשניות האחרונות (בחירה ישנה הייתה מראה טקסט אחר ממה שהעתקת)
+            val sel = lastSel?.takeIf { SystemClock.elapsedRealtime() - selAt < 8_000 }
             lastSel = null
-            // יש טקסט מסומן: מראים אותו. אין: קוראים מהלוח מה הועתק
+            // קודם מה שבאמת בלוח (זה מה שהעתקת). רק אם אי אפשר לקרוא אותו: הטקסט המסומן
             // (נבדק: גם כשקיצורים כבויה המקלדת של גוגל לא מציעה להדביק, אז הקריאה לא הסיבה)
-            if (!sel.isNullOrBlank()) show(sel) else readClip(s) { show(it) }
+            readClip(s, onFail = { if (!sel.isNullOrBlank()) show(sel) }) { show(it) }
         }, 250)
     }
 
@@ -79,8 +84,8 @@ object ClipWatch {
     }
 
     /** חלון בגודל נקודה שמקבל מיקוד לרגע: רק כך מותר לקרוא את הלוח (רק כשמקישים על הגלולה) */
-    fun readClip(s: AccessibilityService, onText: (String) -> Unit) {
-        val wm = s.getSystemService(WindowManager::class.java) ?: return
+    fun readClip(s: AccessibilityService, onFail: () -> Unit = {}, onText: (String) -> Unit) {
+        val wm = s.getSystemService(WindowManager::class.java) ?: return onFail()
         val v = View(s)
         val lp = WindowManager.LayoutParams(
             1, 1,
@@ -100,9 +105,9 @@ object ClipWatch {
             val data = runCatching { cm?.primaryClip }.getOrNull()
             val clip = runCatching { data?.getItemAt(0)?.coerceToText(s)?.toString() }.getOrNull()
             finish()
-            if (!clip.isNullOrBlank()) onText(clip)
+            if (!clip.isNullOrBlank()) onText(clip) else onFail()
         }
-        runCatching { wm.addView(v, lp) }.onFailure { return }
-        main.postDelayed({ finish() }, 800)
+        runCatching { wm.addView(v, lp) }.onFailure { onFail(); return }
+        main.postDelayed({ if (!done) { finish(); onFail() } }, 800)
     }
 }

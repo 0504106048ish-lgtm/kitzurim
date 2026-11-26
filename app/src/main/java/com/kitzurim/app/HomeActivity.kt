@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.AutoMode
@@ -115,7 +116,12 @@ fun HomeScreen(resumes: Int) {
     // כך שכשמכבים אותה היא באמת נעלמת
     androidx.compose.runtime.LaunchedEffect(openPage, resumes) { NotchOverlay.setPreview(openPage == "more") }
     var query by remember { mutableStateOf("") }
+    // הגעת לדף מהחיפוש: מה לסמן שם (נעלם אחרי כמה שניות)
+    var hit by remember { mutableStateOf<HitInfo?>(null) }
+    androidx.compose.runtime.LaunchedEffect(hit) { if (hit != null) { kotlinx.coroutines.delay(4500); hit = null } }
+    // חזרה מדף: אם הגעת אליו מהחיפוש, חוזרים לתוצאות (החיפוש נשאר כתוב). חזרה מהתוצאות: מנקה את החיפוש
     androidx.activity.compose.BackHandler(enabled = openPage != null) { pageScroll.remove(openPage); openPage = null }
+    androidx.activity.compose.BackHandler(enabled = openPage == null && query.isNotBlank()) { query = "" }
     var pendingContact by remember { mutableStateOf<Pair<Target, ActionType>?>(null) }
 
     /** שומר פעולה. באפליקציה מסוימת, null = "כמו בכל מקום" */
@@ -159,6 +165,7 @@ fun HomeScreen(resumes: Int) {
     }
 
     key(resumes, refresh) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalHit provides hit) {
         Surface(Modifier.fillMaxSize(), color = scheme.background) {
             // מעבר בין דפים: הדף החדש נכנס בהחלקה מהצד ובהופעה רכה, והקודם זז קצת ונעלם.
             // בעברית "קדימה" זה שמאלה, ו"חזרה" ימינה
@@ -312,7 +319,7 @@ fun HomeScreen(resumes: Int) {
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(Neon.Tile)
-                                    .clickable { openPage = p.id; query = "" }
+                                    .clickable { hit = HitInfo(listOf(item, q)); openPage = p.id }
                                     .padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -977,6 +984,7 @@ fun HomeScreen(resumes: Int) {
             }
             }
         }
+        }
     }
 
     // ---------- חלונות בחירה ----------
@@ -1091,6 +1099,10 @@ private class RowCounter {
 
 private val LocalRowCounter = androidx.compose.runtime.compositionLocalOf { RowCounter() }
 
+/** מה חיפשת: השורה שמתאימה בדף מסומנת. scrolled = כבר גללנו לשורה הראשונה שמתאימה */
+private class HitInfo(val words: List<String>) { var scrolled = false }
+private val LocalHit = androidx.compose.runtime.compositionLocalOf<HitInfo?> { null }
+
 /** "🔋 טבעת סוללה (מראה כמה סוללה נשארה)" ← סמל, שם קצר, והסבר שנפתח ב־ⓘ */
 private data class RowLabel(val icon: String?, val title: String, val info: String?)
 
@@ -1124,12 +1136,36 @@ private fun iconTint(icon: String): Color {
 
 /** שורה בסגנון אייפון: סמל צבעוני, שם, ⓘ שפותח הסבר, ומה שבצד (מתג וכו') */
 @Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 private fun IosRow(text: String, trailing: @Composable () -> Unit) {
     val counter = LocalRowCounter.current
     val index = remember { counter.next() }
     val l = remember(text) { splitLabel(text) }
     var open by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth()) {
+    // הגעת לכאן מהחיפוש: השורה שמצאת גוללת למסך ומהבהבת בירוק לכמה שניות
+    val hit = LocalHit.current
+    val match = hit != null && hit.words.any { it.isNotBlank() && text.contains(it, ignoreCase = true) }
+    val hitReq = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val flash = remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(match) {
+        if (!match || hit == null) { flash.snapTo(0f); return@LaunchedEffect }
+        if (!hit.scrolled) {
+            hit.scrolled = true
+            kotlinx.coroutines.delay(380) // אחרי שהדף סיים להיכנס
+            runCatching { hitReq.bringIntoView() }
+        }
+        repeat(3) {
+            flash.animateTo(1f, androidx.compose.animation.core.tween(320))
+            flash.animateTo(0.3f, androidx.compose.animation.core.tween(320))
+        }
+        flash.animateTo(0f, androidx.compose.animation.core.tween(1200))
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .bringIntoViewRequester(hitReq)
+            .background(Neon.Green.copy(alpha = 0.3f * flash.value), RoundedCornerShape(12.dp)),
+    ) {
         if (index > 0) Box(Modifier.fillMaxWidth().padding(start = if (l.icon != null) 42.dp else 0.dp).height(0.6.dp).background(Color(0x22FFFFFF)))
         // מרווח נוח בין שורות; המתג תמיד בקצה השמאלי, באותו מקום בכל השורות
         Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {

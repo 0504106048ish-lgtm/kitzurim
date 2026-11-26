@@ -54,7 +54,21 @@ object Codes {
         val code = find(sbn) ?: return false
         if (shown[sbn.key] == code) return true
         shown[sbn.key] = code
+        // רק הודעה שהגיעה עכשיו. התראה ישנה שמתפרסמת שוב (מטען, הפעלה מחדש, עדכון של האפליקציה)
+        // לא מעתיקה שוב את הקוד שלה, וכך לא מועתקים "סתם" מספרים בלי שהגיעה הודעה
+        val n = sbn.notification
+        val sent = if (n.`when` > 0) n.`when` else sbn.postTime
+        if (System.currentTimeMillis() - sent > 90_000) return true
+        // אותו קוד כבר הועתק (גם לפני שהטלפון/קיצורים הופעלו מחדש): לא שוב
+        val sp = c.getSharedPreferences("codes_seen", Context.MODE_PRIVATE)
+        val seen = "${sbn.packageName}|$code"
+        if (System.currentTimeMillis() - sp.getLong(seen, 0L) < 30 * 60_000L) return true
+        val ed = sp.edit()
+        // ניקוי: שומרים רק את האחרונים
+        sp.all.entries.sortedByDescending { it.value as? Long ?: 0L }.drop(30).forEach { ed.remove(it.key) }
+        ed.putLong(seen, System.currentTimeMillis()).apply()
         copy(c, code)
+        ClipWatch.ownCopy()
         LivePill.showCode(code)
         return true
     }

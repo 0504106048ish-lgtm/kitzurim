@@ -165,7 +165,19 @@ class ReplyListener : NotificationListenerService() {
         val style = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)
         val last = style?.messages?.lastOrNull()
         // ענית בעצמך: סימן שקראת, העיגול נכבה
-        if (style != null && last != null && last.person == null) {
+        // (וואטסאפ מסמן את ההודעה שלך לפעמים בלי שולח, ולפעמים עם "את/ה" כשולח. ואנדרואיד עצמו שם את מה שענית
+        //  מהשורה בהיסטוריה של ההתראה עוד לפני שוואטסאפ מעדכן)
+        val me = style?.user
+        val mine = last != null && (
+            last.person == null ||
+                (me != null && ((me.key != null && last.person?.key == me.key) ||
+                    (!me.name.isNullOrBlank() && last.person?.name?.toString() == me.name.toString())))
+            )
+        val history = n.extras.getCharSequenceArray(Notification.EXTRA_REMOTE_INPUT_HISTORY)
+            ?.map { it.toString().trim() }.orEmpty()
+        val lastText = (last?.text ?: n.extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()?.trim()
+        val replied = lastText != null && history.any { it == lastText }
+        if ((style != null && mine) || replied) {
             NotchOverlay.notificationRemoved(sbn.key)
             // ענית: מתחילים לספור מחדש, כדי שההודעה הבאה שלו לא תיספר כ"2 הודעות"
             burst.remove(sbn.key)
