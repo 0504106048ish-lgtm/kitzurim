@@ -18,7 +18,10 @@ import android.service.notification.NotificationListenerService
  * אנדרואיד מרשה לשנות הגדרות התראה של אפליקציה אחרת רק אחרי אישור חד-פעמי של מכשיר מחובר (כאן: הרכב).
  */
 object CarPopup {
-    private val apps = listOf("com.whatsapp", "com.whatsapp.w4b")
+    private val apps = listOf("com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "org.telegram.messenger.web")
+
+    /** אפליקציה שהחלון הקופץ שלה נשלט כאן (ברכב קופץ, בטלפון רק הגלולה) */
+    fun handles(pkg: String) = pkg in apps
     private fun sp(c: Context) = c.getSharedPreferences("car_popup", Context.MODE_PRIVATE)
 
     /** המאזין להתראות של קיצורים (רק הוא יכול לשנות את ההגדרות של וואטסאפ) */
@@ -73,7 +76,10 @@ object CarPopup {
     }
 
     /** ערוצי ההודעות של וואטסאפ (צ'אט וקבוצה), לא שיחות ולא שקטים */
-    private fun isChat(id: String) = id.contains("chat", true) && !id.contains("silent", true) && !id.contains("call", true)
+    private fun isChat(id: String) = !id.contains("silent", true) && !id.contains("call", true) &&
+        !id.contains("voip", true) && !id.contains("other", true) &&
+        // וואטסאפ: ערוצי צ'אט. טלגרם: ערוצי פרטי / קבוצות / ערוצים (לטלגרם אין "chat" בשם)
+        (id.contains("chat", true) || id.contains("group", true) || id.contains("channel", true) || id.contains("private", true))
 
     /** מחוברים לרכב: מדליקים את החלון הקופץ להודעות של וואטסאפ (רק מה שהיה "התראה" בלי חלון קופץ) */
     fun boost(l: NotificationListenerService) {
