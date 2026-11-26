@@ -89,7 +89,9 @@ object LivePill {
         val frame = if (photo != null && NotchPrefs.pillPhotoColor(s)) vivid(photo) ?: color else color
         // שורה אחת בשורת המצב (לא יורדת): מימין לחור השם, ובקצה התמונה (או העיגול עם האות).
         // משמאל לחור ההודעה, שזזה פעם אחת לאט עד הסוף. הקשה פותחת
-        val marquee = msgRow(sender, text, frame, open, photo, msg?.thumb, msg?.pkg)
+        // הודעה עם ירידת שורה (למשל טקסט ואחריו קישור): הכל בשורה אחת רצה, בלי שתי שורות זו על זו
+        val flat = text.replace(Regex("\\s*[\\r\\n\\u2028\\u2029]+\\s*"), " · ").replace(Regex("\\s{2,}"), " ").trim()
+        val marquee = msgRow(sender.replace(Regex("\\s+"), " ").trim(), flat, frame, open, photo, msg?.thumb, msg?.pkg)
         instantNext = false
         // הודעה חדשה (לא עוד אחת באותו רצף): הקצוות של המסך זוהרים לרגע
         if (!fromRing && !burst && kind == "msg" && NotchPrefs.edgeGlow(s)) edgeGlow(frame)
