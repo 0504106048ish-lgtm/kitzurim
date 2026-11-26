@@ -952,7 +952,28 @@ class RingView(
         invalidate()
     }
 
+    // ווליום, שיר והורדה: הקו נע ברכות לערך החדש, בלי קפיצות
+    private val volS = Smooth(follow = false)
+    private val musicS = Smooth(follow = true)
+    private val dlS = Smooth(follow = false)
+    private var glideQueued = false
+    private val glide = Runnable {
+        glideQueued = false
+        invalidate()
+    }
+
+    /** אחרי כל ציור: אם משהו עוד בתנועה, מציירים שוב בעוד רגע */
+    private fun keepGliding() {
+        val next = listOfNotNull(volS.step(), musicS.step(), dlS.step()).minOrNull() ?: return
+        if (glideQueued) return
+        glideQueued = true
+        if (next <= 16L) postOnAnimation(glide) else postDelayed(glide, next)
+    }
+
     fun update(state: RingState) {
+        state.volume?.let { volS.set(it) } ?: volS.clear()
+        state.music?.let { musicS.set(it) } ?: musicS.clear()
+        state.download?.let { dlS.set(it) } ?: dlS.clear()
         st = state
         val moving = st.ringing || st.pulse != null || (st.battery && st.charging && st.chargeAnim)
         if (moving && !anim.isStarted) anim.start()
@@ -962,6 +983,8 @@ class RingView(
 
     override fun onDetachedFromWindow() {
         anim.cancel()
+        removeCallbacks(glide)
+        glideQueued = false
         super.onDetachedFromWindow()
     }
 
@@ -1025,7 +1048,9 @@ class RingView(
         // עוצמת קול: כחול, לשנייה
         st.volume?.let { v ->
             c.drawCircle(cx, cy, radius, track)
-            glowArc(c, rect, NotchPrefs.tint(context, "volume", Color.rgb(79, 179, 255)), 360f * v, 95)
+            val sv = volS.shown.takeIf { it >= 0f } ?: v
+            glowArc(c, rect, NotchPrefs.tint(context, "volume", Color.rgb(79, 179, 255)), 360f * sv, 95)
+            keepGliding()
             return
         }
 
@@ -1033,13 +1058,17 @@ class RingView(
         // הורדה: הטבעת מתמלאת בכחול לפי ההתקדמות
         st.download?.let { p ->
             c.drawCircle(cx, cy, radius, track)
-            glowArc(c, rect, NotchPrefs.tint(context, "download", Color.rgb(79, 179, 255)), 360f * p.coerceIn(0.02f, 1f))
+            val sp = dlS.shown.takeIf { it >= 0f } ?: p
+            glowArc(c, rect, NotchPrefs.tint(context, "download", Color.rgb(79, 179, 255)), 360f * sp.coerceIn(0.02f, 1f))
+            keepGliding()
             return
         }
 
         st.music?.let { m ->
             c.drawCircle(cx, cy, radius, track)
-            glowArc(c, rect, NotchPrefs.tint(context, "music", Color.rgb(179, 136, 255)), 360f * m)
+            val sm = musicS.shown.takeIf { it >= 0f } ?: m
+            glowArc(c, rect, NotchPrefs.tint(context, "music", Color.rgb(179, 136, 255)), 360f * sm)
+            keepGliding()
             return
         }
 

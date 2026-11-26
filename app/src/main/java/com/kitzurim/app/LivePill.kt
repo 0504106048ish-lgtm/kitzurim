@@ -1336,7 +1336,7 @@ object LivePill {
         val o = outline ?: return
         val s = NotchOverlay.service
         val vol = SystemClock.uptimeMillis() < volUntil
-        if (vol) o.set(volValue, NotchPrefs.tint(s, "volume", Color.rgb(79, 179, 255)))
+        if (vol) o.set(volValue, NotchPrefs.tint(s, "volume", Color.rgb(79, 179, 255)), vol = true)
         else o.set(songProgress, NotchPrefs.tint(s, "music", Color.rgb(179, 136, 255)))
     }
 
@@ -1356,13 +1356,30 @@ object LivePill {
             target.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> invalidate() }
         }
 
-        fun set(p: Float, color: Int) {
-            progress = p.coerceIn(0f, 1f)
+        // השיר מתקדם ברצף והווליום מחליק, בלי קפיצות
+        private val songS = Smooth(follow = true)
+        private val volS = Smooth(follow = false)
+        private var isVol = false
+        private val glide = Runnable { invalidate() }
+
+        fun set(p: Float, color: Int, vol: Boolean = false) {
+            isVol = vol
+            if (vol) volS.set(p) else { songS.set(p); volS.clear() }
             paint.color = color
             invalidate()
         }
 
+        override fun onDetachedFromWindow() {
+            removeCallbacks(glide)
+            super.onDetachedFromWindow()
+        }
+
         override fun onDraw(c: android.graphics.Canvas) {
+            val sm = if (isVol) volS else songS
+            val next = sm.step()
+            if (sm.shown >= 0f) progress = sm.shown
+            removeCallbacks(glide)
+            if (next != null) { if (next <= 16L) postOnAnimation(glide) else postDelayed(glide, next) }
             if (progress <= 0f) return
             val l = target.left + target.translationX + sw / 2
             val t = target.top + sw / 2
