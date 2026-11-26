@@ -119,6 +119,33 @@ object CarPopup {
         sp(c).edit().putString("last", "$t  $s").apply()
     }
 
+    /**
+     * ההודעה האחרונה מוואטסאפ: כל מה שקובע אם היא קופצת (גם בטלפון וגם ברכב).
+     * אנדרואיד אוטו מקפיץ רק הודעה ש"מתריעה": חשיבות גבוהה, לא נחסמת ב"נא לא להפריע", לא שקטה בכוונה,
+     * ולא "התראה בתוך קבוצה" שוואטסאפ ביקש שרק הסיכום שלה יתריע
+     */
+    fun inspect(l: NotificationListenerService, sbn: android.service.notification.StatusBarNotification) {
+        val n = sbn.notification
+        val r = NotificationListenerService.Ranking()
+        val ok = runCatching { l.currentRanking.getRanking(sbn.key, r) }.getOrDefault(false)
+        val parts = mutableListOf<String>()
+        if (ok) {
+            parts += "חשיבות ${r.importance}"
+            if (!r.matchesInterruptionFilter()) parts += "❌ נחסמה ב'נא לא להפריע'"
+            if (r.suppressedVisualEffects != 0) parts += "❌ הסתרה ${r.suppressedVisualEffects}"
+            if (Build.VERSION.SDK_INT >= 29 && r.isSuspended) parts += "❌ מושהית"
+            r.channel?.let { ch -> parts += "ערוץ ${ch.name}" + (if (ch.sound == null && !ch.shouldVibrate()) " (בלי צליל ורטט)" else "") }
+        } else parts += "אין דירוג"
+        val filter = runCatching { l.currentInterruptionFilter }.getOrDefault(0)
+        if (filter > NotificationListenerService.INTERRUPTION_FILTER_ALL) parts += "❌ 'נא לא להפריע' דלוק ($filter)"
+        if (n.flags and android.app.Notification.FLAG_ONLY_ALERT_ONCE != 0) parts += "מתריעה פעם אחת"
+        if (Build.VERSION.SDK_INT >= 26 && n.group != null && n.groupAlertBehavior == android.app.Notification.GROUP_ALERT_SUMMARY) parts += "❌ רק הסיכום מתריע"
+        if (Build.VERSION.SDK_INT >= 26 && n.group != null && n.groupAlertBehavior == android.app.Notification.GROUP_ALERT_CHILDREN) parts += "הודעה מתריעה"
+        if (n.flags and android.app.Notification.FLAG_GROUP_SUMMARY != 0) parts += "סיכום"
+        val t = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+        sp(l).edit().putString("diag", "$t  " + parts.joinToString(" · ")).apply()
+    }
+
     /** מצב מלא, בשביל השורה במסך: אישור, רכב, ומה מצב כל ערוץ של וואטסאפ עכשיו */
     fun status(c: Context): String {
         val l = listener
@@ -141,6 +168,9 @@ object CarPopup {
             }
         }
         sp(c).getString("last", null)?.let { lines += "פעם אחרונה: $it" }
+        sp(c).getString("diag", null)?.let { lines += "הודעה אחרונה מוואטסאפ: $it" }
+        val filter = l?.let { runCatching { it.currentInterruptionFilter }.getOrNull() }
+        if (filter != null && filter > NotificationListenerService.INTERRUPTION_FILTER_ALL) lines += "❌ 'נא לא להפריע' דלוק עכשיו"
         return lines.joinToString("\n")
     }
 

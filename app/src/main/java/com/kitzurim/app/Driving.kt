@@ -239,6 +239,8 @@ class ReplyListener : NotificationListenerService() {
             CarMirror.removed(this, sbn.key)
             // ליתר ביטחון (אם ההודעה על החיבור לרכב לא הגיעה): ברכב החלון הקופץ של וואטסאפ דלוק
             if (WaBlock.isWhatsApp(sbn.packageName) && CarPopup.on(this) && CarMirror.connected(this)) runCatching { CarPopup.boost(this) }
+            // בדיקה: מה בדיוק ההודעה הזאת מבקשת מהטלפון (קופצת? בשקט? חסומה ב"נא לא להפריע"?)
+            if (WaBlock.isWhatsApp(sbn.packageName)) runCatching { CarPopup.inspect(this, sbn) }
         } else if ((sbn.packageName in carApps || sbn.packageName in smsApps) && NotchPrefs.carApp(this, sbn.packageName)) {
             val group = style?.isGroupConversation == true
             val who = last?.person?.name?.toString()?.takeIf { it.isNotBlank() } ?: sender
