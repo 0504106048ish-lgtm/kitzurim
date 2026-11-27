@@ -1189,6 +1189,17 @@ object LivePill {
     private var navOpen: PendingIntent? = null
     private var navImg: android.graphics.drawable.Drawable? = null
     private var navTint = false
+    /** הסמל של אפליקציית הניווט עצמה (Waze / מפות), בשביל הגלולה הקטנה */
+    private var navAppIcon: android.graphics.drawable.Drawable? = null
+    /** אחרי 5 שניות: הגלולה מתכווצת לקטנה, רק עם הסמל (גדול וברור, בצד של המצלמה) */
+    private var navMini = false
+    private val navShrink = Runnable {
+        if (kind == "nav" && !navMini) {
+            navMini = true
+            growNext = true
+            navCompact()
+        }
+    }
     private val NAV_BLUE get() = NotchPrefs.tint(NotchOverlay.service, "nav", Color.rgb(51, 204, 255))
 
     /** אין כרגע גלולה, או שמוצגת רק המוזיקה הקבועה (שמפנה מקום לכל דבר אחר) */
@@ -1208,6 +1219,9 @@ object LivePill {
             s.packageManager.getApplicationLabel(s.packageManager.getApplicationInfo(pkg, 0)).toString()
         }.getOrNull() ?: if (pkg == "com.waze") "Waze" else "מפות"
         val appIcon = runCatching { s.packageManager.getApplicationIcon(pkg) }.getOrNull()
+        // ניווט חדש: שוב 5 שניות בגודל מלא
+        if (key != navKey) navMini = false
+        navAppIcon = appIcon
         navKey = key
         navOpen = open
         navLabel = if (hasDist) title else appName
@@ -1219,13 +1233,15 @@ object LivePill {
         when {
             newStep -> {
                 main.removeCallbacks(navSmall)
+                main.removeCallbacks(navShrink)
+                navMini = false
                 show("navbig", 300, NAV_BLUE, null, onTap = { launch(open) }, long = navLine(title, step)) { ctx, _, right ->
                     right.addView(navIconView(ctx))
                 }
                 main.postDelayed(navSmall, 4500)
             }
             kind == "navbig" -> body?.text = navLine(title, step)
-            kind == "nav" -> {
+            kind == "nav" -> if (!navMini) {
                 timerText?.text = navLabel
                 navImg?.let { navIcon?.setImageDrawable(it) }
             }
@@ -1238,12 +1254,29 @@ object LivePill {
         if (navKey == null || inCallPill() || kind == "player" || kind == "msg") return
         if (!demoMode && (!NotchPrefs.pill(s) || !NotchPrefs.pillNav(s))) return
         val open = navOpen
+        val mini = navMini
         show("nav", 150, NAV_BLUE, null, onTap = { launch(open) }) { ctx, left, right ->
+            if (mini) {
+                // קטנה: רק הסמל של Waze, כמה שיותר גדול בגובה הגלולה, בצד של המצלמה (לא מתחת לחור)
+                val d = ctx.resources.displayMetrics.density
+                val icon = navAppIcon ?: navImg
+                if (icon == null) right.addView(label(ctx, "➤", 14f, NAV_BLUE, bold = true))
+                else right.addView(ImageView(ctx).apply {
+                    setImageDrawable(icon)
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    layoutParams = LinearLayout.LayoutParams((21 * d).toInt(), (21 * d).toInt())
+                    navIcon = this
+                })
+                return@show
+            }
             val t = label(ctx, navLabel, 12.5f, NAV_BLUE, bold = true)
             timerText = t
             left.addView(t)
             right.addView(navIconView(ctx))
         }
+        // 5 שניות כמו עכשיו, ואחר כך מתכווצת
+        main.removeCallbacks(navShrink)
+        if (!mini) main.postDelayed(navShrink, 5000)
     }
 
     /** הניווט הסתיים (ההתראה נעלמה) */
@@ -1251,7 +1284,9 @@ object LivePill {
         if (key != navKey) return
         navKey = null
         navStep = null
+        navMini = false
         main.removeCallbacks(navSmall)
+        main.removeCallbacks(navShrink)
         if (kind == "nav" || kind == "navbig") hide()
     }
 
