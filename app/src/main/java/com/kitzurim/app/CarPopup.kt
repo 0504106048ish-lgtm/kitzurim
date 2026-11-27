@@ -93,6 +93,13 @@ object CarPopup {
         runCatching { if (CarMirror.connected(l)) boost(l) else calm(l) }
     }
 
+    /** עכשיו ברכב, והחלון הקופץ של הערוץ הזה באמת דלוק (אז הוא קופץ גם בטלפון, ואין צורך בגלולה) */
+    fun popsNow(l: NotificationListenerService, pkg: String, channel: String?): Boolean {
+        if (channel == null || !on(l) || !CarMirror.connected(l)) return false
+        val ch = l.getNotificationChannels(pkg, android.os.Process.myUserHandle()).firstOrNull { it.id == channel } ?: return false
+        return ch.importance >= NotificationManager.IMPORTANCE_HIGH
+    }
+
     private fun known(c: Context) = sp(c).getStringSet("known", emptySet()) ?: emptySet()
     private fun packages(c: Context) = (apps + known(c).map { it.substringBefore("|") }).distinct()
     /** הערוץ הזה בשליטה כאן: ערוצי הודעות של וואטסאפ וטלגרם, או ערוץ שכבר הראינו ממנו גלולה */

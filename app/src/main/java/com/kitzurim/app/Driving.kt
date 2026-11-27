@@ -250,6 +250,8 @@ class ReplyListener : NotificationListenerService() {
         // כל אפליקציה שמגיעה לגלולה: ברכב ההודעות שלה קופצות, ובטלפון רק הגלולה (בלי החלון הקופץ שלה)
         runCatching { CarPopup.seen(this, sbn.packageName, n.channelId) }
         NotchOverlay.notificationPosted(sbn.key, color, m)
+        // מחוברים לרכב: ההודעה קופצת ברכב ובטלפון כבר קופץ החלון של האפליקציה עצמה, אז בלי הגלולה (אחרת פעמיים)
+        if (runCatching { CarPopup.popsNow(this, sbn.packageName, n.channelId) }.getOrDefault(false)) return
         LivePill.showMessage(pillTitle, pillText, color, n.contentIntent, msg = m, burst = count > 1)
         // המסך כבוי: "תמיד מופעל" של קיצורים מדליק לרגע מסך שחור ומראה את ההודעה בגלולה
         Aod.message(this) { LivePill.showMessage(pillTitle, pillText, color, n.contentIntent, msg = m) }
