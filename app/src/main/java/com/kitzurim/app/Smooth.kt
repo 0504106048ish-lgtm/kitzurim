@@ -6,8 +6,8 @@ import kotlin.math.min
 
 /**
  * ערך שזז בתנועה רכה במקום לקפוץ (הטבעת של השיר והווליום, המסגרת של הגלולה).
- * הווליום: מחליק לערך החדש. השיר: מתקדם ברצף בין העדכונים (שמגיעים פעם בשנייה),
- * לפי הקצב שבו הוא התקדם, כך שהקו נע כל הזמן ולא קופץ כל שנייה.
+ * הווליום: מחליק לערך החדש. השיר: נע ברצף ובמהירות קבועה לפי הקצב של השיר,
+ * בלי לעצור, בלי לחזור אחורה ובלי לקפוץ כשמגיע עדכון (פעם בשנייה). רק מאיץ או מאט קצת כדי להישאר צמוד.
  */
 class Smooth(private val follow: Boolean) {
     /** מה שמצויר עכשיו (מינוס = עוד אין ערך) */
@@ -25,11 +25,16 @@ class Smooth(private val follow: Boolean) {
             shown = value; target = value; at = now; rate = 0f; lastStep = now
             return
         }
+        // אותו ערך שוב (הטבעת מתעדכנת גם בגלל דברים אחרים): לא נוגעים, אחרת הקצב מתאפס והקו נעצר
+        if (value == target) return
         if (follow) {
             val dt = (now - at) / 1000f
             val d = value - target
-            // התקדמות רגילה של שיר: לומדים את הקצב. קפיצה (שיר חדש, דילוג) או עצירה: בלי קצב
-            rate = if (dt in 0.3f..5f && d > 0f && d < 0.05f) d / dt else 0f
+            if (dt in 0.3f..5f && d > 0f && d < 0.05f) {
+                // התקדמות רגילה: הקצב נלמד בהדרגה (ממוצע), כדי שעדכון אחד לא ישנה את המהירות בבת אחת
+                val r = d / dt
+                rate = if (rate > 0f) rate * 0.7f + r * 0.3f else r
+            } else if (d < 0f || d >= 0.05f) rate = 0f // שיר חדש, דילוג או חזרה אחורה
         }
         target = value
         at = now
@@ -43,15 +48,19 @@ class Smooth(private val follow: Boolean) {
         val now = SystemClock.uptimeMillis()
         val frame = ((now - lastStep).coerceIn(0L, 100L)) / 1000f
         lastStep = now
-        // ממשיכים עם הקצב עד שתי שניות אחרי העדכון האחרון (אם העדכונים נעצרו, גם הקו נעצר)
+        if (frame <= 0f) return if (rate > 0f || abs(target - shown) > 0.001f) 16L else null
+        // איפה השיר באמת עכשיו: העדכון האחרון + הקצב מאז (עד שתי שניות, אם העדכונים נעצרו גם הקו נעצר)
         val ahead = rate * (min(now - at, 2000L) / 1000f)
         val goal = (target + ahead).coerceIn(0f, 1f)
         val gap = goal - shown
-        shown += gap * min(1f, frame / 0.12f)
-        return when {
-            abs(gap) > 0.002f -> 16L // באמצע תנועה: כל פריים
-            rate > 0f -> 80L // רק מתקדם לאט עם השיר: מספיק כמה פעמים בשנייה
-            else -> null
+        if (follow && rate > 0f && abs(gap) < 0.05f && now - at < 2000L) {
+            // שיר מתנגן: מהירות קבועה, ומתקנים בעדינות (עד חצי מהירות לכאן או לכאן). אף פעם לא אחורה ולא עוצר
+            val fix = (gap / (rate * 1.5f)).coerceIn(-0.5f, 0.5f)
+            shown = (shown + rate * (1f + fix) * frame).coerceIn(0f, 1f)
+            return 16L
         }
+        // ווליום, שיר חדש או דילוג: מחליק לערך החדש
+        shown += gap * min(1f, frame / 0.15f)
+        return if (abs(gap) > 0.001f) 16L else null
     }
 }
