@@ -3251,8 +3251,18 @@ class WaveBar(ctx: Context, private val onSeek: (Float) -> Unit, private val onD
     var progress = 0
         set(v) {
             field = v.coerceIn(0, 1000)
+            // גרירה ביד: הולך מיד עם האצבע. עדכון מהנגן: נע ברצף ולא קופץ פס אחרי פס
+            if (touching) smooth.clear()
+            smooth.set(field / 1000f)
             invalidate()
         }
+    private var touching = false
+    private val smooth = Smooth(follow = true)
+    private val glide = Runnable { invalidate() }
+    override fun onDetachedFromWindow() {
+        removeCallbacks(glide)
+        super.onDetachedFromWindow()
+    }
     /** לכל שיר צורת גל קצת אחרת */
     var seed = 0f
         set(v) {
@@ -3267,14 +3277,26 @@ class WaveBar(ctx: Context, private val onSeek: (Float) -> Unit, private val onD
         val gap = 2 * d
         val bw = (width - gap * (n - 1)) / n
         if (bw <= 0) return
-        val done = progress / 1000f
+        val next = smooth.step()
+        val done = smooth.shown.takeIf { it >= 0f } ?: (progress / 1000f)
+        removeCallbacks(glide)
+        if (next != null) { if (next <= 16L) postOnAnimation(glide) else postDelayed(glide, next) }
+        // הנקודה שעד אליה מתמלא (בפיקסלים): הפס שבאמצע מתמלא חלקית, כך שהלבן מתקדם ברצף
+        val edge = done * width
         for (i in 0 until n) {
             val wave = kotlin.math.abs(kotlin.math.sin(i * 0.7f + seed) * 0.7f + kotlin.math.sin(i * 1.9f + seed * 0.3f) * 0.3f)
             val h = height * (0.22f + 0.78f * wave).coerceIn(0.22f, 1f)
             val x = i * (bw + gap)
             r.set(x, (height - h) / 2, x + bw, (height + h) / 2)
-            paint.color = if ((i + 0.5f) / n <= done) Color.WHITE else Color.argb(60, 255, 255, 255)
+            paint.color = Color.argb(60, 255, 255, 255)
             c.drawRoundRect(r, bw / 2, bw / 2, paint)
+            if (edge > x) {
+                paint.color = Color.WHITE
+                c.save()
+                c.clipRect(x, 0f, kotlin.math.min(edge, x + bw), height.toFloat())
+                c.drawRoundRect(r, bw / 2, bw / 2, paint)
+                c.restore()
+            }
         }
     }
 
@@ -3283,6 +3305,7 @@ class WaveBar(ctx: Context, private val onSeek: (Float) -> Unit, private val onD
         when (e.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 parent?.requestDisallowInterceptTouchEvent(true)
+                touching = true
                 onDrag(true)
                 progress = (e.x / width * 1000).toInt()
             }
@@ -3291,6 +3314,7 @@ class WaveBar(ctx: Context, private val onSeek: (Float) -> Unit, private val onD
                 progress = (e.x / width * 1000).toInt()
                 onSeek(progress / 1000f)
                 onDrag(false)
+                touching = false
             }
         }
         return true

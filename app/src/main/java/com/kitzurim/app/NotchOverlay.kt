@@ -956,6 +956,9 @@ class RingView(
     private val volS = Smooth(follow = false)
     private val musicS = Smooth(follow = true)
     private val dlS = Smooth(follow = false)
+    // גם השניות של השיחה והסוללה: נעים ברצף ולא קופצים
+    private var callZero = 0L // מתי השיחה התחילה (לפי השעון של הטבעת), כדי שהקו של השניות ינוע ברצף
+    private val batS = Smooth(follow = false)
     private var glideQueued = false
     private val glide = Runnable {
         glideQueued = false
@@ -964,7 +967,7 @@ class RingView(
 
     /** אחרי כל ציור: אם משהו עוד בתנועה, מציירים שוב בעוד רגע */
     private fun keepGliding() {
-        val next = listOfNotNull(volS.step(), musicS.step(), dlS.step()).minOrNull() ?: return
+        val next = listOfNotNull(volS.step(), musicS.step(), dlS.step(), batS.step()).minOrNull() ?: return
         if (glideQueued) return
         glideQueued = true
         if (next <= 16L) postOnAnimation(glide) else postDelayed(glide, next)
@@ -974,6 +977,13 @@ class RingView(
         state.volume?.let { volS.set(it) } ?: volS.clear()
         state.music?.let { musicS.set(it) } ?: musicS.clear()
         state.download?.let { dlS.set(it) } ?: dlS.clear()
+        val cs = state.callSeconds
+        if (cs == null) callZero = 0L
+        else {
+            val est = (SystemClock.uptimeMillis() - callZero) / 1000
+            if (callZero == 0L || kotlin.math.abs(est - cs) > 1) callZero = SystemClock.uptimeMillis() - cs * 1000L
+        }
+        if (state.battery) batS.set(state.level / 100f) else batS.clear()
         st = state
         val moving = st.ringing || st.pulse != null || (st.battery && st.charging && st.chargeAnim)
         if (moving && !anim.isStarted) anim.start()
@@ -1033,7 +1043,9 @@ class RingView(
         st.callSeconds?.let { secs ->
             val col = NotchPrefs.tint(context, "call", Color.rgb(42, 212, 154))
             c.drawCircle(cx, cy, radius, track)
-            glowArc(c, rect, col, 360f * (secs % 60) / 60f)
+            glowArc(c, rect, col, 360f * (if (callZero > 0L) ((SystemClock.uptimeMillis() - callZero) % 60_000L) / 60_000f else (secs % 60) / 60f))
+            // השניות זזות כל הזמן: מציירים בכל פריים
+            if (!glideQueued) { glideQueued = true; postOnAnimation(glide) }
             val minutes = min(secs / 60, 30)
             val r2 = radius + thick * 2.5f + 2 * density
             for (i in 0 until minutes) {
@@ -1094,7 +1106,8 @@ class RingView(
             else -> Color.rgb(62, 209, 140)
         }
         c.drawCircle(cx, cy, radius, track)
-        glowArc(c, rect, col, 360f * st.level / 100f)
+        glowArc(c, rect, col, 360f * (batS.shown.takeIf { it >= 0f } ?: (st.level / 100f)))
+        keepGliding()
         // טעינה: נקודה לבנה מסתובבת
         if (st.charging && st.chargeAnim) {
             val ang = phase * 2 * PI - PI / 2
