@@ -22,7 +22,10 @@ class Smooth(private val follow: Boolean) {
         val now = SystemClock.uptimeMillis()
         val value = v.coerceIn(0f, 1f)
         if (shown < 0f) {
-            shown = value; target = value; at = now; rate = 0f; lastStep = now
+            // מופיע מחדש: מחליק מהמקום האחרון שראו (ווליום), ולא מופיע ישר בערך החדש
+            shown = if (!follow && last >= 0f) last else value
+            target = value; at = now; rate = 0f; lastStep = now
+            last = -1f
             return
         }
         // אותו ערך שוב (הטבעת מתעדכנת גם בגלל דברים אחרים): לא נוגעים, אחרת הקצב מתאפס והקו נעצר
@@ -40,7 +43,20 @@ class Smooth(private val follow: Boolean) {
         at = now
     }
 
-    fun clear() { shown = -1f; rate = 0f }
+    /** הקו נעלם (למשל הווליום אחרי שנייה): זוכרים איפה היה, כדי שבפעם הבאה יחליק משם ולא יקפוץ */
+    private var last = -1f
+    fun clear() { if (shown >= 0f) last = shown; shown = -1f; rate = 0f }
+
+    /**
+     * מתחילים לצייר מנקודה שכבר רואים (למשל מעבר מהשיר לווליום או חזרה): מחליקים משם לערך החדש.
+     * רק נקודת ההתחלה של הציור משתנה, לא הערך עצמו
+     */
+    fun glideFrom(v: Float) {
+        if (v < 0f) return
+        if (shown < 0f) { last = v; return }
+        shown = v.coerceIn(0f, 1f)
+        lastStep = SystemClock.uptimeMillis()
+    }
 
     /** צעד אחד של התנועה. מחזיר אחרי כמה מילישניות לצייר שוב (או null = הגענו, אין צורך) */
     fun step(): Long? {

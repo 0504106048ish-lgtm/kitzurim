@@ -1365,6 +1365,9 @@ object LivePill {
         private val glide = Runnable { invalidate() }
 
         fun set(p: Float, color: Int, vol: Boolean = false) {
+            // מעבר בין השיר לווליום (ובחזרה): המסגרת מחליקה מהמקום שבו היא עכשיו, לא קופצת
+            if (vol && !isVol) volS.glideFrom(songS.shown)
+            if (!vol && isVol) songS.glideFrom(volS.shown)
             isVol = vol
             if (vol) volS.set(p) else { songS.set(p); volS.clear() }
             paint.color = color

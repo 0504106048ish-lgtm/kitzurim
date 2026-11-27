@@ -974,8 +974,11 @@ class RingView(
     }
 
     fun update(state: RingState) {
-        state.volume?.let { volS.set(it) } ?: volS.clear()
+        // מעבר בין השיר לווליום (ובחזרה): הטבעת מחליקה מהמקום שבו היא עכשיו, לא קופצת
+        if (state.volume != null && st.volume == null) volS.glideFrom(if (st.music != null) musicS.shown else -1f)
         state.music?.let { musicS.set(it) } ?: musicS.clear()
+        if (state.volume == null && st.volume != null && state.music != null) musicS.glideFrom(volS.shown)
+        state.volume?.let { volS.set(it) } ?: volS.clear()
         state.download?.let { dlS.set(it) } ?: dlS.clear()
         val cs = state.callSeconds
         if (cs == null) callZero = 0L
